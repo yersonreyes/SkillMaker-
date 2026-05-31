@@ -1,0 +1,62 @@
+# backend/docker-compose.yml
+# Levanta el backend containerizado junto con sus dependencias.
+# Usar para verificar que el Dockerfile funciona antes del deployment completo.
+# Credenciales hardcodeadas son intencionales — este es un archivo de dev-only.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: skillmaker
+      POSTGRES_PASSWORD: skillmaker
+      POSTGRES_DB: skillmaker
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U skillmaker -d skillmaker']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: .
+    ports:
+      - '3000:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      APP_ENV: development
+      PORT: 3000
+      DATABASE_URL: postgres://skillmaker:skillmaker@postgres:5432/skillmaker?sslmode=disable
+      JWT_SECRET: super_secret_key_dev_only
+      JWT_EXPIRES_IN: 1h
+      REFRESH_TOKEN_EXPIRES_IN: 168h
+      GOOGLE_CLIENT_ID: changeme.apps.googleusercontent.com
+      GOOGLE_HOSTED_DOMAIN: example.com
+      STORAGE_ENDPOINT: http://minio:9000
+      STORAGE_REGION: us-east-1
+      STORAGE_BUCKET: skillmaker-materials
+      STORAGE_ACCESS_KEY: minioadmin
+      STORAGE_SECRET_KEY: minioadmin
+      STORAGE_USE_SSL: 'false'
+      ALLOWED_ORIGINS: 'http://localhost:4200'
+
+volumes:
+  postgres_data:
+  minio_data:

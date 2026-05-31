@@ -1,0 +1,157 @@
+basePath: /api
+definitions:
+  dto.GoogleLoginRequest:
+    properties:
+      idToken:
+        type: string
+    required:
+    - idToken
+    type: object
+  dto.LoginResponse:
+    properties:
+      access_token:
+        type: string
+      expires_at:
+        type: string
+      refresh_token:
+        type: string
+      user:
+        $ref: '#/definitions/dto.UserDTO'
+    type: object
+  dto.RefreshRequest:
+    properties:
+      refreshToken:
+        type: string
+    required:
+    - refreshToken
+    type: object
+  dto.UserDTO:
+    properties:
+      email:
+        type: string
+      id:
+        type: string
+      nombre:
+        type: string
+      roles:
+        items:
+          type: string
+        type: array
+    type: object
+  httperr.Error:
+    properties:
+      code:
+        type: string
+      details:
+        additionalProperties:
+          type: string
+        type: object
+      message:
+        type: string
+    type: object
+host: localhost:3000
+info:
+  contact: {}
+  description: Plataforma interna de formación en video — LMS corporativo
+  title: SkillMaker API
+  version: "1.0"
+paths:
+  /auth/google:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Valida el ID token de Google, verifica que el campo hd coincida con el
+        dominio corporativo configurado (GOOGLE_HOSTED_DOMAIN), crea o actualiza
+        el usuario por google_sub y retorna un JWT de acceso + refresh token opaco.
+      parameters:
+      - description: Google ID token obtenido del cliente
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.GoogleLoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.LoginResponse'
+        "400":
+          description: body invalido
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "401":
+          description: token invalido o dominio no autorizado
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "500":
+          description: error interno
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      summary: Login con Google Workspace
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Revoca el refresh token si existe. Retorna 204 en todos los casos
+        (token inexistente, ya revocado, o revocado exitosamente).
+        No requiere JWT en el header.
+      parameters:
+      - description: Refresh token a revocar
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/dto.RefreshRequest'
+      responses:
+        "204":
+          description: No Content
+      summary: Revoca el refresh token de la sesion actual (idempotente)
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Valida el refresh token presentado, detecta replay attacks (OWASP),
+        revoca el token anterior y emite un par nuevo (access + refresh).
+      parameters:
+      - description: Refresh token actual
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.LoginResponse'
+        "400":
+          description: body invalido
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "401":
+          description: token invalido, expirado o reutilizado
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "500":
+          description: error interno
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      summary: Renueva el access token rotando el refresh token
+      tags:
+      - auth
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

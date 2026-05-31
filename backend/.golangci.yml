@@ -1,0 +1,37 @@
+run:
+  timeout: 5m
+  tests: true
+  go: "1.25"
+
+linters:
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - gosec
+    - gofmt
+    - goimports
+    - revive
+    - unused
+    - ineffassign
+    - gocritic
+    - sqlclosecheck
+    - bodyclose
+    - misspell
+
+linters-settings:
+  gocritic:
+    enabled-tags: [diagnostic, performance, style]
+  gosec:
+    excludes:
+      - G115  # integer overflow conversion — too noisy for time arithmetic
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gosec
+        - errcheck
+    - path: cmd/seed/main\.go
+      linters:
+        - gosec  # log.Fatalf usage is acceptable for seed script

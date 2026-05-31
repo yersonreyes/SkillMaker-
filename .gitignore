@@ -1,0 +1,35 @@
+# ─── Secrets / env ───
+.env
+.env.local
+.env.*.local
+
+# ─── Go ───
+backend/tmp/
+backend/dist/
+backend/coverage.out
+backend/coverage.html
+*.test
+*.out
+
+# ─── Node ───
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/.cache/
+npm-debug.log*
+yarn-error.log*
+
+# ─── IDE / editor ───
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# ─── Build artefacts ───
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Note: backend/docs/swagger.json IS committed (parte del contrato API)
