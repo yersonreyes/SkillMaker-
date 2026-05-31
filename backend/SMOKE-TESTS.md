@@ -26,16 +26,16 @@ curl -s http://localhost:3000/api/health | jq
 
 ```bash
 curl -s http://localhost:3000/api/health/ready | jq
-# Expected: { "status": "ready" }
-# Si Postgres down → 503 con info del componente caido
+# Expected (todo OK):    HTTP 200 + { "status": "ok" }
+# Expected (algo down):  HTTP 503 + { "status": "degraded", "issues": ["db"] }
 ```
 
 Para probar el caso de fallo:
 
 ```bash
 make db-down
-curl -s http://localhost:3000/api/health/ready | jq
-# Expected: 503 con body indicando "db" como componente caido
+curl -s -w '\nHTTP %{http_code}\n' http://localhost:3000/api/health/ready
+# Expected: HTTP 503 + { "status": "degraded", "issues": ["db"] }
 make db-up
 ```
 
@@ -50,9 +50,15 @@ curl -X POST http://localhost:3000/api/auth/google \
   -H 'Content-Type: application/json' \
   -d '{"idToken":"<paste-google-id-token-here>"}' | jq
 
-# Expected: 200 con { access_token, refresh_token, expires_at, user }
-# Si hd != GOOGLE_HOSTED_DOMAIN → 401 FORBIDDEN_DOMAIN
+# Expected (ok):                200 + { access_token, refresh_token, expires_at, user }
+# Expected (idToken invalido):  401 + { code: "INVALID_GOOGLE_TOKEN", message }
+# Expected (hd mismatch RT-13): 401 + { code: "UNAUTHORIZED_DOMAIN", message }
 ```
+
+> **Contrato de error codes (consumir desde el frontend):**
+> - `INVALID_GOOGLE_TOKEN` — el ID token de Google no validó (firma o audience incorrecta)
+> - `UNAUTHORIZED_DOMAIN` — el `hd` claim no coincide con `GOOGLE_HOSTED_DOMAIN`
+> - `INVALID_REFRESH` — refresh token inválido, expirado, revocado, o reutilizado tras rotación
 
 ---
 
