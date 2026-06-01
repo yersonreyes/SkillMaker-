@@ -3,7 +3,7 @@ import { Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { AuthService } from '@core/services/authService/auth.service';
 import { UiDialogService } from '@core/services/ui-dialog.service';
-import { environment } from '../../../../environments/environment';
+import { environment } from '@env/environment';
 
 declare const google: any; // eslint-disable-line @typescript-eslint/no-explicit-any
 

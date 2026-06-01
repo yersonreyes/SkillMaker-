@@ -15,6 +15,7 @@ export default defineConfig({
       '@core': path.resolve(__dirname, 'src/app/core'),
       '@pages': path.resolve(__dirname, 'src/app/pages'),
       '@shared': path.resolve(__dirname, 'src/app/shared'),
+      '@env': path.resolve(__dirname, 'src/environments'),
     },
   },
 });

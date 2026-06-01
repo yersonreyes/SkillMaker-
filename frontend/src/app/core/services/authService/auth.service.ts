@@ -2,7 +2,7 @@ import { Injectable, signal, WritableSignal, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-import { environment } from '../../../../environments/environment';
+import { environment } from '@env/environment';
 import type { LoginResponse, RefreshTokenResponse, UserPublic, UserRole, JwtPayload } from './auth.res.dto';
 
 declare const google: { accounts: { id: { disableAutoSelect: () => void } } };
@@ -190,6 +190,7 @@ export class AuthService {
     this.clearTokens();
     this.user.set(null);
     this.userRoles.set([]);
+    this.sessionExpired.set(false);
     this.stopExpirationTimer();
     await this.router.navigate(['/auth/login']);
   }

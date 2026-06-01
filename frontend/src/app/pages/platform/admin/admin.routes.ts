@@ -12,5 +12,15 @@ export const ADMIN_ROUTES: Routes = [
     component: PendingViewComponent,
     data: { title: 'Gestion de usuarios' },
   },
+  {
+    path: 'supervision',
+    component: PendingViewComponent,
+    data: { title: 'Asignacion supervisor-empleados' },
+  },
+  {
+    path: 'reports',
+    component: PendingViewComponent,
+    data: { title: 'Reportes globales' },
+  },
   { path: '', redirectTo: 'approvals', pathMatch: 'full' },
 ];

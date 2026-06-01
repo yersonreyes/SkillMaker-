@@ -1,6 +1,6 @@
 import { Injectable, Signal, computed, inject } from '@angular/core';
-import { AuthService } from '../authService/auth.service';
-import type { UserRole } from '../authService/auth.res.dto';
+import { AuthService } from '@core/services/authService/auth.service';
+import type { UserRole } from '@core/services/authService/auth.res.dto';
 
 @Injectable({ providedIn: 'root' })
 export class RoleCheckService {
