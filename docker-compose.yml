@@ -1,10 +1,6 @@
 # docker-compose.yml (raiz) — Orquestacion de produccion
 #
-# Servicios: postgres + minio + migrate (job) + backend
-#
-# NOTA: el servicio `frontend` esta intencionalmente ausente hasta que el
-# change `scaffold-frontend-base` levante el workspace Angular. Cuando ese
-# change aterrice, se agrega el servicio frontend con su Dockerfile + nginx.
+# Servicios: postgres + minio + migrate (job) + backend + frontend
 #
 # Uso:
 #   cp .env.example .env && vi .env   # rellenar secrets reales
@@ -91,6 +87,16 @@ services:
       STORAGE_USE_SSL: ${STORAGE_USE_SSL}
       STORAGE_PRESIGN_TTL: ${STORAGE_PRESIGN_TTL}
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES}
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - '3700:80'                                  # Host:3700 → nginx:80
+    depends_on:
+      - backend
     restart: unless-stopped
 
 volumes:

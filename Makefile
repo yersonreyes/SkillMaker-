@@ -18,15 +18,11 @@ backend-install: ## Descarga dependencias Go
 
 .PHONY: frontend-install
 frontend-install: ## Instala dependencias npm del frontend
-	@if [ -f frontend/package.json ]; then \
-	  cd frontend && npm install --legacy-peer-deps; \
-	else \
-	  echo "⚠️  frontend/ no scaffoldeado todavia (esperando scaffold-frontend-base). Skip."; \
-	fi
+	cd frontend && npm install --legacy-peer-deps
 
 ## ---------- Dev ----------
 .PHONY: dev
-dev: ## Levanta backend (Air) en desarrollo; frontend stub hasta scaffold-frontend-base
+dev: ## Levanta backend (Air) + frontend (ng serve) en paralelo
 	@command -v concurrently >/dev/null 2>&1 || npm i -g concurrently
 	concurrently --names "BACKEND,FRONTEND" --prefix-colors "cyan,magenta" \
 	  "make backend-dev" "make frontend-dev"
@@ -37,11 +33,7 @@ backend-dev: ## Backend con hot reload (Air)
 
 .PHONY: frontend-dev
 frontend-dev: ## Frontend en modo desarrollo (ng serve :4200)
-	@if [ -f frontend/package.json ]; then \
-	  cd frontend && npm run start; \
-	else \
-	  echo "⚠️  frontend/ no scaffoldeado todavia (esperando scaffold-frontend-base). Skip."; \
-	fi
+	cd frontend && npm start
 
 ## ---------- Build ----------
 .PHONY: build
@@ -53,11 +45,7 @@ backend-build: ## Compila el binario de produccion (estatico, sin CGO)
 
 .PHONY: frontend-build
 frontend-build: ## Build de produccion del frontend
-	@if [ -f frontend/package.json ]; then \
-	  cd frontend && npm run build:prod; \
-	else \
-	  echo "⚠️  frontend/ no scaffoldeado todavia (esperando scaffold-frontend-base). Skip."; \
-	fi
+	cd frontend && npm run build:prod
 
 ## ---------- Tests ----------
 .PHONY: test
@@ -73,11 +61,7 @@ backend-test-integration: ## Tests de integracion (testcontainers, mas lentos)
 
 .PHONY: frontend-test
 frontend-test: ## Tests del frontend (Vitest)
-	@if [ -f frontend/package.json ]; then \
-	  cd frontend && npm run test; \
-	else \
-	  echo "⚠️  frontend/ no scaffoldeado todavia (esperando scaffold-frontend-base). Skip."; \
-	fi
+	cd frontend && npm test
 
 ## ---------- Lint ----------
 .PHONY: lint
@@ -89,11 +73,7 @@ backend-lint: ## golangci-lint sobre todo el backend
 
 .PHONY: frontend-lint
 frontend-lint: ## Angular ESLint
-	@if [ -f frontend/package.json ]; then \
-	  cd frontend && npm run lint; \
-	else \
-	  echo "⚠️  frontend/ no scaffoldeado todavia (esperando scaffold-frontend-base). Skip."; \
-	fi
+	cd frontend && npm run lint
 
 ## ---------- DB / Migraciones ----------
 DB_URL ?= postgres://skillmaker:skillmaker@localhost:5432/skillmaker?sslmode=disable
@@ -135,7 +115,7 @@ swagger: ## Regenera el OpenAPI desde anotaciones (swaggo/swag)
 
 ## ---------- Docker (produccion) ----------
 .PHONY: docker-up
-docker-up: ## Levanta los servicios de produccion (postgres + minio + migrate + backend)
+docker-up: ## Levanta los 5 servicios de produccion (postgres + minio + migrate + backend + frontend)
 	docker compose up -d --build
 
 .PHONY: docker-down
