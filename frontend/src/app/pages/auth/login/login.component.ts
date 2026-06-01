@@ -1,6 +1,5 @@
 import { Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { ButtonModule } from 'primeng/button';
 import { AuthService } from '@core/services/authService/auth.service';
 import { UiDialogService } from '@core/services/ui-dialog.service';
 import { environment } from '@env/environment';
@@ -10,7 +9,7 @@ declare const google: any; // eslint-disable-line @typescript-eslint/no-explicit
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [ButtonModule],
+  imports: [],
   templateUrl: './login.component.html',
   styleUrl: './login.component.sass',
 })

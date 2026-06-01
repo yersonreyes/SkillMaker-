@@ -1,17 +1,81 @@
-<div class="min-h-screen flex">
-  <!-- Columna izquierda: formulario -->
-  <div class="flex-1 flex items-center justify-center p-8 bg-white">
-    <div class="w-full max-w-md">
-      <router-outlet />
-    </div>
-  </div>
-  <!-- Columna derecha: branding (oculto en mobile) -->
-  <div class="hidden lg:flex flex-1 items-center justify-center p-12 bg-primary-900 text-white">
-    <div class="max-w-md text-center">
-      <h1 class="text-5xl font-bold mb-6">SkillMaker</h1>
-      <p class="text-xl opacity-90 leading-relaxed">
-        Plataforma interna de formacion en video. Aprende, ensena y certifica.
+<div class="reel-stage">
+  <!-- Capas atmosfericas -->
+  <div class="reel-stage__grid" aria-hidden="true"></div>
+  <div class="reel-stage__lightwell" aria-hidden="true"></div>
+  <div class="reel-stage__grain" aria-hidden="true"></div>
+  <div class="reel-stage__vignette" aria-hidden="true"></div>
+
+  <!-- Marcas de visor (esquinas tipo plano tecnico) -->
+  <span class="reel-corner reel-corner--tl" aria-hidden="true"></span>
+  <span class="reel-corner reel-corner--tr" aria-hidden="true"></span>
+  <span class="reel-corner reel-corner--bl" aria-hidden="true"></span>
+  <span class="reel-corner reel-corner--br" aria-hidden="true"></span>
+
+  <!-- Cabecera tipo blueprint header -->
+  <header class="reel-header">
+    <span class="reel-mark">
+      <span class="reel-live" aria-hidden="true"></span>
+      LIVE
+    </span>
+    <span class="reel-header__title">SKILLMAKER&nbsp;&nbsp;//&nbsp;&nbsp;RED DE CONOCIMIENTO INTERNO</span>
+    <span class="reel-header__code">ED 001 — REV A</span>
+  </header>
+
+  <!-- Lienzo principal -->
+  <main class="reel-canvas">
+    <!-- Izquierda: hero editorial + nodo de constelacion -->
+    <section class="reel-hero">
+      <p class="reel-eyebrow">Edicion 2026 — Una red interna que aprende</p>
+      <h1 class="reel-display">
+        Donde el <em>equipo</em><br>
+        se ensena<br>
+        a si <em>mismo</em>.
+      </h1>
+      <p class="reel-lede">
+        Una plataforma interna donde colegas comparten cursos, repiten lecciones,
+        y suben el siguiente take. El conocimiento se queda en casa.
       </p>
-    </div>
-  </div>
+
+      <!-- Constelacion: nodos = personas, lineas = conocimiento que circula -->
+      <svg class="reel-constellation" viewBox="0 0 320 80" aria-hidden="true">
+        <g class="reel-constellation__lines">
+          <line x1="20" y1="40" x2="80" y2="20"/>
+          <line x1="80" y1="20" x2="140" y2="50"/>
+          <line x1="140" y1="50" x2="200" y2="18"/>
+          <line x1="200" y1="18" x2="260" y2="46"/>
+          <line x1="260" y1="46" x2="300" y2="22"/>
+          <line x1="80" y1="20" x2="200" y2="18"/>
+          <line x1="140" y1="50" x2="260" y2="46"/>
+        </g>
+        <g class="reel-constellation__nodes">
+          <circle cx="20"  cy="40" r="3"/>
+          <circle cx="80"  cy="20" r="3.5" class="is-active"/>
+          <circle cx="140" cy="50" r="3"/>
+          <circle cx="200" cy="18" r="3.5" class="is-active"/>
+          <circle cx="260" cy="46" r="3"/>
+          <circle cx="300" cy="22" r="3"/>
+        </g>
+      </svg>
+
+      <ul class="reel-footnotes" aria-label="Pilares">
+        <li><span>01</span> Cursos de colegas</li>
+        <li><span>02</span> Rutas por rol</li>
+        <li><span>03</span> Certificacion interna</li>
+      </ul>
+    </section>
+
+    <!-- Derecha: panel de acceso (boarding pass) -->
+    <section class="reel-panel">
+      <div class="reel-panel__inner">
+        <router-outlet />
+      </div>
+    </section>
+  </main>
+
+  <!-- Pie tipo cartouche de plano -->
+  <footer class="reel-footer">
+    <span>PLANO 01 / 01</span>
+    <span class="reel-footer__center">Acceso restringido — solo dominio corporativo</span>
+    <span>SCALE 1:1</span>
+  </footer>
 </div>

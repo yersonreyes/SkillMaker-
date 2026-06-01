@@ -1,2 +1,372 @@
-// Auth layout styles — Tailwind handles the main layout
-// Add only non-utility overrides here
+// Auth — "Cyanotype Atelier"
+// Taller de blueprints donde colegas comparten conocimiento.
+// Fondo midnight-ink con grid de blueprint, luz cyan pooling, grano fino,
+// marcas tecnicas, tipografia editorial. Scoped a la zona auth.
+
+:host
+  display: block
+
+.reel-stage
+  position: relative
+  min-height: 100vh
+  width: 100%
+  background: var(--reel-ink)
+  color: var(--reel-cream)
+  font-family: var(--font-ui)
+  overflow: hidden
+  isolation: isolate
+
+  // Grid de blueprint paper — lineas finas a 28px
+  &__grid
+    position: absolute
+    inset: 0
+    pointer-events: none
+    background-image: linear-gradient(to right, rgba(106, 213, 240, 0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(106, 213, 240, 0.05) 1px, transparent 1px), linear-gradient(to right, rgba(106, 213, 240, 0.09) 1px, transparent 1px), linear-gradient(to bottom, rgba(106, 213, 240, 0.09) 1px, transparent 1px)
+    background-size: 28px 28px, 28px 28px, 168px 168px, 168px 168px
+    z-index: 1
+    mask-image: radial-gradient(120% 90% at 50% 50%, black 30%, transparent 100%)
+    -webkit-mask-image: radial-gradient(120% 90% at 50% 50%, black 30%, transparent 100%)
+
+  // Pool de luz cyan desde la esquina superior derecha + tinte profundo abajo izq
+  &__lightwell
+    position: absolute
+    inset: 0
+    pointer-events: none
+    background: radial-gradient(60% 50% at 88% 8%, rgba(106, 213, 240, 0.34) 0%, rgba(106, 213, 240, 0.14) 28%, rgba(106, 213, 240, 0) 62%), radial-gradient(45% 40% at 8% 92%, rgba(74, 144, 226, 0.22) 0%, rgba(74, 144, 226, 0) 70%)
+    mix-blend-mode: screen
+    z-index: 2
+    animation: reel-breathe 12s ease-in-out infinite
+
+  // Grano fino (papel)
+  &__grain
+    position: absolute
+    inset: -50%
+    pointer-events: none
+    background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.94' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.93 0 0 0 0 0.96 0 0 0 0 1 0 0 0 0.34 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>")
+    opacity: 0.08
+    mix-blend-mode: overlay
+    z-index: 3
+    animation: reel-grain 1.6s steps(3) infinite
+
+  // Vineteado para anclar
+  &__vignette
+    position: absolute
+    inset: 0
+    pointer-events: none
+    background: radial-gradient(120% 90% at 50% 50%, transparent 55%, rgba(7, 14, 30, 0.72) 100%)
+    z-index: 4
+
+// Esquinas tipo plano tecnico
+.reel-corner
+  position: absolute
+  width: 28px
+  height: 28px
+  border: 1px solid var(--reel-cream-faint)
+  z-index: 5
+  pointer-events: none
+  &--tl
+    top: 18px
+    left: 18px
+    border-right: 0
+    border-bottom: 0
+  &--tr
+    top: 18px
+    right: 18px
+    border-left: 0
+    border-bottom: 0
+  &--bl
+    bottom: 18px
+    left: 18px
+    border-right: 0
+    border-top: 0
+  &--br
+    bottom: 18px
+    right: 18px
+    border-left: 0
+    border-top: 0
+
+// Cabecera tipo blueprint
+.reel-header
+  position: relative
+  z-index: 6
+  display: flex
+  align-items: center
+  justify-content: space-between
+  gap: 24px
+  padding: 32px 56px 0
+  font-family: var(--font-mono)
+  font-size: 11px
+  letter-spacing: 0.16em
+  text-transform: uppercase
+  color: var(--reel-cream-dim)
+
+  &__title
+    display: none
+    @media (min-width: 768px)
+      display: inline
+
+  &__code
+    color: var(--reel-cream-dim)
+
+.reel-mark
+  display: inline-flex
+  align-items: center
+  gap: 8px
+  color: var(--reel-cream)
+
+// Live signal (cyan brillante pulsando)
+.reel-live
+  position: relative
+  width: 9px
+  height: 9px
+  border-radius: 50%
+  background: var(--reel-live)
+  box-shadow: 0 0 14px var(--reel-live)
+  &::after
+    content: ""
+    position: absolute
+    inset: -4px
+    border-radius: 50%
+    border: 1px solid var(--reel-live)
+    opacity: 0.6
+    animation: reel-live-ring 1.8s ease-out infinite
+
+// Lienzo (hero + panel)
+.reel-canvas
+  position: relative
+  z-index: 6
+  display: grid
+  grid-template-columns: 1fr
+  gap: 48px
+  padding: 56px 56px 72px
+  min-height: calc(100vh - 140px)
+  align-items: center
+
+  @media (min-width: 1024px)
+    grid-template-columns: minmax(0, 1.15fr) minmax(380px, 0.85fr)
+    gap: 88px
+    padding: 64px 88px 88px
+
+// HERO editorial
+.reel-hero
+  max-width: 720px
+  animation: reel-rise 900ms cubic-bezier(0.2, 0.7, 0.2, 1) both
+  animation-delay: 120ms
+
+.reel-eyebrow
+  font-family: var(--font-mono)
+  font-size: 11px
+  letter-spacing: 0.28em
+  text-transform: uppercase
+  color: var(--reel-cyan)
+  margin: 0 0 32px
+  position: relative
+  padding-left: 28px
+
+  &::before
+    content: ""
+    position: absolute
+    left: 0
+    top: 50%
+    width: 18px
+    height: 1px
+    background: var(--reel-cyan)
+
+.reel-display
+  font-family: var(--font-display)
+  font-weight: 400
+  font-size: clamp(48px, 7vw, 104px)
+  line-height: 0.96
+  letter-spacing: -0.02em
+  color: var(--reel-cream)
+  margin: 0 0 36px
+
+  em
+    font-style: italic
+    color: var(--reel-cyan)
+    font-feature-settings: "ss01"
+
+.reel-lede
+  font-family: var(--font-ui)
+  font-weight: 300
+  font-size: 17px
+  line-height: 1.55
+  color: var(--reel-cream-dim)
+  max-width: 460px
+  margin: 0 0 36px
+
+// Constelacion de conocimiento
+.reel-constellation
+  display: block
+  width: 100%
+  max-width: 320px
+  height: 80px
+  margin: 0 0 36px
+  overflow: visible
+
+  &__lines line
+    stroke: var(--reel-cyan)
+    stroke-width: 1
+    stroke-dasharray: 4 4
+    opacity: 0.32
+    animation: reel-flow 6s linear infinite
+
+  &__nodes circle
+    fill: var(--reel-cream-dim)
+    transition: fill 200ms ease
+
+    &.is-active
+      fill: var(--reel-cyan)
+      filter: drop-shadow(0 0 6px var(--reel-cyan))
+      animation: reel-node-pulse 2.4s ease-in-out infinite
+
+  &__nodes circle.is-active:nth-of-type(2)
+    animation-delay: 0.8s
+
+.reel-footnotes
+  list-style: none
+  padding: 0
+  margin: 0
+  display: flex
+  flex-wrap: wrap
+  gap: 28px 44px
+  font-family: var(--font-mono)
+  font-size: 12px
+  letter-spacing: 0.06em
+  color: var(--reel-cream-dim)
+
+  li
+    display: flex
+    align-items: baseline
+    gap: 10px
+
+  span
+    color: var(--reel-cyan)
+    font-weight: 500
+
+// Panel de acceso (boarding pass)
+.reel-panel
+  position: relative
+  animation: reel-rise 900ms cubic-bezier(0.2, 0.7, 0.2, 1) both
+  animation-delay: 280ms
+
+  &__inner
+    position: relative
+    padding: 44px 40px 40px
+    background: rgba(12, 24, 48, 0.62)
+    backdrop-filter: blur(14px) saturate(130%)
+    -webkit-backdrop-filter: blur(14px) saturate(130%)
+    border: 1px solid var(--reel-cream-faint)
+    border-radius: 2px
+
+    // Perforacion lateral tipo film strip / encuadernacion
+    &::before
+      content: ""
+      position: absolute
+      top: 16px
+      bottom: 16px
+      left: -1px
+      width: 1px
+      background-image: repeating-linear-gradient(to bottom, var(--reel-cream-faint) 0 6px, transparent 6px 14px)
+
+    &::after
+      content: "// ACCESO"
+      position: absolute
+      top: -1px
+      right: 18px
+      transform: translateY(-50%)
+      padding: 0 10px
+      background: var(--reel-ink)
+      font-family: var(--font-mono)
+      font-size: 10px
+      letter-spacing: 0.24em
+      color: var(--reel-cyan)
+
+// Pie tipo cartouche
+.reel-footer
+  position: relative
+  z-index: 6
+  display: flex
+  align-items: center
+  justify-content: space-between
+  gap: 24px
+  padding: 0 56px 24px
+  font-family: var(--font-mono)
+  font-size: 10px
+  letter-spacing: 0.2em
+  text-transform: uppercase
+  color: var(--reel-cream-dim)
+
+  &__center
+    flex: 1
+    text-align: center
+    color: var(--reel-cream-dim)
+
+  @media (max-width: 640px)
+    flex-direction: column
+    gap: 8px
+    &__center
+      order: -1
+
+// Animaciones
+@keyframes reel-rise
+  from
+    opacity: 0
+    transform: translateY(14px)
+  to
+    opacity: 1
+    transform: translateY(0)
+
+@keyframes reel-live-ring
+  0%
+    transform: scale(0.85)
+    opacity: 0.6
+  100%
+    transform: scale(2)
+    opacity: 0
+
+@keyframes reel-node-pulse
+  0%, 100%
+    opacity: 1
+    transform: scale(1)
+  50%
+    opacity: 0.6
+    transform: scale(1.15)
+
+@keyframes reel-flow
+  from
+    stroke-dashoffset: 0
+  to
+    stroke-dashoffset: -32
+
+@keyframes reel-breathe
+  0%, 100%
+    opacity: 1
+  50%
+    opacity: 0.8
+
+@keyframes reel-grain
+  0%
+    transform: translate(0, 0)
+  20%
+    transform: translate(-3%, 2%)
+  40%
+    transform: translate(2%, -3%)
+  60%
+    transform: translate(-2%, 1%)
+  80%
+    transform: translate(3%, 2%)
+  100%
+    transform: translate(0, 0)
+
+@media (prefers-reduced-motion: reduce)
+  .reel-stage__lightwell,
+  .reel-stage__grain,
+  .reel-live,
+  .reel-live::after,
+  .reel-constellation__lines line,
+  .reel-constellation__nodes circle
+    animation: none
+  .reel-hero,
+  .reel-panel
+    animation: none

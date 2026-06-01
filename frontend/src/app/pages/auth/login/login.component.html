@@ -1,25 +1,52 @@
-<div class="space-y-6">
-  <div class="text-center">
-    <h2 class="text-3xl font-bold mb-2">Bienvenido</h2>
-    <p class="text-gray-600">Inicia sesion con tu cuenta corporativa</p>
-  </div>
+<div class="login">
+  <p class="login__eyebrow">Sesion / Inicio</p>
+
+  <h2 class="login__display">
+    Entrar<span class="login__period">.</span>
+  </h2>
+
+  <p class="login__lede">
+    Acceso restringido al dominio corporativo. Iniciaremos tu sesion
+    con Google Workspace para abrirte la red.
+  </p>
 
   <button
-    pButton
     type="button"
-    class="w-full p-button-lg"
-    severity="primary"
+    class="login__cta"
+    [class.login__cta--loading]="loading"
     [disabled]="loading"
     (click)="signInWithGoogle()">
-    <i class="pi pi-google mr-2"></i>
-    Continuar con Google
+    <span class="login__cta-bracket login__cta-bracket--l" aria-hidden="true"></span>
+    <svg class="login__cta-mark" viewBox="0 0 18 18" aria-hidden="true">
+      <path fill="#11100d" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.49h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.71-1.57 2.68-3.88 2.68-6.63Z"/>
+      <path fill="#11100d" d="M9 18c2.43 0 4.47-.8 5.96-2.17l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.93v2.33A9 9 0 0 0 9 18Z"/>
+      <path fill="#11100d" d="M3.97 10.73A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.19.29-1.73V4.94H.93A9 9 0 0 0 0 9c0 1.45.35 2.82.93 4.06l3.04-2.33Z"/>
+      <path fill="#11100d" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.59C13.46.89 11.43 0 9 0A9 9 0 0 0 .93 4.94l3.04 2.33C4.68 5.16 6.66 3.58 9 3.58Z"/>
+    </svg>
+    <span class="login__cta-label">
+      <span class="login__cta-default">Continuar con Google</span>
+      <span class="login__cta-busy">
+        <span class="login__cta-dots"><i></i><i></i><i></i></span>
+        Procesando
+      </span>
+    </span>
+    <span class="login__cta-bracket login__cta-bracket--r" aria-hidden="true"></span>
   </button>
 
-  @if (loading) {
-    <div class="text-center text-sm text-gray-500">Procesando...</div>
-  }
-
-  <div class="text-center text-xs text-gray-400">
-    Solo cuentas del dominio corporativo tienen acceso.
+  <div class="login__divider" aria-hidden="true">
+    <span></span>
+    <em>SEC / TRUST</em>
+    <span></span>
   </div>
+
+  <ul class="login__terms">
+    <li>
+      <i class="pi pi-shield" aria-hidden="true"></i>
+      No guardamos tu contrasena — la sesion se crea via Google.
+    </li>
+    <li>
+      <i class="pi pi-clock" aria-hidden="true"></i>
+      Tu token expira automaticamente y se renueva en segundo plano.
+    </li>
+  </ul>
 </div>

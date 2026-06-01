@@ -1,9 +1,7 @@
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet, Router } from '@angular/router';
-import { ButtonModule } from 'primeng/button';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { TooltipModule } from 'primeng/tooltip';
 import { PopoverModule } from 'primeng/popover';
-import { RippleModule } from 'primeng/ripple';
 import { AuthService } from '@core/services/authService/auth.service';
 import { HasRoleDirective } from '@shared/directives/has-role.directive';
 
@@ -20,10 +18,8 @@ interface NavItem {
     RouterOutlet,
     RouterLink,
     RouterLinkActive,
-    ButtonModule,
     TooltipModule,
     PopoverModule,
-    RippleModule,
     HasRoleDirective,
   ],
   templateUrl: './platform-layout.component.html',
@@ -31,7 +27,6 @@ interface NavItem {
 })
 export class PlatformLayoutComponent implements OnInit {
   protected auth = inject(AuthService);
-  private router = inject(Router);
 
   protected collapsed = signal<boolean>(this.readSidebarState());
 

@@ -1,4 +1,29 @@
-<div class="p-8 max-w-3xl mx-auto">
-  <h1 class="text-2xl font-bold mb-4">{{ title() }}</h1>
-  <p class="text-gray-600">Esta vista se implementara en un cambio SDD posterior.</p>
+<div class="page">
+  <header class="page__head">
+    <p class="page__eyebrow">En obra</p>
+    <h1 class="page__title">
+      {{ title() }}<span class="tk-dot">.</span>
+    </h1>
+    <p class="page__lede">
+      Esta seccion esta trazada pero aun no construida. Se entregara como parte
+      de un cambio SDD posterior.
+    </p>
+  </header>
+
+  <section class="wip" aria-label="Estado de la vista">
+    <div class="wip__rail" aria-hidden="true">
+      <span>W</span><span>I</span><span>P</span>
+    </div>
+    <div class="wip__body">
+      <p class="wip__line">
+        <span class="wip__dot"></span>
+        Estado: <strong>Pendiente de implementacion</strong>
+      </p>
+      <p class="wip__hint">
+        Si llegaste aqui desde el menu lateral, los modulos correspondientes del
+        backend aun no estan disponibles. El plano esta listo — falta levantar
+        el muro.
+      </p>
+    </div>
+  </section>
 </div>

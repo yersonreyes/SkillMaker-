@@ -2,13 +2,166 @@
 
 // Global overrides
 :root
-  --body-bg: var(--p-surface-50)
+  --body-bg: var(--page-bg)
+  // Tipografias del producto
+  --font-display: "Instrument Serif", "Times New Roman", serif
+  --font-ui: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif
+  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, Menlo, monospace
+
+  // Paleta "Cyanotype Atelier" — auth (dark stage).
+  --reel-ink: #0c1830
+  --reel-ink-deep: #070e1e
+  --reel-cream: #eef3fa
+  --reel-cream-dim: rgba(238, 243, 250, 0.62)
+  --reel-cream-faint: rgba(238, 243, 250, 0.16)
+  --reel-cyan: #6ad5f0
+  --reel-cyan-soft: rgba(106, 213, 240, 0.18)
+  --reel-live: #7fe6ff
+
+  // Paleta "Cyanotype Workshop" — plataforma (light, paper).
+  // Tonos mas profundos para AA sobre fondo claro.
+  --page-bg: #f4f6fb
+  --page-bg-grid: rgba(14, 122, 150, 0.07)
+  --page-bg-grid-major: rgba(14, 122, 150, 0.11)
+  --page-ink: #0c1830
+  --page-ink-soft: rgba(12, 24, 48, 0.62)
+  --page-ink-dim: rgba(12, 24, 48, 0.38)
+  --page-ink-faint: rgba(12, 24, 48, 0.16)
+  --page-ink-hairline: rgba(12, 24, 48, 0.08)
+  --page-cyan: #0e7a96
+  --page-cyan-hover: #0a6580
+  --page-cyan-soft: rgba(14, 122, 150, 0.1)
+  --page-cyan-edge: rgba(14, 122, 150, 0.28)
+  --page-surface: #ffffff
+  --page-surface-shadow: 0 1px 0 rgba(12, 24, 48, 0.04), 0 8px 24px -16px rgba(12, 24, 48, 0.12)
 
 body
   background: var(--body-bg)
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif
+  color: var(--page-ink)
+  font-family: var(--font-ui)
+  -webkit-font-smoothing: antialiased
+  -moz-osx-font-smoothing: grayscale
+  text-rendering: optimizeLegibility
 
-// PrimeNG tweaks
+// =============================================================================
+// Patron de pagina compartido — usado por catalog, my-courses, profile, etc.
+// Mantiene el ADN cyanotype del auth pero dialed-down para trabajo diario.
+// =============================================================================
+
+.page
+  padding: 36px 48px 64px
+  max-width: 1180px
+  margin: 0 auto
+
+  @media (max-width: 720px)
+    padding: 24px 20px 48px
+
+.page__head
+  margin-bottom: 36px
+
+.page__eyebrow
+  display: inline-flex
+  align-items: center
+  gap: 10px
+  font-family: var(--font-mono)
+  font-size: 11px
+  letter-spacing: 0.24em
+  text-transform: uppercase
+  color: var(--page-cyan)
+  margin: 0 0 14px
+
+  &::before
+    content: ""
+    width: 14px
+    height: 1px
+    background: var(--page-cyan)
+
+.page__title
+  font-family: var(--font-display)
+  font-style: italic
+  font-weight: 400
+  font-size: clamp(36px, 5vw, 60px)
+  line-height: 1.02
+  letter-spacing: -0.02em
+  color: var(--page-ink)
+  margin: 0 0 14px
+
+  em
+    font-style: italic
+    color: var(--page-cyan)
+
+  .tk-dot
+    color: var(--page-cyan)
+    font-style: normal
+
+.page__lede
+  font-family: var(--font-ui)
+  font-weight: 300
+  font-size: 15px
+  line-height: 1.6
+  color: var(--page-ink-soft)
+  max-width: 620px
+  margin: 0
+
+// Panel — reemplaza a p-card. Hoja de blueprint sobre el escritorio.
+.panel
+  position: relative
+  background: var(--page-surface)
+  border: 1px solid var(--page-ink-hairline)
+  border-radius: 2px
+  box-shadow: var(--page-surface-shadow)
+
+.panel__head
+  display: flex
+  align-items: center
+  gap: 10px
+  padding: 14px 22px
+  border-bottom: 1px solid var(--page-ink-hairline)
+  background: var(--page-cyan-soft)
+  font-family: var(--font-mono)
+  font-size: 11px
+  letter-spacing: 0.24em
+  text-transform: uppercase
+  color: var(--page-cyan)
+
+  i
+    color: var(--page-cyan)
+
+.panel__body
+  padding: 26px 28px
+  font-family: var(--font-ui)
+  font-size: 14px
+  line-height: 1.6
+  color: var(--page-ink)
+
+  code
+    font-family: var(--font-mono)
+    font-size: 12.5px
+    background: var(--page-cyan-soft)
+    color: var(--page-cyan)
+    padding: 2px 7px
+    border-radius: 2px
+
+// Tag/pill — reemplazo de p-tag con identidad propia
+.tag
+  display: inline-flex
+  align-items: center
+  gap: 6px
+  padding: 4px 10px
+  background: var(--page-cyan-soft)
+  color: var(--page-cyan)
+  border: 1px solid var(--page-cyan-edge)
+  border-radius: 2px
+  font-family: var(--font-mono)
+  font-size: 11px
+  font-weight: 500
+  letter-spacing: 0.12em
+  text-transform: uppercase
+
+// =============================================================================
+// PrimeNG tweaks (componentes que mantenemos: popover, tooltip)
+// =============================================================================
+
 .p-button-outlined
   border-width: 1px
 
@@ -16,3 +169,18 @@ body
   font-size: 0.9rem
   thead th
     font-weight: 700
+
+.p-popover
+  border: 1px solid var(--page-ink-hairline)
+  box-shadow: 0 12px 32px -12px rgba(12, 24, 48, 0.2)
+  border-radius: 2px
+
+.p-tooltip
+  .p-tooltip-text
+    font-family: var(--font-mono)
+    font-size: 11px
+    letter-spacing: 0.12em
+    text-transform: uppercase
+    background: var(--reel-ink)
+    color: var(--reel-cream)
+    border-radius: 2px

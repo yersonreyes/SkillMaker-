@@ -1,32 +1,50 @@
-<div class="p-6 max-w-2xl mx-auto">
-  <h1 class="text-3xl font-bold text-gray-900 mb-6">Mi perfil</h1>
+<div class="page page--narrow">
+
+  <header class="page__head">
+    <p class="page__eyebrow">Perfil</p>
+    <h1 class="page__title">
+      Tu <em>ficha</em><span class="tk-dot">.</span>
+    </h1>
+    <p class="page__lede">
+      Datos sincronizados desde Google Workspace. Tus roles definen que rutas y
+      acciones tienes habilitadas dentro de la red.
+    </p>
+  </header>
 
   @if (auth.user(); as u) {
-    <p-card>
-      <dl class="space-y-5">
-        <div>
-          <dt class="text-sm font-medium text-gray-500">Nombre</dt>
-          <dd class="text-lg font-medium text-gray-900 mt-0.5">{{ u.nombre }}</dd>
+    <section class="sheet" aria-label="Datos del usuario">
+      <div class="sheet__head">
+        <span class="sheet__head-tag">// FICHA</span>
+        <span class="sheet__head-code">USR-{{ shortId(u.id) }}</span>
+      </div>
+
+      <dl class="sheet__rows">
+        <div class="sheet__row">
+          <dt>Nombre</dt>
+          <dd class="sheet__row-value">{{ u.nombre }}</dd>
         </div>
-        <div>
-          <dt class="text-sm font-medium text-gray-500">Email corporativo</dt>
-          <dd class="text-lg text-gray-900 mt-0.5">{{ u.email }}</dd>
+        <div class="sheet__row">
+          <dt>Correo corporativo</dt>
+          <dd class="sheet__row-value">{{ u.email }}</dd>
         </div>
-        <div>
-          <dt class="text-sm font-medium text-gray-500">Roles asignados</dt>
-          <dd class="flex flex-wrap gap-2 mt-1.5">
+        <div class="sheet__row">
+          <dt>Roles asignados</dt>
+          <dd class="sheet__roles">
             @for (r of u.roles; track r) {
-              <p-tag [value]="r" severity="info" />
+              <span class="tag">{{ r }}</span>
             }
           </dd>
         </div>
-        <div>
-          <dt class="text-sm font-medium text-gray-500">ID interno</dt>
-          <dd class="text-sm text-gray-700 font-mono mt-0.5 bg-gray-50 px-2 py-1 rounded border border-gray-200 inline-block">{{ u.id }}</dd>
+        <div class="sheet__row">
+          <dt>ID interno</dt>
+          <dd>
+            <code class="sheet__id">{{ u.id }}</code>
+          </dd>
         </div>
       </dl>
-    </p-card>
+    </section>
   } @else {
-    <p class="text-gray-500">No hay datos de usuario cargados.</p>
+    <p class="empty">No hay datos de usuario cargados.</p>
   }
+
 </div>

@@ -1,162 +1,189 @@
-<div class="flex h-screen overflow-hidden">
-  <!-- Sidebar -->
-  <aside
-    class="bg-primary-900 text-white flex flex-col transition-all duration-200 flex-shrink-0"
-    [class.w-64]="!collapsed()"
-    [class.w-16]="collapsed()">
+<div class="shell" [class.shell--collapsed]="collapsed()">
 
-    <!-- Sidebar header -->
-    <div class="p-3 flex items-center justify-between border-b border-primary-700 min-h-[60px]">
+  <!-- ===== Sidebar (midnight ink) ===== -->
+  <aside class="rail" [attr.aria-label]="'Navegacion principal'">
+
+    <!-- Marca -->
+    <div class="rail__brand">
       @if (!collapsed()) {
-        <span class="font-bold text-lg whitespace-nowrap overflow-hidden">SkillMaker</span>
+        <span class="rail__wordmark">SkillMaker</span>
+        <span class="rail__tag">// RED INTERNA</span>
+      } @else {
+        <span class="rail__monogram">S</span>
       }
       <button
-        pButton
         type="button"
-        text
-        rounded
-        class="!text-white !p-1 ml-auto"
+        class="rail__toggle"
         (click)="toggleSidebar()"
-        [attr.aria-label]="collapsed() ? 'Expandir sidebar' : 'Colapsar sidebar'">
+        [attr.aria-label]="collapsed() ? 'Expandir' : 'Colapsar'">
         <i [class]="collapsed() ? 'pi pi-angle-right' : 'pi pi-angle-left'"></i>
       </button>
     </div>
 
-    <!-- Navigation -->
-    <nav class="flex-1 overflow-y-auto py-2 space-y-0.5 px-2">
+    <!-- Navegacion -->
+    <nav class="rail__nav">
 
-      <!-- Items comunes: todos los usuarios autenticados -->
-      @for (item of commonItems; track item.route) {
-        <a
-          [routerLink]="item.route"
-          routerLinkActive="bg-primary-700"
-          class="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-primary-800 transition-colors text-sm"
-          [pTooltip]="collapsed() ? item.label : ''"
-          tooltipPosition="right">
-          <i [class]="item.icon + ' text-base flex-shrink-0'"></i>
-          @if (!collapsed()) {
-            <span class="truncate">{{ item.label }}</span>
-          }
-        </a>
-      }
+      <!-- Comunes -->
+      <div class="rail__group">
+        @if (!collapsed()) {
+          <p class="rail__group-label">// General</p>
+        } @else {
+          <span class="rail__divider" aria-hidden="true"></span>
+        }
+        @for (item of commonItems; track item.route) {
+          <a
+            [routerLink]="item.route"
+            routerLinkActive="is-active"
+            class="rail__item"
+            [pTooltip]="collapsed() ? item.label : ''"
+            tooltipPosition="right">
+            <span class="rail__item-stripe" aria-hidden="true"></span>
+            <i [class]="item.icon"></i>
+            @if (!collapsed()) {
+              <span class="rail__item-label">{{ item.label }}</span>
+            }
+          </a>
+        }
+      </div>
 
-      <!-- Items del rol creador -->
+      <!-- Creador -->
       <ng-container *hasRole="'creador'">
-        @if (!collapsed()) {
-          <div class="px-2 pt-3 pb-1 text-xs uppercase opacity-50 tracking-wider">Creador</div>
-        } @else {
-          <div class="border-t border-primary-700 my-1"></div>
-        }
-        @for (item of creatorItems; track item.route) {
-          <a
-            [routerLink]="item.route"
-            routerLinkActive="bg-primary-700"
-            class="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-primary-800 transition-colors text-sm"
-            [pTooltip]="collapsed() ? item.label : ''"
-            tooltipPosition="right">
-            <i [class]="item.icon + ' text-base flex-shrink-0'"></i>
-            @if (!collapsed()) {
-              <span class="truncate">{{ item.label }}</span>
-            }
-          </a>
-        }
+        <div class="rail__group">
+          @if (!collapsed()) {
+            <p class="rail__group-label">// Creador</p>
+          } @else {
+            <span class="rail__divider" aria-hidden="true"></span>
+          }
+          @for (item of creatorItems; track item.route) {
+            <a
+              [routerLink]="item.route"
+              routerLinkActive="is-active"
+              class="rail__item"
+              [pTooltip]="collapsed() ? item.label : ''"
+              tooltipPosition="right">
+              <span class="rail__item-stripe" aria-hidden="true"></span>
+              <i [class]="item.icon"></i>
+              @if (!collapsed()) {
+                <span class="rail__item-label">{{ item.label }}</span>
+              }
+            </a>
+          }
+        </div>
       </ng-container>
 
-      <!-- Items del rol supervisor -->
+      <!-- Supervisor -->
       <ng-container *hasRole="'supervisor'">
-        @if (!collapsed()) {
-          <div class="px-2 pt-3 pb-1 text-xs uppercase opacity-50 tracking-wider">Supervision</div>
-        } @else {
-          <div class="border-t border-primary-700 my-1"></div>
-        }
-        @for (item of supervisorItems; track item.route) {
-          <a
-            [routerLink]="item.route"
-            routerLinkActive="bg-primary-700"
-            class="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-primary-800 transition-colors text-sm"
-            [pTooltip]="collapsed() ? item.label : ''"
-            tooltipPosition="right">
-            <i [class]="item.icon + ' text-base flex-shrink-0'"></i>
-            @if (!collapsed()) {
-              <span class="truncate">{{ item.label }}</span>
-            }
-          </a>
-        }
+        <div class="rail__group">
+          @if (!collapsed()) {
+            <p class="rail__group-label">// Supervision</p>
+          } @else {
+            <span class="rail__divider" aria-hidden="true"></span>
+          }
+          @for (item of supervisorItems; track item.route) {
+            <a
+              [routerLink]="item.route"
+              routerLinkActive="is-active"
+              class="rail__item"
+              [pTooltip]="collapsed() ? item.label : ''"
+              tooltipPosition="right">
+              <span class="rail__item-stripe" aria-hidden="true"></span>
+              <i [class]="item.icon"></i>
+              @if (!collapsed()) {
+                <span class="rail__item-label">{{ item.label }}</span>
+              }
+            </a>
+          }
+        </div>
       </ng-container>
 
-      <!-- Items del rol administrador -->
+      <!-- Administrador -->
       <ng-container *hasRole="'administrador'">
-        @if (!collapsed()) {
-          <div class="px-2 pt-3 pb-1 text-xs uppercase opacity-50 tracking-wider">Administracion</div>
-        } @else {
-          <div class="border-t border-primary-700 my-1"></div>
-        }
-        @for (item of adminItems; track item.route) {
-          <a
-            [routerLink]="item.route"
-            routerLinkActive="bg-primary-700"
-            class="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-primary-800 transition-colors text-sm"
-            [pTooltip]="collapsed() ? item.label : ''"
-            tooltipPosition="right">
-            <i [class]="item.icon + ' text-base flex-shrink-0'"></i>
-            @if (!collapsed()) {
-              <span class="truncate">{{ item.label }}</span>
-            }
-          </a>
-        }
+        <div class="rail__group">
+          @if (!collapsed()) {
+            <p class="rail__group-label">// Administracion</p>
+          } @else {
+            <span class="rail__divider" aria-hidden="true"></span>
+          }
+          @for (item of adminItems; track item.route) {
+            <a
+              [routerLink]="item.route"
+              routerLinkActive="is-active"
+              class="rail__item"
+              [pTooltip]="collapsed() ? item.label : ''"
+              tooltipPosition="right">
+              <span class="rail__item-stripe" aria-hidden="true"></span>
+              <i [class]="item.icon"></i>
+              @if (!collapsed()) {
+                <span class="rail__item-label">{{ item.label }}</span>
+              }
+            </a>
+          }
+        </div>
       </ng-container>
 
     </nav>
+
+    <!-- Pie -->
+    @if (!collapsed()) {
+      <div class="rail__foot">
+        <span>ED 001</span>
+        <span>REV A</span>
+      </div>
+    }
   </aside>
 
-  <!-- Main column -->
-  <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+  <!-- ===== Columna principal ===== -->
+  <div class="surface">
 
-    <!-- Sticky header -->
-    <header class="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between flex-shrink-0">
-      <h1 class="text-lg font-semibold text-gray-800">SkillMaker</h1>
-
-      <!-- User area -->
-      <div
-        class="flex items-center gap-3 cursor-pointer select-none"
-        (click)="userMenu.toggle($event)">
-        <!-- Avatar with initials -->
-        <div class="w-9 h-9 rounded-full bg-primary-500 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
-          {{ userInitials() }}
-        </div>
-        <!-- Name + role (hidden on small screens) -->
-        <div class="text-sm text-right hidden sm:block">
-          <div class="font-medium text-gray-800 leading-tight">{{ auth.user()?.nombre || 'Usuario' }}</div>
-          <div class="text-xs text-gray-500">{{ primaryRole() }}</div>
-        </div>
-        <i class="pi pi-chevron-down text-xs text-gray-400"></i>
+    <!-- Header lean -->
+    <header class="bar">
+      <div class="bar__status">
+        <span class="bar__live" aria-hidden="true"></span>
+        <span class="bar__status-label">ONLINE</span>
+        <span class="bar__sep" aria-hidden="true"></span>
+        <span class="bar__channel">RED INTERNA DE CONOCIMIENTO</span>
       </div>
 
-      <!-- User popover menu -->
+      <button
+        type="button"
+        class="bar__user"
+        (click)="userMenu.toggle($event)"
+        [attr.aria-label]="'Menu de usuario'">
+        <span class="bar__avatar">{{ userInitials() }}</span>
+        <span class="bar__user-info">
+          <span class="bar__name">{{ auth.user()?.nombre || 'Usuario' }}</span>
+          <span class="bar__role">// {{ primaryRole() }}</span>
+        </span>
+        <i class="pi pi-chevron-down bar__chev"></i>
+      </button>
+
       <p-popover #userMenu>
-        <div class="p-2 space-y-1 min-w-44">
+        <div class="menu">
           <a
             routerLink="/platform/profile"
             (click)="userMenu.hide()"
-            class="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 text-sm text-gray-700 transition-colors">
-            <i class="pi pi-user text-gray-500"></i>
+            class="menu__item">
+            <i class="pi pi-user"></i>
             Mi perfil
           </a>
-          <div class="border-t border-gray-100 my-1"></div>
+          <span class="menu__divider" aria-hidden="true"></span>
           <button
             type="button"
-            class="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 text-sm text-gray-700 transition-colors"
+            class="menu__item menu__item--danger"
             (click)="logout(); userMenu.hide()">
-            <i class="pi pi-sign-out text-gray-500"></i>
+            <i class="pi pi-sign-out"></i>
             Cerrar sesion
           </button>
         </div>
       </p-popover>
     </header>
 
-    <!-- Content area -->
-    <main class="flex-1 overflow-y-auto bg-gray-50">
-      <router-outlet />
+    <!-- Area de trabajo (con grid blueprint) -->
+    <main class="canvas">
+      <div class="canvas__grid" aria-hidden="true"></div>
+      <div class="canvas__content">
+        <router-outlet />
+      </div>
     </main>
 
   </div>
