@@ -29,7 +29,7 @@ type AuthConfig struct {
 	RefreshTokenExpiresIn time.Duration `env:"REFRESH_TOKEN_EXPIRES_IN" envDefault:"168h"` // 7 days
 	GoogleClientID        string        `env:"GOOGLE_CLIENT_ID,required"`
 	GoogleClientSecret    string        `env:"GOOGLE_CLIENT_SECRET"`
-	GoogleHostedDomain    string        `env:"GOOGLE_HOSTED_DOMAIN,required"`
+	GoogleHostedDomain    string        `env:"GOOGLE_HOSTED_DOMAIN" envDefault:""`
 	GoogleRedirectURI     string        `env:"GOOGLE_REDIRECT_URI"`
 }
 

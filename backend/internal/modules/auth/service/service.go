@@ -59,7 +59,13 @@ func New(cfg Config, u users.Service, r repository.Repository) Service {
 }
 
 // LoginWithGoogle validates a Google ID token, enforces the hosted-domain
-// constraint (RT-13), upserts the user, and issues a JWT + refresh token pair.
+// constraint (RT-13) when configured, upserts the user, and issues a JWT +
+// refresh token pair.
+//
+// If GoogleHostedDomain is empty (typical for local dev with a personal
+// Gmail account, since personal accounts do not carry the `hd` claim),
+// the domain check is skipped. Production deployments MUST set this to
+// the corporate Workspace domain to satisfy RT-13.
 func (s *service) LoginWithGoogle(ctx context.Context, idTokenStr string) (dto.LoginResponse, error) {
 	payload, err := idtoken.Validate(ctx, idTokenStr, s.cfg.GoogleClientID)
 	if err != nil {
@@ -67,9 +73,12 @@ func (s *service) LoginWithGoogle(ctx context.Context, idTokenStr string) (dto.L
 	}
 
 	// RT-13: only allow accounts from the configured Google Workspace domain.
-	hd, _ := payload.Claims["hd"].(string)
-	if hd != s.cfg.GoogleHostedDomain {
-		return dto.LoginResponse{}, ErrUnauthorizedDomain
+	// Skipped when GoogleHostedDomain is empty (dev convenience for personal Gmail).
+	if s.cfg.GoogleHostedDomain != "" {
+		hd, _ := payload.Claims["hd"].(string)
+		if hd != s.cfg.GoogleHostedDomain {
+			return dto.LoginResponse{}, ErrUnauthorizedDomain
+		}
 	}
 
 	sub, _ := payload.Claims["sub"].(string)

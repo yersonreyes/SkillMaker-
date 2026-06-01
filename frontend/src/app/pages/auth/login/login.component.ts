@@ -25,14 +25,19 @@ export class LoginComponent implements OnInit {
       console.warn('Google Identity Services no esta cargado todavia');
       return;
     }
-    google.accounts.id.initialize({
+    const initConfig: Record<string, unknown> = {
       client_id: environment.googleClientId,
-      hd: environment.googleHostedDomain,
       callback: (response: { credential: string }) =>
         this.handleCredential(response.credential),
       auto_select: false,
       cancel_on_tap_outside: true,
-    });
+    };
+    // Solo aplica el filtro de dominio si esta configurado (prod con Workspace).
+    // En dev con Gmail personal, googleHostedDomain queda vacio y se omite.
+    if (environment.googleHostedDomain) {
+      initConfig['hd'] = environment.googleHostedDomain;
+    }
+    google.accounts.id.initialize(initConfig);
   }
 
   signInWithGoogle(): void {
