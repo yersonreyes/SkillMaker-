@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/caarlos0/env/v11"
+	"github.com/joho/godotenv"
 )
 
 // Config holds all typed configuration loaded from environment variables.
@@ -45,8 +46,17 @@ type StorageConfig struct {
 }
 
 // MustLoad parses environment variables into a Config struct.
-// It calls log.Fatalf if any required variable is missing or malformed.
+//
+// Loads variables from a .env file in the current working directory if present
+// (best-effort; not an error if missing — useful for tests, Docker, or CI
+// where vars come directly from the process environment). Then env.Parse
+// populates the struct from the process environment.
+//
+// Calls log.Fatalf if any required variable is missing or malformed.
 func MustLoad() Config {
+	// Load .env if present. Existing env vars take precedence (godotenv default).
+	_ = godotenv.Load()
+
 	var cfg Config
 	if err := env.Parse(&cfg); err != nil {
 		log.Fatalf("config: %v", err)
