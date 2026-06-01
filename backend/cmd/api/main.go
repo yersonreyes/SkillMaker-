@@ -50,14 +50,14 @@ func main() {
 	db, err := database.Open(cfg.DatabaseURL, cfg.DBMaxOpenConns, cfg.DBMaxIdleConns)
 	if err != nil {
 		log.Error("no se pudo abrir la base de datos", "err", err)
-		os.Exit(1)
+		os.Exit(1) //nolint:gocritic // exitAfterDefer: defer is unreachable; intentional early exit before server starts
 	}
 	defer database.Close(db)
 
-	storageClient, err := storage.New(cfg.Storage)
+	storageClient, err := storage.New(&cfg.Storage)
 	if err != nil {
 		log.Error("no se pudo inicializar storage", "err", err)
-		os.Exit(1)
+		os.Exit(1) //nolint:gocritic // exitAfterDefer: defer is unreachable; intentional early exit before server starts
 	}
 
 	// ── 3. Modules ────────────────────────────────────────────────────────────
@@ -79,7 +79,7 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	router := httpserver.NewRouter(cfg, db, storageClient)
+	router := httpserver.NewRouter(&cfg, db, storageClient)
 	api := router.Group("/api")
 	auth.RegisterRoutes(api, authSvc)
 	// Additional modules (courses, evaluations, approvals, certificates,

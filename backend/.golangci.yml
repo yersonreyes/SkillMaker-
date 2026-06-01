@@ -35,3 +35,8 @@ issues:
     - path: cmd/seed/main\.go
       linters:
         - gosec  # log.Fatalf usage is acceptable for seed script
+    # "corporativo" is a valid Spanish word flagged as false positive by misspell.
+    # inline //nolint:misspell is ineffective for comment-text findings (golangci-lint v1.64).
+    - linters:
+        - misspell
+      text: "corporativo"

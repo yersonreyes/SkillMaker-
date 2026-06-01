@@ -247,13 +247,13 @@ func TestLogout(t *testing.T) {
 	)
 
 	tests := []struct {
-		name            string
-		plainToken      string
-		findReturn      *domain.RefreshToken
-		findErr         error
-		wantErr         bool
-		wantFindCall    bool
-		wantRevokeCall  bool
+		name           string
+		plainToken     string
+		findReturn     *domain.RefreshToken
+		findErr        error
+		wantErr        bool
+		wantFindCall   bool
+		wantRevokeCall bool
 	}{
 		{
 			name:         "empty_token_noop",

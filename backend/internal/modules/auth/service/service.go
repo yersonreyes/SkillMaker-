@@ -57,12 +57,10 @@ type service struct {
 // New constructs a Service with all required dependencies injected.
 func New(cfg Config, u users.Service, r repository.Repository) Service {
 	return &service{
-		cfg:   cfg,
-		users: u,
-		repo:  r,
-		validateToken: func(ctx context.Context, idToken, audience string) (*idtoken.Payload, error) {
-			return idtoken.Validate(ctx, idToken, audience)
-		},
+		cfg:           cfg,
+		users:         u,
+		repo:          r,
+		validateToken: idtoken.Validate,
 	}
 }
 
@@ -223,7 +221,7 @@ func (s *service) issueJWT(u users.UserSummary) (string, time.Time, error) {
 // encodes it as base64url (opaque to the client), persists only its
 // SHA-256 hash, and returns the plaintext. The plaintext is never stored —
 // only the client holds it.
-func (s *service) issueRefreshToken(ctx context.Context, userID string, parentID string) (string, error) {
+func (s *service) issueRefreshToken(ctx context.Context, userID, parentID string) (string, error) {
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return "", err

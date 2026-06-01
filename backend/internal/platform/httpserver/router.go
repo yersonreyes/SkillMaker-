@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-contrib/requestid"
-	ginSwagger "github.com/swaggo/gin-swagger"
 	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/gorm"
 
 	"github.com/yersonreyes/SkillMaker-/backend/internal/middleware"
@@ -22,14 +22,14 @@ type healthBody struct {
 
 // readyBody is the JSON shape returned by the readiness endpoint on failure.
 type readyBody struct {
-	Status string `json:"status"`
+	Status string   `json:"status"`
 	Issues []string `json:"issues,omitempty"`
 }
 
 // NewRouter constructs the Gin engine with all global middleware and built-in
 // routes (health, readiness, swagger docs). Domain routes are registered
 // separately by each module's RegisterRoutes function in cmd/api/main.go.
-func NewRouter(cfg config.Config, db *gorm.DB, store storage.Client) *gin.Engine {
+func NewRouter(cfg *config.Config, db *gorm.DB, store storage.Client) *gin.Engine {
 	r := gin.New()
 
 	// Global middleware stack

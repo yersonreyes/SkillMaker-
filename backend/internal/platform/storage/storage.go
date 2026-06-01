@@ -36,7 +36,7 @@ type minioClient struct {
 
 // New initialises a MinIO client from the provided StorageConfig and returns
 // a Client interface. It validates the connection by listing buckets.
-func New(cfg config.StorageConfig) (Client, error) {
+func New(cfg *config.StorageConfig) (Client, error) {
 	// Strip the scheme from the endpoint — the MinIO SDK expects "host:port".
 	endpoint := strings.TrimPrefix(cfg.Endpoint, "http://")
 	endpoint = strings.TrimPrefix(endpoint, "https://")

@@ -28,7 +28,7 @@ func main() {
 		var role domain.Role
 		result := db.Where("nombre = ?", name).FirstOrCreate(&role, domain.Role{Nombre: name})
 		if result.Error != nil {
-			log.Fatalf("seed: cannot ensure role %q: %v", name, result.Error)
+			log.Fatalf("seed: cannot ensure role %q: %v", name, result.Error) //nolint:gocritic // exitAfterDefer: log.Fatalf exits; defer is intentionally skipped on seed failure
 		}
 	}
 

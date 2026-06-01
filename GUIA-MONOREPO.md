@@ -26,7 +26,8 @@ Documentacion de la arquitectura del monorepo, su estructura polyglot (Go + Angu
 12. [Linting y Formateo](#12-linting-y-formateo)
 13. [Agregar Nuevas Features End-to-End](#13-agregar-nuevas-features-end-to-end)
 14. [Directorios Auxiliares](#14-directorios-auxiliares)
-15. [Referencias Cruzadas](#15-referencias-cruzadas)
+15. [CI/CD — GitHub Actions](#15-cicd--github-actions)
+16. [Referencias Cruzadas](#16-referencias-cruzadas)
 
 ---
 
@@ -1520,7 +1521,53 @@ No son parte de la aplicacion — son herramientas del entorno de desarrollo.
 
 ---
 
-## 15. Referencias Cruzadas
+## 15. CI/CD — GitHub Actions
+
+### 15.1 Pipeline
+
+El archivo `.github/workflows/ci.yml` ejecuta 7 jobs en paralelo en cada `pull_request` o `push` a `main`:
+
+| Job | Que hace |
+|-----|----------|
+| `lint` | golangci-lint (backend) + ng lint (frontend) via `make lint` |
+| `test-backend` | `make backend-test` (go test con -race) |
+| `test-backend-integration` | `make backend-test-integration` (testcontainers, requiere Docker) |
+| `test-frontend` | `make frontend-test` (Vitest) |
+| `build` | `make build` (binario Go + bundle Angular) |
+| `docker-build` | `make docker-build` — construye imagenes Docker (depende de `build`) |
+| `types-drift` | `make types && git diff --exit-code` — falla si los tipos generados divergen del spec |
+
+Todos los jobs usan `runs-on: ubuntu-latest`. El job `docker-build` tiene `needs: build` y es el unico con dependencia.
+
+### 15.2 Bootstrapping de Branch Protection
+
+La primera vez que se merguea el pipeline, GitHub aun no conoce los nombres de los check contexts. El orden correcto es:
+
+1. Crear la rama con `.github/workflows/ci.yml` y hacer un PR a `main`.
+2. Mergear via **admin override** (la proteccion no existe aun — el primer merge es libre).
+3. El trigger `push: main` dispara el pipeline. GitHub registra los 7 contextos.
+4. Configurar branch protection con el siguiente comando (requiere admin y `gh` CLI):
+
+```bash
+gh api repos/yersonreyes/SkillMaker-/branches/main/protection \
+  --method PUT \
+  --field required_status_checks='{"strict":true,"contexts":["lint","test-backend","test-backend-integration","test-frontend","build","docker-build","types-drift"]}' \
+  --field enforce_admins=false \
+  --field required_pull_request_reviews=null \
+  --field restrictions=null
+```
+
+5. Desde ese momento, todo PR con alguno de los 7 checks en rojo quedara bloqueado para mergear.
+
+### 15.3 Notas de Operacion
+
+- **types-drift**: si el job falla, significa que alguien cambio un DTO o anotacion Swag sin regenerar `types.ts`. Solucion: `make types` y commitear el archivo actualizado.
+- **docker-build local**: `make docker-build` construye `skillmaker-backend:ci` y `skillmaker-frontend:ci`. No hace push a ningun registry.
+- **Linter de archivos generados**: `frontend/src/app/api/types.ts` esta excluido del linting en `frontend/eslint.config.js` porque es auto-generado y los eslint-disable que se agreguen a ese archivo se borran en el proximo `make types`.
+
+---
+
+## 16. Referencias Cruzadas
 
 | Tema | Guia | Ruta |
 |------|------|------|

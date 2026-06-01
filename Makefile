@@ -125,6 +125,11 @@ types: swagger ## Genera frontend/src/app/api/types.ts desde el OpenAPI (requier
 	cd frontend && npx openapi-typescript ../backend/docs/swagger.json -o src/app/api/types.ts
 
 ## ---------- Docker (produccion) ----------
+.PHONY: docker-build
+docker-build: ## Construye las imagenes Docker de backend y frontend (CI)
+	docker build -f backend/Dockerfile -t skillmaker-backend:ci ./backend
+	docker build -f frontend/Dockerfile -t skillmaker-frontend:ci ./frontend
+
 .PHONY: docker-up
 docker-up: ## Levanta los 5 servicios de produccion (postgres + minio + migrate + backend + frontend)
 	docker compose up -d --build

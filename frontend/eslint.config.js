@@ -7,6 +7,13 @@ const templateParser = require('@angular-eslint/template-parser');
 
 module.exports = tseslint.config(
   {
+    // Exclude auto-generated files from linting. types.ts is produced by
+    // `make types` (openapi-typescript) and must NOT be modified by hand —
+    // any lint fixes added here would be erased on the next codegen run and
+    // would corrupt the types-drift CI gate.
+    ignores: ['src/app/api/types.ts'],
+  },
+  {
     files: ['**/*.ts'],
     extends: [
       eslint.configs.recommended,
