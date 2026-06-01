@@ -48,14 +48,22 @@ type Service interface {
 }
 
 type service struct {
-	cfg   Config
-	users users.Service
-	repo  repository.Repository
+	cfg           Config
+	users         users.Service
+	repo          repository.Repository
+	validateToken func(ctx context.Context, idToken, audience string) (*idtoken.Payload, error)
 }
 
 // New constructs a Service with all required dependencies injected.
 func New(cfg Config, u users.Service, r repository.Repository) Service {
-	return &service{cfg: cfg, users: u, repo: r}
+	return &service{
+		cfg:   cfg,
+		users: u,
+		repo:  r,
+		validateToken: func(ctx context.Context, idToken, audience string) (*idtoken.Payload, error) {
+			return idtoken.Validate(ctx, idToken, audience)
+		},
+	}
 }
 
 // LoginWithGoogle validates a Google ID token, enforces the hosted-domain
@@ -67,7 +75,7 @@ func New(cfg Config, u users.Service, r repository.Repository) Service {
 // the domain check is skipped. Production deployments MUST set this to
 // the corporate Workspace domain to satisfy RT-13.
 func (s *service) LoginWithGoogle(ctx context.Context, idTokenStr string) (dto.LoginResponse, error) {
-	payload, err := idtoken.Validate(ctx, idTokenStr, s.cfg.GoogleClientID)
+	payload, err := s.validateToken(ctx, idTokenStr, s.cfg.GoogleClientID)
 	if err != nil {
 		return dto.LoginResponse{}, ErrInvalidGoogleToken
 	}

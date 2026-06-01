@@ -52,12 +52,16 @@ frontend-build: ## Build de produccion del frontend
 test: backend-test frontend-test ## Ejecuta tests de ambos workspaces
 
 .PHONY: backend-test
-backend-test: ## Tests del backend con cobertura
-	cd backend && go test ./... -race -coverprofile=coverage.out
+backend-test: ## Tests del backend (auth/service coverage)
+	cd backend && go test ./... -race && go test ./internal/modules/auth/service/... -coverprofile=coverage.out
 
 .PHONY: backend-test-integration
 backend-test-integration: ## Tests de integracion (testcontainers, mas lentos)
-	cd backend && go test ./... -tags=integration
+	cd backend && go test ./... -tags=integration -race
+
+.PHONY: backend-coverage
+backend-coverage: ## Muestra cobertura del backend (auth/service)
+	cd backend && go test ./internal/modules/auth/service/... -coverprofile=coverage.out && go tool cover -func=coverage.out | grep total
 
 .PHONY: frontend-test
 frontend-test: ## Tests del frontend (Vitest)
