@@ -1,0 +1,25 @@
+<div class="space-y-6">
+  <div class="text-center">
+    <h2 class="text-3xl font-bold mb-2">Bienvenido</h2>
+    <p class="text-gray-600">Inicia sesion con tu cuenta corporativa</p>
+  </div>
+
+  <button
+    pButton
+    type="button"
+    class="w-full p-button-lg"
+    severity="primary"
+    [disabled]="loading"
+    (click)="signInWithGoogle()">
+    <i class="pi pi-google mr-2"></i>
+    Continuar con Google
+  </button>
+
+  @if (loading) {
+    <div class="text-center text-sm text-gray-500">Procesando...</div>
+  }
+
+  <div class="text-center text-xs text-gray-400">
+    Solo cuentas del dominio corporativo tienen acceso.
+  </div>
+</div>

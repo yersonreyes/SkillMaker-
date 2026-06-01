@@ -1,0 +1,163 @@
+<div class="flex h-screen overflow-hidden">
+  <!-- Sidebar -->
+  <aside
+    class="bg-primary-900 text-white flex flex-col transition-all duration-200 flex-shrink-0"
+    [class.w-64]="!collapsed()"
+    [class.w-16]="collapsed()">
+
+    <!-- Sidebar header -->
+    <div class="p-3 flex items-center justify-between border-b border-primary-700 min-h-[60px]">
+      @if (!collapsed()) {
+        <span class="font-bold text-lg whitespace-nowrap overflow-hidden">SkillMaker</span>
+      }
+      <button
+        pButton
+        type="button"
+        text
+        rounded
+        class="!text-white !p-1 ml-auto"
+        (click)="toggleSidebar()"
+        [attr.aria-label]="collapsed() ? 'Expandir sidebar' : 'Colapsar sidebar'">
+        <i [class]="collapsed() ? 'pi pi-angle-right' : 'pi pi-angle-left'"></i>
+      </button>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="flex-1 overflow-y-auto py-2 space-y-0.5 px-2">
+
+      <!-- Items comunes: todos los usuarios autenticados -->
+      @for (item of commonItems; track item.route) {
+        <a
+          [routerLink]="item.route"
+          routerLinkActive="bg-primary-700"
+          class="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-primary-800 transition-colors text-sm"
+          [pTooltip]="collapsed() ? item.label : ''"
+          tooltipPosition="right">
+          <i [class]="item.icon + ' text-base flex-shrink-0'"></i>
+          @if (!collapsed()) {
+            <span class="truncate">{{ item.label }}</span>
+          }
+        </a>
+      }
+
+      <!-- Items del rol creador -->
+      <ng-container *hasRole="'creador'">
+        @if (!collapsed()) {
+          <div class="px-2 pt-3 pb-1 text-xs uppercase opacity-50 tracking-wider">Creador</div>
+        } @else {
+          <div class="border-t border-primary-700 my-1"></div>
+        }
+        @for (item of creatorItems; track item.route) {
+          <a
+            [routerLink]="item.route"
+            routerLinkActive="bg-primary-700"
+            class="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-primary-800 transition-colors text-sm"
+            [pTooltip]="collapsed() ? item.label : ''"
+            tooltipPosition="right">
+            <i [class]="item.icon + ' text-base flex-shrink-0'"></i>
+            @if (!collapsed()) {
+              <span class="truncate">{{ item.label }}</span>
+            }
+          </a>
+        }
+      </ng-container>
+
+      <!-- Items del rol supervisor -->
+      <ng-container *hasRole="'supervisor'">
+        @if (!collapsed()) {
+          <div class="px-2 pt-3 pb-1 text-xs uppercase opacity-50 tracking-wider">Supervision</div>
+        } @else {
+          <div class="border-t border-primary-700 my-1"></div>
+        }
+        @for (item of supervisorItems; track item.route) {
+          <a
+            [routerLink]="item.route"
+            routerLinkActive="bg-primary-700"
+            class="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-primary-800 transition-colors text-sm"
+            [pTooltip]="collapsed() ? item.label : ''"
+            tooltipPosition="right">
+            <i [class]="item.icon + ' text-base flex-shrink-0'"></i>
+            @if (!collapsed()) {
+              <span class="truncate">{{ item.label }}</span>
+            }
+          </a>
+        }
+      </ng-container>
+
+      <!-- Items del rol administrador -->
+      <ng-container *hasRole="'administrador'">
+        @if (!collapsed()) {
+          <div class="px-2 pt-3 pb-1 text-xs uppercase opacity-50 tracking-wider">Administracion</div>
+        } @else {
+          <div class="border-t border-primary-700 my-1"></div>
+        }
+        @for (item of adminItems; track item.route) {
+          <a
+            [routerLink]="item.route"
+            routerLinkActive="bg-primary-700"
+            class="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-primary-800 transition-colors text-sm"
+            [pTooltip]="collapsed() ? item.label : ''"
+            tooltipPosition="right">
+            <i [class]="item.icon + ' text-base flex-shrink-0'"></i>
+            @if (!collapsed()) {
+              <span class="truncate">{{ item.label }}</span>
+            }
+          </a>
+        }
+      </ng-container>
+
+    </nav>
+  </aside>
+
+  <!-- Main column -->
+  <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+
+    <!-- Sticky header -->
+    <header class="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between flex-shrink-0">
+      <h1 class="text-lg font-semibold text-gray-800">SkillMaker</h1>
+
+      <!-- User area -->
+      <div
+        class="flex items-center gap-3 cursor-pointer select-none"
+        (click)="userMenu.toggle($event)">
+        <!-- Avatar with initials -->
+        <div class="w-9 h-9 rounded-full bg-primary-500 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+          {{ userInitials() }}
+        </div>
+        <!-- Name + role (hidden on small screens) -->
+        <div class="text-sm text-right hidden sm:block">
+          <div class="font-medium text-gray-800 leading-tight">{{ auth.user()?.nombre || 'Usuario' }}</div>
+          <div class="text-xs text-gray-500">{{ primaryRole() }}</div>
+        </div>
+        <i class="pi pi-chevron-down text-xs text-gray-400"></i>
+      </div>
+
+      <!-- User popover menu -->
+      <p-popover #userMenu>
+        <div class="p-2 space-y-1 min-w-44">
+          <a
+            routerLink="/platform/profile"
+            (click)="userMenu.hide()"
+            class="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 text-sm text-gray-700 transition-colors">
+            <i class="pi pi-user text-gray-500"></i>
+            Mi perfil
+          </a>
+          <div class="border-t border-gray-100 my-1"></div>
+          <button
+            type="button"
+            class="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 text-sm text-gray-700 transition-colors"
+            (click)="logout(); userMenu.hide()">
+            <i class="pi pi-sign-out text-gray-500"></i>
+            Cerrar sesion
+          </button>
+        </div>
+      </p-popover>
+    </header>
+
+    <!-- Content area -->
+    <main class="flex-1 overflow-y-auto bg-gray-50">
+      <router-outlet />
+    </main>
+
+  </div>
+</div>

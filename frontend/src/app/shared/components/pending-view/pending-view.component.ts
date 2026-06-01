@@ -1,4 +1,6 @@
-import { Component, Input } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-pending-view',
@@ -7,5 +9,9 @@ import { Component, Input } from '@angular/core';
   styleUrls: ['./pending-view.component.sass'],
 })
 export class PendingViewComponent {
-  @Input() title?: string;
+  private route = inject(ActivatedRoute);
+  private data = toSignal(this.route.data);
+  title = computed(
+    () => (this.data()?.['title'] as string | undefined) ?? 'Pendiente de implementacion',
+  );
 }
