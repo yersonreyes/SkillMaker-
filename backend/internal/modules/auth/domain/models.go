@@ -17,8 +17,8 @@ type RefreshToken struct {
 	ExpiresAt time.Time  `gorm:"type:timestamptz;not null"`
 	RevokedAt *time.Time `gorm:"type:timestamptz"`
 	UsedAt    *time.Time `gorm:"type:timestamptz"`
-	UserAgent string     `gorm:"type:text"`
-	IP        string     `gorm:"type:inet"`
+	UserAgent *string    `gorm:"type:text"`
+	IP        *string    `gorm:"type:inet"`
 	CreatedAt time.Time  `gorm:"type:timestamptz;default:now()"`
 }
 

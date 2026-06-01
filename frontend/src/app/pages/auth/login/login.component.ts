@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { AuthService } from '@core/services/authService/auth.service';
@@ -14,17 +14,35 @@ declare const google: any; // eslint-disable-line @typescript-eslint/no-explicit
   templateUrl: './login.component.html',
   styleUrl: './login.component.sass',
 })
-export class LoginComponent implements OnInit {
+export class LoginComponent {
   private auth = inject(AuthService);
   private router = inject(Router);
   private dialog = inject(UiDialogService);
   protected loading = false;
+  private initialized = false;
 
-  ngOnInit(): void {
-    if (typeof google === 'undefined' || !google.accounts?.id) {
-      console.warn('Google Identity Services no esta cargado todavia');
-      return;
+  /**
+   * Inicializa Google Identity Services. El script de GIS se carga con
+   * `async defer` en index.html, por lo que puede no estar listo cuando
+   * Angular monta el componente. Por eso se espera hasta que `window.google`
+   * exista antes de inicializar — con un timeout corto.
+   */
+  private async ensureInitialized(): Promise<boolean> {
+    if (this.initialized) return true;
+
+    // Espera a que GIS este disponible (script async defer aun cargando)
+    const start = Date.now();
+    while (typeof google === 'undefined' || !google.accounts?.id) {
+      if (Date.now() - start > 5000) {
+        this.dialog.showError(
+          'Google no disponible',
+          'No se pudo cargar Google Identity Services. Verifica tu conexion y recarga la pagina.',
+        );
+        return false;
+      }
+      await new Promise((r) => setTimeout(r, 100));
     }
+
     const initConfig: Record<string, unknown> = {
       client_id: environment.googleClientId,
       callback: (response: { credential: string }) =>
@@ -32,19 +50,19 @@ export class LoginComponent implements OnInit {
       auto_select: false,
       cancel_on_tap_outside: true,
     };
-    // Solo aplica el filtro de dominio si esta configurado (prod con Workspace).
-    // En dev con Gmail personal, googleHostedDomain queda vacio y se omite.
+    // El filtro de dominio solo aplica si esta configurado (prod con Workspace).
+    // En dev con Gmail personal queda vacio y se omite.
     if (environment.googleHostedDomain) {
       initConfig['hd'] = environment.googleHostedDomain;
     }
     google.accounts.id.initialize(initConfig);
+    this.initialized = true;
+    return true;
   }
 
-  signInWithGoogle(): void {
-    if (typeof google === 'undefined') {
-      this.dialog.showError('Google no disponible', 'Recarga la pagina e intenta de nuevo');
-      return;
-    }
+  async signInWithGoogle(): Promise<void> {
+    const ok = await this.ensureInitialized();
+    if (!ok) return;
     google.accounts.id.prompt();
   }
 

@@ -5,6 +5,7 @@ package handler
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -54,10 +55,14 @@ func (h *Handler) LoginWithGoogle(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrInvalidGoogleToken):
+			slog.Warn("auth.google: invalid token", "err", err)
 			httperr.Render(c, &httperr.Error{Status: http.StatusUnauthorized, Code: "INVALID_GOOGLE_TOKEN", Message: err.Error()})
 		case errors.Is(err, service.ErrUnauthorizedDomain):
+			slog.Warn("auth.google: unauthorized domain", "err", err)
 			httperr.Render(c, &httperr.Error{Status: http.StatusUnauthorized, Code: "UNAUTHORIZED_DOMAIN", Message: err.Error()})
 		default:
+			// Loggea la causa real antes de devolver 500 generico al cliente.
+			slog.Error("auth.google: unexpected error", "err", err)
 			httperr.Render(c, httperr.Internal(err.Error()))
 		}
 		return
