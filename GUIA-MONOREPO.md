@@ -1410,11 +1410,11 @@ Para patrones detallados ver `frontend/GUIA-FRONT.md`.
 
 ### 13.4 Conectar Frontend con Backend
 
-1. **Generar tipos TypeScript desde el OpenAPI** (opcional, recomendado):
+1. **Generar tipos TypeScript desde el OpenAPI** (primer paso recomendado):
 ```bash
-npx openapi-typescript backend/docs/swagger.json -o frontend/src/app/api/types.ts
+make types
 ```
-Asi el contrato del backend se refleja como tipos TS sin duplicar definiciones a mano.
+Encadena `make swagger` + `openapi-typescript` y escribe `frontend/src/app/api/types.ts`. El archivo es parte del repositorio (contrato de API). Ejecutar cada vez que cambie un DTO o anotacion swag del backend. Ver `frontend/GUIA-FRONT.md` seccion 16 para detalles y la nota sobre notacion de corchetes.
 
 2. **Crear servicio en `frontend/src/app/core/services/`:**
 ```typescript

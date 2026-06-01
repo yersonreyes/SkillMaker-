@@ -208,10 +208,11 @@ make swagger
 
 Esto crea `backend/docs/swagger.json`, `swagger.yaml` y `docs.go` a partir de las anotaciones swag en los handlers.
 
-> **Importante:** repetir este paso despues de agregar o modificar endpoints. El frontend puede generar tipos TypeScript desde este spec con:
+> **Importante:** repetir este paso despues de agregar o modificar endpoints. Para generar (o regenerar) los tipos TypeScript del frontend a partir del spec:
 > ```bash
-> npx openapi-typescript backend/docs/swagger.json -o frontend/src/app/api/types.ts
+> make types
 > ```
+> Este comando encadena `make swagger` + `openapi-typescript` y escribe `frontend/src/app/api/types.ts`. Requiere `swag` en PATH (ver prerequisitos). Ver `frontend/GUIA-FRONT.md` seccion 16 para detalles.
 
 ---
 

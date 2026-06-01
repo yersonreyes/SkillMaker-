@@ -47,6 +47,10 @@ src/
 │   ├── app.config.ts                   # Configuracion de providers, tema, interceptors
 │   ├── app.routes.ts                   # Rutas principales (auth + platform)
 │   │
+│   ├── api/                            # Tipos generados desde OpenAPI (make types)
+│   │   ├── types.ts                    # Auto-generado — NO editar a mano
+│   │   └── types.contract.ts           # Asercion de compilacion (contrato)
+│   │
 │   ├── core/                           # Singleton: guards, interceptors, services
 │   │   ├── constants/
 │   │   │   └── texts.ts                # Constantes de texto
@@ -137,17 +141,21 @@ src/
 - **Guards e interceptors:** funcionales (no clases), exportados como `const`
 - **Carpetas por rol:** las vistas exclusivas de un rol (`creator/`, `admin/`, `supervisor/`) se agrupan para que el sidebar y los guards se cableen de forma consistente.
 
-### Path Aliases (tsconfig.app.json)
+### Path Aliases (tsconfig.json)
 
 ```json
 {
   "paths": {
-    "@core/*": ["./src/app/core/*"],
-    "@pages/*": ["./src/app/pages/*"],
-    "@shared/*": ["./src/app/shared/*"]
+    "@api/*":    ["src/app/api/*"],
+    "@core/*":   ["src/app/core/*"],
+    "@pages/*":  ["src/app/pages/*"],
+    "@shared/*": ["src/app/shared/*"],
+    "@env/*":    ["src/environments/*"]
   }
 }
 ```
+
+> **Nota:** los paths no usan `./` como prefijo — coinciden con la configuracion real de `tsconfig.json`.
 
 ---
 
@@ -1328,3 +1336,80 @@ Esta tabla deberia mantenerse actualizada cuando se agreguen nuevas vistas o cua
 | **Embeds seguros** | Videos referenciados, nunca almacenados; sanitization en `VideoEmbed` |
 | **Promise-based HTTP** | Todas las llamadas HTTP usan async/await via el builder |
 | **OpenAPI como contrato** | Tipos TS generados desde `backend/docs/swagger.json` |
+
+---
+
+## 16. Contrato OpenAPI y Codegen de Tipos
+
+### Por que
+
+El backend expone su contrato via `backend/docs/swagger.json` (generado por swaggo/swag desde anotaciones Go). En vez de duplicar DTOs a mano en el frontend (propenso a desincronizacion silenciosa), usamos `openapi-typescript` para generar `src/app/api/types.ts` automaticamente.
+
+### Prerequisito
+
+`swag` debe estar en PATH. Si no lo esta:
+
+```bash
+go install github.com/swaggo/swag/cmd/swag@latest
+```
+
+### Comando
+
+Desde la raiz del monorepo:
+
+```bash
+make types
+```
+
+Esto:
+1. Ejecuta `make swagger` — regenera `backend/docs/swagger.json` desde las anotaciones Go.
+2. Crea `frontend/src/app/api/` si no existe.
+3. Ejecuta `openapi-typescript` contra el JSON generado → escribe `frontend/src/app/api/types.ts`.
+
+### Cuando ejecutarlo
+
+Cada vez que se agregue, renombre o elimine un campo en un DTO del backend o se modifique una anotacion swag en un handler. El diff de `types.ts` en el PR hace visible el cambio de contrato.
+
+### El archivo generado ES parte del repositorio
+
+`frontend/src/app/api/types.ts` esta comprometido en git, al igual que `backend/docs/swagger.json`. Esto permite:
+- Que el IDE y el compilador resuelvan los tipos sin ejecutar `make types` primero.
+- Que los cambios de contrato sean visibles en los diffs de PR.
+- Que los contribuidores no-Go puedan trabajar sin recompilar el backend.
+
+**No editar `types.ts` a mano.** Cualquier cambio manual se sobreescribira en la proxima ejecucion de `make types`.
+
+### Notacion de corchetes (obligatoria)
+
+`tsconfig.json` tiene `"noPropertyAccessFromIndexSignature": true`. Por eso, al acceder a rutas del objeto `paths`, se DEBE usar notacion de corchetes:
+
+```typescript
+import type { paths } from '@api/types';
+
+// CORRECTO (notacion de corchetes)
+type AuthPost = paths['/auth/google']['post'];
+
+// ERROR de compilacion (notacion de punto no permitida en index types)
+// type AuthPost = paths./auth/google.post;  // invalido sintacticamente de todas formas
+```
+
+Esto es comportamiento esperado de `openapi-typescript`, no un defecto. No "corregir" relajando la regla de tsconfig.
+
+### Asercion de compilacion (`types.contract.ts`)
+
+`frontend/src/app/api/types.contract.ts` es un archivo comprometido que actua como test de compilacion:
+
+```typescript
+import type { paths } from '@api/types';
+
+// Si /auth/google o post desaparecen del spec, tsc falla aqui.
+type _AuthPost = paths['/auth/google']['post'];
+```
+
+Para verificar el contrato:
+
+```bash
+cd frontend && npx tsc --noEmit --project tsconfig.spec.json
+```
+
+Exit 0 = contrato valido. Exit no-0 = el spec cambio y hay que actualizar los consumidores.

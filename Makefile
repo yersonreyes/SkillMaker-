@@ -117,6 +117,13 @@ db-seed: ## Pobla la BD con datos iniciales (ej: roles)
 swagger: ## Regenera el OpenAPI desde anotaciones (swaggo/swag)
 	cd backend && swag init -g cmd/api/main.go -o docs
 
+## ---------- Tipos ----------
+.PHONY: types
+types: swagger ## Genera frontend/src/app/api/types.ts desde el OpenAPI (requiere swag en PATH)
+	@command -v swag >/dev/null 2>&1 || (echo "swag no esta en PATH. Ejecuta: go install github.com/swaggo/swag/cmd/swag@latest" && exit 1)
+	@mkdir -p frontend/src/app/api
+	cd frontend && npx openapi-typescript ../backend/docs/swagger.json -o src/app/api/types.ts
+
 ## ---------- Docker (produccion) ----------
 .PHONY: docker-up
 docker-up: ## Levanta los 5 servicios de produccion (postgres + minio + migrate + backend + frontend)
