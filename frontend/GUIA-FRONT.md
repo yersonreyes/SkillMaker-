@@ -1409,7 +1409,7 @@ type _AuthPost = paths['/auth/google']['post'];
 Para verificar el contrato:
 
 ```bash
-cd frontend && npx tsc --noEmit --project tsconfig.spec.json
+cd frontend && npx tsc --noEmit --project tsconfig.app.json
 ```
 
 Exit 0 = contrato valido. Exit no-0 = el spec cambio y hay que actualizar los consumidores.
