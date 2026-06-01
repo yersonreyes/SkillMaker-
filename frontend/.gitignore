@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.angular/
+.cache/
+coverage/
+*.log
+*.local
+.DS_Store
