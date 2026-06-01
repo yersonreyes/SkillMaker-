@@ -12,6 +12,8 @@ import { definePreset } from '@primeuix/themes';
 import Aura from '@primeuix/themes/aura';
 
 import { routes } from './app.routes';
+import { authTokenInterceptor } from '@core/interceptors/auth-token.interceptor';
+import { authRefreshInterceptor } from '@core/interceptors/auth-refresh.interceptor';
 
 // Tema personalizado — el color primario se puede ajustar segun la identidad del producto.
 // SkillMaker usa azul corporativo como placeholder; cambiar la paleta para otro proyecto.
@@ -51,7 +53,7 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideZonelessChangeDetection(),
     provideRouter(routes),
-    provideHttpClient(withInterceptors([])), // interceptors se agregan en Phase 5
+    provideHttpClient(withInterceptors([authTokenInterceptor, authRefreshInterceptor])),
     provideAnimationsAsync(),
     ConfirmationService,
     MessageService,
