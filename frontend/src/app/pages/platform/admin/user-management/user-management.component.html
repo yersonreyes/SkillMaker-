@@ -1,0 +1,166 @@
+<!-- user-management.component.html -->
+<div class="p-4 space-y-4">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-semibold">Gestion de usuarios</h1>
+  </div>
+
+  <!-- Filters -->
+  <div class="flex flex-wrap gap-3 items-end">
+    <div class="flex flex-col gap-1">
+      <label class="text-xs text-gray-500">Buscar</label>
+      <input
+        pInputText
+        type="text"
+        [ngModel]="filterQ()"
+        (ngModelChange)="filterQ.set($event)"
+        placeholder="Nombre o email"
+        class="w-48"
+        (keyup.enter)="applyFilters()" />
+    </div>
+
+    <div class="flex flex-col gap-1">
+      <label class="text-xs text-gray-500">Rol</label>
+      <p-select
+        [options]="roleOptions"
+        [ngModel]="filterRole()"
+        (ngModelChange)="filterRole.set($event)"
+        optionLabel="label"
+        optionValue="value"
+        class="w-40"
+        (onChange)="applyFilters()" />
+    </div>
+
+    <div class="flex flex-col gap-1">
+      <label class="text-xs text-gray-500">Estado</label>
+      <p-select
+        [options]="activeOptions"
+        [ngModel]="filterActive()"
+        (ngModelChange)="filterActive.set($event)"
+        optionLabel="label"
+        optionValue="value"
+        class="w-36"
+        (onChange)="applyFilters()" />
+    </div>
+
+    <p-button
+      label="Buscar"
+      icon="pi pi-search"
+      severity="primary"
+      (onClick)="applyFilters()" />
+  </div>
+
+  <!-- Table -->
+  <p-table
+    [value]="users()"
+    [lazy]="true"
+    [paginator]="true"
+    [rows]="pageSize()"
+    [totalRecords]="total()"
+    [loading]="loading()"
+    (onLazyLoad)="onLazyLoad($event)"
+    [rowsPerPageOptions]="[10, 20, 50]"
+    dataKey="id"
+    styleClass="p-datatable-sm">
+
+    <ng-template #header>
+      <tr>
+        <th>Nombre</th>
+        <th>Email</th>
+        <th>Roles</th>
+        <th>Estado</th>
+        <th>Acciones</th>
+      </tr>
+    </ng-template>
+
+    <ng-template #body let-user>
+      <tr>
+        <td>{{ user.nombre }}</td>
+        <td>{{ user.email }}</td>
+        <td>
+          <div class="flex flex-wrap gap-1">
+            @for (role of user.roles; track role) {
+              <p-tag [value]="role" severity="info" />
+            }
+          </div>
+        </td>
+        <td>
+          @if (user.activo) {
+            <p-tag value="Activo" severity="success" />
+          } @else {
+            <p-tag value="Inactivo" severity="danger" />
+          }
+        </td>
+        <td>
+          <div class="flex gap-2">
+            <p-button
+              icon="pi pi-pencil"
+              [text]="true"
+              severity="secondary"
+              pTooltip="Editar roles"
+              tooltipPosition="top"
+              (onClick)="openEditDialog(user)" />
+            <p-button
+              [icon]="user.activo ? 'pi pi-ban' : 'pi pi-user-plus'"
+              [text]="true"
+              [severity]="user.activo ? 'danger' : 'success'"
+              [pTooltip]="user.activo ? 'Desactivar' : 'Activar'"
+              tooltipPosition="top"
+              (onClick)="toggleActive(user)" />
+          </div>
+        </td>
+      </tr>
+    </ng-template>
+
+    <ng-template #emptymessage>
+      <tr>
+        <td colspan="5" class="text-center text-gray-400 py-8">
+          No se encontraron usuarios con los filtros aplicados.
+        </td>
+      </tr>
+    </ng-template>
+
+  </p-table>
+
+</div>
+
+<!-- Edit Roles Dialog -->
+<p-dialog
+  [visible]="dialogVisible()"
+  (visibleChange)="dialogVisible.set($event)"
+  [header]="'Editar roles — ' + (editingUser()?.nombre ?? '')"
+  [modal]="true"
+  [style]="{ width: '380px' }"
+  [closable]="true"
+  (onHide)="closeDialog()">
+
+  <div class="space-y-3 pt-2">
+    @for (role of allRoles; track role) {
+      <div class="flex items-center gap-3">
+        <p-checkbox
+          [binary]="true"
+          [ngModel]="isRoleSelected(role)"
+          (ngModelChange)="toggleRole(role)"
+          [inputId]="'role-' + role" />
+        <label [for]="'role-' + role" class="cursor-pointer capitalize">{{ role }}</label>
+      </div>
+    }
+  </div>
+
+  <ng-template #footer>
+    <div class="flex justify-end gap-2">
+      <p-button
+        label="Cancelar"
+        severity="secondary"
+        [text]="true"
+        (onClick)="closeDialog()" />
+      <p-button
+        label="Guardar"
+        icon="pi pi-check"
+        [loading]="saving()"
+        (onClick)="onSaveDialog()" />
+    </div>
+  </ng-template>
+
+</p-dialog>

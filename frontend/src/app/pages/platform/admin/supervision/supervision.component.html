@@ -1,0 +1,95 @@
+<!-- supervision.component.html -->
+<div class="p-4 space-y-6">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-semibold">Supervision</h1>
+  </div>
+
+  <!-- Create relation form -->
+  <div class="border rounded-lg p-4 space-y-4 bg-white shadow-sm">
+    <h2 class="text-base font-medium">Asignar supervision</h2>
+
+    <div class="flex flex-wrap gap-4 items-end">
+      <div class="flex flex-col gap-1">
+        <label class="text-xs text-gray-500">Supervisor</label>
+        <p-select
+          [options]="userOptions"
+          [(ngModel)]="selectedSupervisorId"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="Seleccionar supervisor"
+          [filter]="true"
+          class="w-64" />
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <label class="text-xs text-gray-500">Empleado</label>
+        <p-select
+          [options]="userOptions"
+          [(ngModel)]="selectedEmpleadoId"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="Seleccionar empleado"
+          [filter]="true"
+          class="w-64" />
+      </div>
+
+      <p-button
+        label="Asignar"
+        icon="pi pi-link"
+        severity="primary"
+        [loading]="creating()"
+        [disabled]="!selectedSupervisorId() || !selectedEmpleadoId()"
+        (onClick)="createSupervision()" />
+    </div>
+  </div>
+
+  <!-- Supervision list -->
+  <p-table
+    [value]="supervisions()"
+    [loading]="loading()"
+    dataKey="id"
+    styleClass="p-datatable-sm">
+
+    <ng-template #header>
+      <tr>
+        <th>Supervisor</th>
+        <th>Empleado</th>
+        <th>Creado</th>
+        <th>Acciones</th>
+      </tr>
+    </ng-template>
+
+    <ng-template #body let-sup>
+      <tr>
+        <td>
+          <div class="flex items-center gap-2">
+            <i class="pi pi-user text-blue-500"></i>
+            <span>{{ sup.supervisorName }}</span>
+          </div>
+        </td>
+        <td>{{ sup.empleadoName }}</td>
+        <td>{{ sup.creadoEn | date: 'dd/MM/yyyy' }}</td>
+        <td>
+          <p-button
+            icon="pi pi-trash"
+            [text]="true"
+            severity="danger"
+            pTooltip="Eliminar relacion"
+            (onClick)="removeSupervision(sup)" />
+        </td>
+      </tr>
+    </ng-template>
+
+    <ng-template #emptymessage>
+      <tr>
+        <td colspan="4" class="text-center text-gray-400 py-8">
+          No existen relaciones de supervision configuradas.
+        </td>
+      </tr>
+    </ng-template>
+
+  </p-table>
+
+</div>
