@@ -33,17 +33,17 @@ jobs:
       - name: Install frontend dependencies
         run: cd frontend && npm ci --legacy-peer-deps
 
-      # Install golangci-lint via the official action (C5.1).
-      # `skip-run: true` installs the binary without triggering an automatic lint
-      # run — the actual lint execution happens in the next step via `make lint`,
-      # which drives both backend-lint (golangci-lint) and frontend-lint (ng lint)
-      # through the same Makefile target used locally. This avoids double-running
-      # golangci-lint while satisfying C5.1 (official action as installer).
+      # Install golangci-lint via the official install script, pinned to v1.64.8.
+      # NOTE: golangci-lint-action@v7+ dropped support for golangci-lint v1.x
+      # (it only installs v2), so the action cannot be used while the project is
+      # on v1.64.8 with a v1-format .golangci.yml. Installing the binary directly
+      # matches local behaviour 1:1 and lets `make lint` drive both backend-lint
+      # (golangci-lint) and frontend-lint (ng lint) with no double-run.
       - name: Install golangci-lint
-        uses: golangci/golangci-lint-action@v8
-        with:
-          version: v1.64.8
-          skip-run: true
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/v1.64.8/install.sh \
+            | sh -s -- -b "$(go env GOPATH)/bin" v1.64.8
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Run lint (backend + frontend)
         run: make lint
