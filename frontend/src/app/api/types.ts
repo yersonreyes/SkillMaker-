@@ -88,6 +88,99 @@ export interface paths {
       };
     };
   };
+  "/supervisions": {
+    /** Retorna todas las relaciones supervisor-empleado. Solo administradores. */
+    get: {
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.SupervisionItem"][];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Forbidden */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Internal Server Error */
+        500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+    /** Asigna un supervisor a un empleado. Solo administradores. */
+    post: {
+      parameters: {
+        body: {
+          /** Relacion supervisor-empleado */
+          body: definitions["dto.SupervisionCreateRequest"];
+        };
+      };
+      responses: {
+        /** Created */
+        201: {
+          schema: definitions["dto.SupervisionItem"];
+        };
+        /** auto-supervision o body invalido */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Forbidden */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** usuario no encontrado */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** empleado ya tiene supervisor */
+        409: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Internal Server Error */
+        500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/supervisions/{id}": {
+    /** Elimina la relacion por su ID. Solo administradores. */
+    delete: {
+      parameters: {
+        path: {
+          /** UUID de la relacion de supervision */
+          id: string;
+        };
+      };
+      responses: {
+        /** Sin contenido */
+        204: never;
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Forbidden */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** relacion no encontrada */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Internal Server Error */
+        500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
   "/users": {
     /** Retorna una pagina de usuarios. Solo administradores. */
     get: {
@@ -292,6 +385,16 @@ export interface definitions {
   "dto.RolesPatchRequest": {
     add: string[];
     remove: string[];
+  };
+  "dto.SupervisionCreateRequest": {
+    empleadoId: string;
+    supervisorId: string;
+  };
+  "dto.SupervisionItem": {
+    creadoEn?: string;
+    empleadoId?: string;
+    id?: string;
+    supervisorId?: string;
   };
   "dto.UserDTO": {
     email?: string;

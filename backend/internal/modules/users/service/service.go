@@ -303,7 +303,7 @@ func (s *serviceImpl) DeleteSupervision(ctx context.Context, id string) error {
 	err := s.repo.DeleteSupervision(ctx, id)
 	if err != nil {
 		if errors.Is(err, repository.ErrSupervisionNotFound) {
-			return ErrUserNotFound // supervision not found is a 404
+			return ErrSupervisionNotFound
 		}
 
 		return err

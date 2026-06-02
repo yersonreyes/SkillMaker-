@@ -27,6 +27,11 @@ var (
 	// → 409 Conflict
 	ErrSupervisionExists = errors.New("employee already has a supervisor")
 
+	// ErrSupervisionNotFound is returned when a supervision relation does not
+	// exist (DELETE /supervisions/:id on an unknown id).
+	// → 404 Not Found
+	ErrSupervisionNotFound = errors.New("supervision relation not found")
+
 	// ErrUserNotFound is the service-layer re-export of the repository sentinel,
 	// surfaced to handlers.
 	// → 404 Not Found

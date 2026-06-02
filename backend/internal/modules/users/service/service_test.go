@@ -443,8 +443,9 @@ func TestListSupervisions_DelegatesToRepo(t *testing.T) {
 	assert.Equal(t, "sv-1", result[0].ID)
 }
 
-// DeleteSupervision: not found in repo → service ErrUserNotFound (maps to 404)
-// Uses ErrorIs so that a future sentinel-remapping regression is caught.
+// DeleteSupervision: not found in repo → service ErrSupervisionNotFound (maps to 404).
+// Uses ErrorIs to guard against future sentinel-remapping regressions.
+// Resolves PR-A deviation #5: placeholder ErrUserNotFound is now ErrSupervisionNotFound.
 func TestDeleteSupervision_NotFound(t *testing.T) {
 	repo := &MockUsersRepository{}
 	svc := newSvc(repo)
@@ -452,7 +453,7 @@ func TestDeleteSupervision_NotFound(t *testing.T) {
 	repo.On("DeleteSupervision", mock.Anything, "sv-999").Return(repository.ErrSupervisionNotFound)
 
 	err := svc.DeleteSupervision(context.Background(), "sv-999")
-	assert.ErrorIs(t, err, ErrUserNotFound, "missing supervision should surface as ErrUserNotFound (404)")
+	assert.ErrorIs(t, err, ErrSupervisionNotFound, "missing supervision should surface as ErrSupervisionNotFound (404)")
 }
 
 // DeleteSupervision: success path

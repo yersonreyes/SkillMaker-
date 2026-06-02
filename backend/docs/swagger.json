@@ -140,6 +140,180 @@
                 }
             }
         },
+        "/supervisions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retorna todas las relaciones supervisor-empleado. Solo administradores.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "supervisions"
+                ],
+                "summary": "Lista relaciones de supervision",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dto.SupervisionItem"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Asigna un supervisor a un empleado. Solo administradores.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "supervisions"
+                ],
+                "summary": "Crea una relacion de supervision",
+                "parameters": [
+                    {
+                        "description": "Relacion supervisor-empleado",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.SupervisionCreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SupervisionItem"
+                        }
+                    },
+                    "400": {
+                        "description": "auto-supervision o body invalido",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "usuario no encontrado",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "empleado ya tiene supervisor",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/supervisions/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Elimina la relacion por su ID. Solo administradores.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "supervisions"
+                ],
+                "summary": "Elimina una relacion de supervision",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID de la relacion de supervision",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Sin contenido"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "relacion no encontrada",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/users": {
             "get": {
                 "security": [
@@ -550,6 +724,38 @@
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "dto.SupervisionCreateRequest": {
+            "type": "object",
+            "required": [
+                "empleadoId",
+                "supervisorId"
+            ],
+            "properties": {
+                "empleadoId": {
+                    "type": "string"
+                },
+                "supervisorId": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.SupervisionItem": {
+            "type": "object",
+            "properties": {
+                "creadoEn": {
+                    "type": "string"
+                },
+                "empleadoId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "supervisorId": {
+                    "type": "string"
                 }
             }
         },

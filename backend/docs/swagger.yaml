@@ -46,6 +46,27 @@ definitions:
     - add
     - remove
     type: object
+  dto.SupervisionCreateRequest:
+    properties:
+      empleadoId:
+        type: string
+      supervisorId:
+        type: string
+    required:
+    - empleadoId
+    - supervisorId
+    type: object
+  dto.SupervisionItem:
+    properties:
+      creadoEn:
+        type: string
+      empleadoId:
+        type: string
+      id:
+        type: string
+      supervisorId:
+        type: string
+    type: object
   dto.UserDTO:
     properties:
       email:
@@ -189,6 +210,117 @@ paths:
       summary: Renueva el access token rotando el refresh token
       tags:
       - auth
+  /supervisions:
+    get:
+      description: Retorna todas las relaciones supervisor-empleado. Solo administradores.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.SupervisionItem'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Lista relaciones de supervision
+      tags:
+      - supervisions
+    post:
+      consumes:
+      - application/json
+      description: Asigna un supervisor a un empleado. Solo administradores.
+      parameters:
+      - description: Relacion supervisor-empleado
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SupervisionCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.SupervisionItem'
+        "400":
+          description: auto-supervision o body invalido
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: usuario no encontrado
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "409":
+          description: empleado ya tiene supervisor
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Crea una relacion de supervision
+      tags:
+      - supervisions
+  /supervisions/{id}:
+    delete:
+      description: Elimina la relacion por su ID. Solo administradores.
+      parameters:
+      - description: UUID de la relacion de supervision
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Sin contenido
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: relacion no encontrada
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Elimina una relacion de supervision
+      tags:
+      - supervisions
   /users:
     get:
       description: Retorna una pagina de usuarios. Solo administradores.

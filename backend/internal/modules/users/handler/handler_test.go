@@ -79,16 +79,27 @@ func (m *mockSvc) SetActive(ctx context.Context, id string, active bool) (*servi
 	return args.Get(0).(*service.UserDetailModel), args.Error(1)
 }
 
-func (m *mockSvc) CreateSupervision(_ context.Context, _, _ string) (*service.SupervisionModel, error) {
-	panic("not called in handler tests (PR-B scope)")
+func (m *mockSvc) CreateSupervision(ctx context.Context, supervisorID, empleadoID string) (*service.SupervisionModel, error) {
+	args := m.Called(ctx, supervisorID, empleadoID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+
+	return args.Get(0).(*service.SupervisionModel), args.Error(1)
 }
 
-func (m *mockSvc) ListSupervisions(_ context.Context) ([]service.SupervisionModel, error) {
-	panic("not called in handler tests (PR-B scope)")
+func (m *mockSvc) ListSupervisions(ctx context.Context) ([]service.SupervisionModel, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+
+	return args.Get(0).([]service.SupervisionModel), args.Error(1)
 }
 
-func (m *mockSvc) DeleteSupervision(_ context.Context, _ string) error {
-	panic("not called in handler tests (PR-B scope)")
+func (m *mockSvc) DeleteSupervision(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
 }
 
 // ── Fixtures ───────────────────────────────────────────────────────────────────
@@ -457,4 +468,202 @@ func TestSetActive_MissingActiveField_Returns400(t *testing.T) {
 	// Empty JSON object — "active" is absent; binding:"required" rejects it
 	w := do(engine, http.MethodPatch, "/users/user-1/active", map[string]interface{}{})
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// ── Supervision fixtures ────────────────────────────────────────────────────────
+
+// Valid UUIDs used in supervision tests (binding:"uuid" requires proper UUID format).
+const (
+	testSupUUID  = "11111111-1111-1111-1111-111111111111"
+	testEmpUUID  = "22222222-2222-2222-2222-222222222222"
+	testEmp2UUID = "33333333-3333-3333-3333-333333333333"
+	testSvUUID   = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+	testSv2UUID  = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+)
+
+func supervisionModel(id, supID, empID string) *service.SupervisionModel {
+	return &service.SupervisionModel{
+		ID:           id,
+		SupervisorID: supID,
+		EmpleadoID:   empID,
+		CreadoEn:     time.Now(),
+	}
+}
+
+// ── GET /supervisions — RBAC ──────────────────────────────────────────────────
+
+// V1-forbidden: non-admin caller is rejected with 403.
+func TestRBAC_NonAdmin_GET_Supervisions_Returns403(t *testing.T) {
+	svc := &mockSvc{}
+	engine := setupEngine(svc, "user-1", []string{"supervisor"})
+
+	w := do(engine, http.MethodGet, "/supervisions", nil)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, "FORBIDDEN", respErrorCode(w))
+}
+
+// V2-forbidden: non-admin caller on POST /supervisions → 403.
+func TestRBAC_NonAdmin_POST_Supervisions_Returns403(t *testing.T) {
+	svc := &mockSvc{}
+	engine := setupEngine(svc, "user-1", []string{"creador"})
+
+	w := do(engine, http.MethodPost, "/supervisions", map[string]interface{}{
+		"supervisorId": "sup-id", "empleadoId": "emp-id",
+	})
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+// V3-forbidden: non-admin caller on DELETE /supervisions/:id → 403.
+func TestRBAC_NonAdmin_DELETE_Supervision_Returns403(t *testing.T) {
+	svc := &mockSvc{}
+	engine := setupEngine(svc, "user-1", []string{"alumno"})
+
+	w := do(engine, http.MethodDelete, "/supervisions/sv-1", nil)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+// ── GET /supervisions — happy path ────────────────────────────────────────────
+
+// V1-list: admin calling GET /supervisions returns 200 with array.
+func TestListSupervisions_HappyPath_Returns200(t *testing.T) {
+	svc := &mockSvc{}
+	engine := setupEngine(svc, "admin-1", []string{"administrador"})
+
+	svs := []service.SupervisionModel{
+		*supervisionModel(testSvUUID, testSupUUID, testEmpUUID),
+		*supervisionModel(testSv2UUID, testSupUUID, testEmp2UUID),
+	}
+	svc.On("ListSupervisions", mock.Anything).Return(svs, nil)
+
+	w := do(engine, http.MethodGet, "/supervisions", nil)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var out []map[string]interface{}
+	_ = json.NewDecoder(w.Body).Decode(&out)
+	assert.Len(t, out, 2)
+	assert.Equal(t, testSvUUID, out[0]["id"])
+}
+
+// Empty list → 200 with empty array (never null).
+func TestListSupervisions_Empty_Returns200EmptyArray(t *testing.T) {
+	svc := &mockSvc{}
+	engine := setupEngine(svc, "admin-1", []string{"administrador"})
+
+	svc.On("ListSupervisions", mock.Anything).Return([]service.SupervisionModel{}, nil)
+
+	w := do(engine, http.MethodGet, "/supervisions", nil)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var out []interface{}
+	_ = json.NewDecoder(w.Body).Decode(&out)
+	assert.Len(t, out, 0)
+}
+
+// ── POST /supervisions — happy path + error mapping ───────────────────────────
+
+// V2-create: valid body → 201 with created relation.
+func TestCreateSupervision_HappyPath_Returns201(t *testing.T) {
+	svc := &mockSvc{}
+	engine := setupEngine(svc, "admin-1", []string{"administrador"})
+
+	sv := supervisionModel(testSvUUID, testSupUUID, testEmpUUID)
+	svc.On("CreateSupervision", mock.Anything, testSupUUID, testEmpUUID).Return(sv, nil)
+
+	w := do(engine, http.MethodPost, "/supervisions", map[string]interface{}{
+		"supervisorId": testSupUUID,
+		"empleadoId":   testEmpUUID,
+	})
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	var out map[string]interface{}
+	_ = json.NewDecoder(w.Body).Decode(&out)
+	assert.Equal(t, testSvUUID, out["id"])
+	assert.Equal(t, testSupUUID, out["supervisorId"])
+	assert.Equal(t, testEmpUUID, out["empleadoId"])
+}
+
+// V2-self: service returns ErrSelfSupervision → 400 SELF_SUPERVISION.
+// Uses same UUID for both supervisor and employee (passes binding:uuid, fails in service).
+func TestCreateSupervision_SelfSupervision_Returns400(t *testing.T) {
+	svc := &mockSvc{}
+	engine := setupEngine(svc, "admin-1", []string{"administrador"})
+
+	svc.On("CreateSupervision", mock.Anything, testSupUUID, testSupUUID).Return(nil, service.ErrSelfSupervision)
+
+	w := do(engine, http.MethodPost, "/supervisions", map[string]interface{}{
+		"supervisorId": testSupUUID,
+		"empleadoId":   testSupUUID,
+	})
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, "SELF_SUPERVISION", respErrorCode(w))
+}
+
+// V2-duplicate: service returns ErrSupervisionExists → 409 SUPERVISION_EXISTS.
+func TestCreateSupervision_Duplicate_Returns409(t *testing.T) {
+	svc := &mockSvc{}
+	engine := setupEngine(svc, "admin-1", []string{"administrador"})
+
+	svc.On("CreateSupervision", mock.Anything, testSupUUID, testEmpUUID).Return(nil, service.ErrSupervisionExists)
+
+	w := do(engine, http.MethodPost, "/supervisions", map[string]interface{}{
+		"supervisorId": testSupUUID,
+		"empleadoId":   testEmpUUID,
+	})
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Equal(t, "SUPERVISION_EXISTS", respErrorCode(w))
+}
+
+// V2-missing-user: service returns ErrUserNotFound → 404 USER_NOT_FOUND.
+func TestCreateSupervision_UserNotFound_Returns404(t *testing.T) {
+	svc := &mockSvc{}
+	engine := setupEngine(svc, "admin-1", []string{"administrador"})
+
+	// testEmp2UUID as a "ghost" supervisor
+	svc.On("CreateSupervision", mock.Anything, testEmp2UUID, testEmpUUID).Return(nil, service.ErrUserNotFound)
+
+	w := do(engine, http.MethodPost, "/supervisions", map[string]interface{}{
+		"supervisorId": testEmp2UUID,
+		"empleadoId":   testEmpUUID,
+	})
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Equal(t, "USER_NOT_FOUND", respErrorCode(w))
+}
+
+// Malformed JSON on POST /supervisions → 400 INVALID_BODY.
+func TestCreateSupervision_MalformedJSON_Returns400(t *testing.T) {
+	svc := &mockSvc{}
+	engine := setupEngine(svc, "admin-1", []string{"administrador"})
+
+	req := httptest.NewRequest(http.MethodPost, "/supervisions", bytes.NewBufferString("{bad json"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, "INVALID_BODY", respErrorCode(w))
+}
+
+// ── DELETE /supervisions/:id — happy path + error mapping ─────────────────────
+
+// V3-delete: relation exists → 204 no content.
+func TestDeleteSupervision_HappyPath_Returns204(t *testing.T) {
+	svc := &mockSvc{}
+	engine := setupEngine(svc, "admin-1", []string{"administrador"})
+
+	svc.On("DeleteSupervision", mock.Anything, testSvUUID).Return(nil)
+
+	w := do(engine, http.MethodDelete, "/supervisions/"+testSvUUID, nil)
+	assert.Equal(t, http.StatusNoContent, w.Code)
+}
+
+// V3-not-found: service returns ErrSupervisionNotFound → 404 SUPERVISION_NOT_FOUND.
+func TestDeleteSupervision_NotFound_Returns404(t *testing.T) {
+	svc := &mockSvc{}
+	engine := setupEngine(svc, "admin-1", []string{"administrador"})
+
+	svc.On("DeleteSupervision", mock.Anything, testSv2UUID).Return(service.ErrSupervisionNotFound)
+
+	w := do(engine, http.MethodDelete, "/supervisions/"+testSv2UUID, nil)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Equal(t, "SUPERVISION_NOT_FOUND", respErrorCode(w))
 }
