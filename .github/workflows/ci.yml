@@ -8,9 +8,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   push:
-    branches: [main]
+    branches: [main, dev]
 
 jobs:
   # ── Lint: golangci-lint (backend) + ng lint (frontend) ──────────────────────
