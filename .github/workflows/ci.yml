@@ -33,16 +33,19 @@ jobs:
       - name: Install frontend dependencies
         run: cd frontend && npm ci --legacy-peer-deps
 
-      # Install golangci-lint via the official install script, pinned to v1.64.8.
-      # NOTE: golangci-lint-action@v7+ dropped support for golangci-lint v1.x
-      # (it only installs v2), so the action cannot be used while the project is
-      # on v1.64.8 with a v1-format .golangci.yml. Installing the binary directly
-      # matches local behaviour 1:1 and lets `make lint` drive both backend-lint
-      # (golangci-lint) and frontend-lint (ng lint) with no double-run.
+      # Install golangci-lint v1.64.8 by compiling it from source with `go install`,
+      # NOT via the prebuilt binary / official script. Two constraints force this:
+      #   1. golangci-lint-action@v7+ dropped golangci-lint v1.x (installs v2 only),
+      #      so the action is unusable while we're on v1.64.8 + v1-format config.
+      #   2. v1.64.8 is the LAST v1 release and its prebuilt binaries are built with
+      #      go1.24; golangci-lint refuses to run when its build Go (1.24) is lower
+      #      than the go.mod target (1.25). No v1 prebuild exists for go1.25.
+      # `go install` compiles golangci-lint with the runner's go1.25 (from setup-go
+      # via go-version-file), so the binary is "built with go1.25" and passes the
+      # version check. `make lint` then drives backend-lint + frontend-lint, no double-run.
       - name: Install golangci-lint
         run: |
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/v1.64.8/install.sh \
-            | sh -s -- -b "$(go env GOPATH)/bin" v1.64.8
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Run lint (backend + frontend)
