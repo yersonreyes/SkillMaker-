@@ -88,9 +88,195 @@ export interface paths {
       };
     };
   };
+  "/users": {
+    /** Retorna una pagina de usuarios. Solo administradores. */
+    get: {
+      parameters: {
+        query: {
+          /** Pagina (default 1) */
+          page?: number;
+          /** Tamano de pagina (max 100, default 20) */
+          size?: number;
+          /** Busqueda por nombre o email (ILIKE) */
+          q?: string;
+          /** Filtro por rol exacto (alumno|creador|supervisor|administrador) */
+          role?: string;
+          /** Filtro por estado activo */
+          active?: boolean;
+        };
+      };
+      responses: {
+        /** pagina de usuarios (items, page, size, total, totalPages) */
+        200: {
+          schema: { [key: string]: unknown };
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Forbidden */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Internal Server Error */
+        500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/users/me": {
+    /** Retorna el detalle del usuario que realiza la peticion. Requiere JWT. */
+    get: {
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.UserDetail"];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Not Found */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Internal Server Error */
+        500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/users/{id}": {
+    /** Retorna el detalle de un usuario. Solo administradores. */
+    get: {
+      parameters: {
+        path: {
+          /** UUID del usuario */
+          id: string;
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.UserDetail"];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Forbidden */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Not Found */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Internal Server Error */
+        500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/users/{id}/active": {
+    /** Establece el flag activo del usuario. Solo administradores. */
+    patch: {
+      parameters: {
+        path: {
+          /** UUID del usuario */
+          id: string;
+        };
+        body: {
+          /** Estado activo */
+          body: definitions["dto.ActivePatchRequest"];
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.UserDetail"];
+        };
+        /** body invalido */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Forbidden */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Not Found */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** ultimo administrador activo */
+        409: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Internal Server Error */
+        500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/users/{id}/roles": {
+    /** Aplica un delta de roles (add/remove). Solo administradores. */
+    patch: {
+      parameters: {
+        path: {
+          /** UUID del usuario */
+          id: string;
+        };
+        body: {
+          /** Delta de roles */
+          body: definitions["dto.RolesPatchRequest"];
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.UserDetail"];
+        };
+        /** rol invalido, conflicto add/remove, o body invalido */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Forbidden */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Not Found */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** ultimo administrador activo */
+        409: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Internal Server Error */
+        500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
 }
 
 export interface definitions {
+  "dto.ActivePatchRequest": {
+    active: boolean;
+  };
   "dto.GoogleLoginRequest": {
     idToken: string;
   };
@@ -103,11 +289,24 @@ export interface definitions {
   "dto.RefreshRequest": {
     refreshToken: string;
   };
+  "dto.RolesPatchRequest": {
+    add: string[];
+    remove: string[];
+  };
   "dto.UserDTO": {
     email?: string;
     id?: string;
     nombre?: string;
     roles?: string[];
+  };
+  "dto.UserDetail": {
+    activo?: boolean;
+    createdAt?: string;
+    email?: string;
+    id?: string;
+    nombre?: string;
+    roles?: string[];
+    updatedAt?: string;
   };
   "httperr.Error": {
     code?: string;

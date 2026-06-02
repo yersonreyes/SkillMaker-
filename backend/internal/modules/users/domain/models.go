@@ -2,6 +2,19 @@ package domain
 
 import "time"
 
+// Supervision represents a supervisor→employee assignment.
+// One employee has AT MOST ONE supervisor (UNIQUE on empleado_id).
+// Self-supervision is forbidden at the service layer (and by CHECK constraint).
+type Supervision struct {
+	ID           string    `gorm:"type:uuid;primaryKey"`
+	SupervisorID string    `gorm:"type:uuid;not null"`
+	EmpleadoID   string    `gorm:"type:uuid;not null"`
+	CreadoEn     time.Time `gorm:"type:timestamptz;default:now()"`
+}
+
+// TableName overrides GORM's default to use the singular "supervision".
+func (Supervision) TableName() string { return "supervision" }
+
 // User represents an authenticated person in the platform.
 // The primary key is a UUID generated at the application layer.
 // google_sub is the stable Google subject identifier used for upserts.

@@ -30,6 +30,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/yersonreyes/SkillMaker-/backend/internal/middleware"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/auth"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/users"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/platform/config"
@@ -82,10 +83,14 @@ func main() {
 	router := httpserver.NewRouter(&cfg, db, storageClient)
 	api := router.Group("/api")
 	auth.RegisterRoutes(api, authSvc)
+
+	// Protected route groups — shared across modules that need JWT / RBAC.
+	// usersRepo/usersSvc are already built above (lines 64-65); reused here.
+	protected := api.Group("", middleware.JWT(cfg.Auth.JWTSecret))
+	adminGrp := protected.Group("", middleware.RequireRole("administrador"))
+	users.RegisterRoutes(adminGrp, protected, usersSvc)
 	// Additional modules (courses, evaluations, approvals, certificates,
-	// reporting) will be wired here as they are implemented in subsequent
-	// changes. Protected routes will use:
-	//   protected := api.Group("", middleware.JWT(cfg.Auth.JWTSecret))
+	// reporting) will be wired here as they are implemented in subsequent changes.
 
 	srv := httpserver.NewServer(cfg.Port, router)
 
