@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { PendingViewComponent } from '@shared/components/pending-view/pending-view.component';
+import { roleGuard } from '@core/guards/role.guard';
 
 export const ADMIN_ROUTES: Routes = [
   {
@@ -9,13 +10,21 @@ export const ADMIN_ROUTES: Routes = [
   },
   {
     path: 'user-management',
-    component: PendingViewComponent,
-    data: { title: 'Gestion de usuarios' },
+    loadComponent: () =>
+      import('./user-management/user-management.component').then(
+        m => m.UserManagementComponent,
+      ),
+    canActivate: [roleGuard],
+    data: { title: 'Gestion de usuarios', roles: ['administrador'] },
   },
   {
     path: 'supervision',
-    component: PendingViewComponent,
-    data: { title: 'Asignacion supervisor-empleados' },
+    loadComponent: () =>
+      import('./supervision/supervision.component').then(
+        m => m.SupervisionComponent,
+      ),
+    canActivate: [roleGuard],
+    data: { title: 'Asignacion supervisor-empleados', roles: ['administrador'] },
   },
   {
     path: 'reports',

@@ -1,5 +1,5 @@
 // Package testutil provides shared test helpers for the backend modules.
-// mocks.go contains testify/mock implementations of the auth interfaces.
+// mocks.go contains testify/mock implementations of the auth and users interfaces.
 // No build tag — compiles in both unit and integration builds.
 package testutil
 
@@ -12,6 +12,7 @@ import (
 
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/auth/domain"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/users"
+	"github.com/yersonreyes/SkillMaker-/backend/internal/platform/pagination"
 )
 
 // MockRepository is a testify/mock implementation of repository.Repository.
@@ -30,6 +31,7 @@ func (m *MockRepository) FindByHash(ctx context.Context, hash string) (*domain.R
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
+
 	return args.Get(0).(*domain.RefreshToken), args.Error(1)
 }
 
@@ -54,15 +56,21 @@ func (m *MockRepository) RevokeAllForUser(ctx context.Context, userID string) er
 }
 
 // MockUsersService is a testify/mock implementation of users.Service.
+// It covers ALL methods of the Service interface, including the C1.1 additions.
+// This is required to keep auth/service/service_test.go compiling after the
+// users.Service interface was expanded.
 type MockUsersService struct {
 	mock.Mock
 }
+
+// ── existing methods ──────────────────────────────────────────────────────────
 
 func (m *MockUsersService) UpsertFromGoogle(ctx context.Context, profile users.GoogleProfile) (*users.UserSummary, error) {
 	args := m.Called(ctx, profile)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
+
 	return args.Get(0).(*users.UserSummary), args.Error(1)
 }
 
@@ -71,7 +79,65 @@ func (m *MockUsersService) GetByID(ctx context.Context, id string) (*users.UserS
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
+
 	return args.Get(0).(*users.UserSummary), args.Error(1)
+}
+
+// ── C1.1 additions ─────────────────────────────────────────────────────────────
+
+func (m *MockUsersService) List(ctx context.Context, f users.ListFilters, p pagination.Params) (pagination.Page[users.UserDetailModel], error) {
+	args := m.Called(ctx, f, p)
+	return args.Get(0).(pagination.Page[users.UserDetailModel]), args.Error(1)
+}
+
+func (m *MockUsersService) GetDetail(ctx context.Context, id string) (*users.UserDetailModel, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+
+	return args.Get(0).(*users.UserDetailModel), args.Error(1)
+}
+
+func (m *MockUsersService) PatchRoles(ctx context.Context, id string, add, remove []string) (*users.UserDetailModel, error) {
+	args := m.Called(ctx, id, add, remove)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+
+	return args.Get(0).(*users.UserDetailModel), args.Error(1)
+}
+
+func (m *MockUsersService) SetActive(ctx context.Context, id string, active bool) (*users.UserDetailModel, error) {
+	args := m.Called(ctx, id, active)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+
+	return args.Get(0).(*users.UserDetailModel), args.Error(1)
+}
+
+func (m *MockUsersService) CreateSupervision(ctx context.Context, supervisorID, empleadoID string) (*users.SupervisionModel, error) {
+	args := m.Called(ctx, supervisorID, empleadoID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+
+	return args.Get(0).(*users.SupervisionModel), args.Error(1)
+}
+
+func (m *MockUsersService) ListSupervisions(ctx context.Context) ([]users.SupervisionModel, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+
+	return args.Get(0).([]users.SupervisionModel), args.Error(1)
+}
+
+func (m *MockUsersService) DeleteSupervision(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
 }
 
 // ValidateTokenStub returns a stub function that always returns the given payload and error.
