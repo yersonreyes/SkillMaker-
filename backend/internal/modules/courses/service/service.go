@@ -1,11 +1,14 @@
 // Package service contains the business logic for the courses module.
-// It is HTTP-agnostic: it returns domain sentinels and CourseModel read-models.
+// It is HTTP-agnostic: it returns domain sentinels and read-models.
 // Handlers are responsible for mapping sentinels → HTTP status codes.
 package service
 
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,6 +32,27 @@ type CourseModel struct {
 	UpdatedAt   time.Time
 }
 
+// SectionModel is the service-layer read model for a section.
+type SectionModel struct {
+	ID        string
+	CourseID  string
+	Titulo    string
+	Orden     int
+	CreatedAt time.Time
+}
+
+// VideoModel is the service-layer read model for a video.
+type VideoModel struct {
+	ID        string
+	SectionID string
+	Titulo    string
+	URL       string
+	Proveedor string
+	DuracionS int
+	Orden     int
+	CreatedAt time.Time
+}
+
 // ── Request types ──────────────────────────────────────────────────────────────
 
 // CreateRequest carries the caller-supplied data for creating a course.
@@ -44,6 +68,40 @@ type CreateRequest struct {
 type UpdateRequest struct {
 	Titulo      *string
 	Descripcion *string
+}
+
+// SectionCreateRequest carries data for creating a section.
+type SectionCreateRequest struct {
+	CourseID string
+	Titulo   string
+}
+
+// SectionUpdateRequest carries optional fields for a partial section update.
+type SectionUpdateRequest struct {
+	Titulo *string
+}
+
+// VideoCreateRequest carries data for creating a video.
+type VideoCreateRequest struct {
+	SectionID string
+	Titulo    string
+	URL       string
+	Proveedor string
+	DuracionS int
+}
+
+// VideoUpdateRequest carries optional fields for a partial video update.
+type VideoUpdateRequest struct {
+	Titulo    *string
+	URL       *string
+	Proveedor *string
+	DuracionS *int
+}
+
+// ReorderRequest carries the desired section order for a course.
+type ReorderRequest struct {
+	CourseID string
+	IDs      []string
 }
 
 // ── Service interface ──────────────────────────────────────────────────────────
@@ -67,6 +125,45 @@ type Service interface {
 
 	// ListByCreator returns a paginated page of courses owned by creadorID.
 	ListByCreator(ctx context.Context, creadorID string, p pagination.Params) (pagination.Page[CourseModel], error)
+
+	// ── Section methods (C2.2) ───────────────────────────────────────────────
+
+	// CreateSection creates a new section on a course the caller owns.
+	CreateSection(ctx context.Context, creadorID string, req SectionCreateRequest) (*SectionModel, error)
+
+	// GetSectionByID returns the section (no ownership check — read-only, used internally).
+	GetSectionByID(ctx context.Context, id string) (*SectionModel, error)
+
+	// UpdateSection partially updates a section the caller owns.
+	UpdateSection(ctx context.Context, id, creadorID string, req SectionUpdateRequest) (*SectionModel, error)
+
+	// DeleteSection deletes a section the caller owns (cascades to videos).
+	DeleteSection(ctx context.Context, id, creadorID string) error
+
+	// ListSections returns all sections for a course ordered by orden ASC.
+	ListSections(ctx context.Context, courseID string) ([]SectionModel, error)
+
+	// ReorderSections reorders the sections of a course.
+	// ids must be the EXACT full set of section IDs for the course.
+	ReorderSections(ctx context.Context, courseID, creadorID string, ids []string) error
+
+	// ── Video methods (C2.2) ─────────────────────────────────────────────────
+
+	// CreateVideo creates a new video in a section the caller owns.
+	CreateVideo(ctx context.Context, creadorID string, req VideoCreateRequest) (*VideoModel, error)
+
+	// UpdateVideo partially updates a video the caller owns.
+	UpdateVideo(ctx context.Context, id, creadorID string, req VideoUpdateRequest) (*VideoModel, error)
+
+	// DeleteVideo deletes a video the caller owns.
+	DeleteVideo(ctx context.Context, id, creadorID string) error
+
+	// ListVideos returns all videos for a section ordered by orden ASC.
+	ListVideos(ctx context.Context, sectionID string) ([]VideoModel, error)
+
+	// HasContent returns true if the course has at least one video.
+	// Owner-gated: returns ErrNotOwner if creadorID does not own the course.
+	HasContent(ctx context.Context, courseID, creadorID string) (bool, error)
 }
 
 // ── concrete implementation ────────────────────────────────────────────────────
@@ -79,6 +176,8 @@ type serviceImpl struct {
 func New(repo repository.Repository) Service {
 	return &serviceImpl{repo: repo}
 }
+
+// ── Course methods ─────────────────────────────────────────────────────────────
 
 // Create forces estado=borrador and sets creadorID from the argument (never from request).
 func (s *serviceImpl) Create(ctx context.Context, creadorID string, req CreateRequest) (*CourseModel, error) {
@@ -167,7 +266,308 @@ func (s *serviceImpl) ListByCreator(ctx context.Context, creadorID string, p pag
 	}, nil
 }
 
-// ── private helpers ────────────────────────────────────────────────────────────
+// ── Section methods ────────────────────────────────────────────────────────────
+
+// CreateSection creates a section after verifying ownership and course editability.
+func (s *serviceImpl) CreateSection(ctx context.Context, creadorID string, req SectionCreateRequest) (*SectionModel, error) {
+	if _, err := s.assertCourseEditable(ctx, req.CourseID, creadorID); err != nil {
+		return nil, err
+	}
+
+	section := &domain.Section{
+		ID:       uuid.New().String(),
+		CourseID: req.CourseID,
+		Titulo:   req.Titulo,
+	}
+	if err := s.repo.CreateSection(ctx, section); err != nil {
+		return nil, err
+	}
+	return toSectionModel(section), nil
+}
+
+// GetSectionByID returns the section (no ownership guard — read helper).
+func (s *serviceImpl) GetSectionByID(ctx context.Context, id string) (*SectionModel, error) {
+	sec, err := s.repo.GetSectionByID(ctx, id)
+	if err != nil {
+		return nil, wrapSectionNotFound(err)
+	}
+	return toSectionModel(sec), nil
+}
+
+// UpdateSection updates a section the caller owns on an editable course.
+func (s *serviceImpl) UpdateSection(ctx context.Context, id, creadorID string, req SectionUpdateRequest) (*SectionModel, error) {
+	sec, _, err := s.loadOwnedSection(ctx, id, creadorID)
+	if err != nil {
+		return nil, err
+	}
+
+	fields := map[string]any{}
+	if req.Titulo != nil {
+		fields["titulo"] = *req.Titulo
+	}
+	if len(fields) == 0 {
+		return toSectionModel(sec), nil
+	}
+
+	if err := s.repo.UpdateSection(ctx, id, fields); err != nil {
+		return nil, wrapSectionNotFound(err)
+	}
+
+	updated, err := s.repo.GetSectionByID(ctx, id)
+	if err != nil {
+		return nil, wrapSectionNotFound(err)
+	}
+	return toSectionModel(updated), nil
+}
+
+// DeleteSection deletes a section the caller owns (FK cascade removes child videos).
+func (s *serviceImpl) DeleteSection(ctx context.Context, id, creadorID string) error {
+	_, _, err := s.loadOwnedSection(ctx, id, creadorID)
+	if err != nil {
+		return err
+	}
+	return s.repo.DeleteSection(ctx, id)
+}
+
+// ListSections returns all sections for a course ordered by orden ASC.
+func (s *serviceImpl) ListSections(ctx context.Context, courseID string) ([]SectionModel, error) {
+	sections, err := s.repo.ListSectionsByCourse(ctx, courseID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]SectionModel, 0, len(sections))
+	for i := range sections {
+		result = append(result, *toSectionModel(&sections[i]))
+	}
+	return result, nil
+}
+
+// ReorderSections reorders sections. ids must be the EXACT full set of section IDs.
+func (s *serviceImpl) ReorderSections(ctx context.Context, courseID, creadorID string, ids []string) error {
+	if _, err := s.assertCourseEditable(ctx, courseID, creadorID); err != nil {
+		return err
+	}
+
+	// Validate set-equality: fetch current sections and compare.
+	existing, err := s.repo.ListSectionsByCourse(ctx, courseID)
+	if err != nil {
+		return err
+	}
+
+	if len(ids) != len(existing) {
+		return fmt.Errorf("%w: ids count %d does not match section count %d", ErrInvalidReorderSet, len(ids), len(existing))
+	}
+
+	existingSet := make(map[string]bool, len(existing))
+	for _, sec := range existing {
+		existingSet[sec.ID] = true
+	}
+	for _, id := range ids {
+		if !existingSet[id] {
+			return fmt.Errorf("%w: id %s is not a section of course %s", ErrInvalidReorderSet, id, courseID)
+		}
+	}
+
+	return s.repo.ReorderSections(ctx, courseID, ids)
+}
+
+// ── Video methods ──────────────────────────────────────────────────────────────
+
+// CreateVideo creates a video after verifying section ownership and URL validation.
+func (s *serviceImpl) CreateVideo(ctx context.Context, creadorID string, req VideoCreateRequest) (*VideoModel, error) {
+	sec, _, err := s.loadOwnedSection(ctx, req.SectionID, creadorID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := validateVideoURL(req.URL, req.Proveedor); err != nil {
+		return nil, err
+	}
+
+	// Count existing videos in section for default orden.
+	existingVideos, err := s.repo.ListVideosBySection(ctx, sec.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	v := &domain.Video{
+		ID:        uuid.New().String(),
+		SectionID: req.SectionID,
+		Titulo:    req.Titulo,
+		URL:       req.URL,
+		Proveedor: req.Proveedor,
+		DuracionS: req.DuracionS,
+		Orden:     len(existingVideos),
+	}
+	if err := s.repo.CreateVideo(ctx, v); err != nil {
+		return nil, err
+	}
+	return toVideoModel(v), nil
+}
+
+// UpdateVideo partially updates a video the caller owns, re-validating URL if changed.
+func (s *serviceImpl) UpdateVideo(ctx context.Context, id, creadorID string, req VideoUpdateRequest) (*VideoModel, error) {
+	v, _, _, err := s.loadOwnedVideo(ctx, id, creadorID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Re-validate url/proveedor if either is being changed.
+	newURL := v.URL
+	newProveedor := v.Proveedor
+	if req.URL != nil {
+		newURL = *req.URL
+	}
+	if req.Proveedor != nil {
+		newProveedor = *req.Proveedor
+	}
+	if req.URL != nil || req.Proveedor != nil {
+		if err := validateVideoURL(newURL, newProveedor); err != nil {
+			return nil, err
+		}
+	}
+
+	fields := map[string]any{}
+	if req.Titulo != nil {
+		fields["titulo"] = *req.Titulo
+	}
+	if req.URL != nil {
+		fields["url"] = *req.URL
+	}
+	if req.Proveedor != nil {
+		fields["proveedor"] = *req.Proveedor
+	}
+	if req.DuracionS != nil {
+		fields["duracion_s"] = *req.DuracionS
+	}
+
+	if len(fields) == 0 {
+		return toVideoModel(v), nil
+	}
+
+	if err := s.repo.UpdateVideo(ctx, id, fields); err != nil {
+		return nil, wrapVideoNotFound(err)
+	}
+
+	updated, err := s.repo.GetVideoByID(ctx, id)
+	if err != nil {
+		return nil, wrapVideoNotFound(err)
+	}
+	return toVideoModel(updated), nil
+}
+
+// DeleteVideo deletes a video the caller owns.
+func (s *serviceImpl) DeleteVideo(ctx context.Context, id, creadorID string) error {
+	_, _, _, err := s.loadOwnedVideo(ctx, id, creadorID)
+	if err != nil {
+		return err
+	}
+	return s.repo.DeleteVideo(ctx, id)
+}
+
+// ListVideos returns all videos for a section ordered by orden ASC.
+func (s *serviceImpl) ListVideos(ctx context.Context, sectionID string) ([]VideoModel, error) {
+	videos, err := s.repo.ListVideosBySection(ctx, sectionID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]VideoModel, 0, len(videos))
+	for i := range videos {
+		result = append(result, *toVideoModel(&videos[i]))
+	}
+	return result, nil
+}
+
+// HasContent returns true if the course has at least one video (owner-gated).
+func (s *serviceImpl) HasContent(ctx context.Context, courseID, creadorID string) (bool, error) {
+	c, err := s.repo.GetByID(ctx, courseID)
+	if err != nil {
+		return false, wrapNotFound(err)
+	}
+	if c.CreadorID != creadorID {
+		return false, ErrNotOwner
+	}
+	return s.repo.HasContent(ctx, courseID)
+}
+
+// ── Private helpers ────────────────────────────────────────────────────────────
+
+// assertCourseEditable loads a course and checks: owner FIRST, then estado.
+// LOAD-BEARING: non-owner → ErrNotOwner (403); wrong estado → ErrInvalidTransition (409).
+// The order is intentional and locked (C2.1 LOAD-BEARING-B preserved).
+func (s *serviceImpl) assertCourseEditable(ctx context.Context, courseID, creadorID string) (*domain.Course, error) {
+	c, err := s.repo.GetByID(ctx, courseID)
+	if err != nil {
+		return nil, wrapNotFound(err)
+	}
+	// 1. Ownership FIRST.
+	if c.CreadorID != creadorID {
+		return nil, ErrNotOwner
+	}
+	// 2. Estado check.
+	if c.Estado != domain.EstadoBorrador && c.Estado != domain.EstadoRechazado {
+		return nil, ErrInvalidTransition
+	}
+	return c, nil
+}
+
+// loadOwnedSection resolves section → course and asserts editability.
+func (s *serviceImpl) loadOwnedSection(ctx context.Context, sectionID, creadorID string) (*domain.Section, *domain.Course, error) {
+	sec, err := s.repo.GetSectionByID(ctx, sectionID)
+	if err != nil {
+		return nil, nil, wrapSectionNotFound(err)
+	}
+	c, err := s.assertCourseEditable(ctx, sec.CourseID, creadorID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return sec, c, nil
+}
+
+// loadOwnedVideo resolves video → section → course and asserts editability.
+func (s *serviceImpl) loadOwnedVideo(ctx context.Context, videoID, creadorID string) (*domain.Video, *domain.Section, *domain.Course, error) {
+	v, err := s.repo.GetVideoByID(ctx, videoID)
+	if err != nil {
+		return nil, nil, nil, wrapVideoNotFound(err)
+	}
+	sec, c, err := s.loadOwnedSection(ctx, v.SectionID, creadorID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return v, sec, c, nil
+}
+
+// validateVideoURL verifies that the URL host matches the declared proveedor.
+// youtube → youtube.com or youtu.be; vimeo → vimeo.com. Mismatch → ErrURLProviderMismatch.
+// This is a CROSS-FIELD validation (service layer, not DTO) per design §4 D4.
+func validateVideoURL(rawURL, proveedor string) error {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return ErrURLProviderMismatch
+	}
+	host := strings.ToLower(parsed.Hostname())
+	// Strip www. prefix for normalisation.
+	host = strings.TrimPrefix(host, "www.")
+
+	switch proveedor {
+	case "youtube":
+		if host == "youtube.com" || host == "youtu.be" {
+			return nil
+		}
+		return ErrURLProviderMismatch
+	case "vimeo":
+		if host == "vimeo.com" {
+			return nil
+		}
+		return ErrURLProviderMismatch
+	default:
+		// Proveedor already validated by DTO binding (oneof=youtube vimeo).
+		// This branch is a defence-in-depth guard.
+		return ErrURLProviderMismatch
+	}
+}
+
+// ── wrap helpers ───────────────────────────────────────────────────────────────
 
 // wrapNotFound converts repository.ErrCourseNotFound to service.ErrCourseNotFound.
 func wrapNotFound(err error) error {
@@ -176,6 +576,24 @@ func wrapNotFound(err error) error {
 	}
 	return err
 }
+
+// wrapSectionNotFound converts repository.ErrSectionNotFound to service.ErrSectionNotFound.
+func wrapSectionNotFound(err error) error {
+	if errors.Is(err, repository.ErrSectionNotFound) {
+		return ErrSectionNotFound
+	}
+	return err
+}
+
+// wrapVideoNotFound converts repository.ErrVideoNotFound to service.ErrVideoNotFound.
+func wrapVideoNotFound(err error) error {
+	if errors.Is(err, repository.ErrVideoNotFound) {
+		return ErrVideoNotFound
+	}
+	return err
+}
+
+// ── to-model converters ────────────────────────────────────────────────────────
 
 // toModel converts a domain.Course GORM model to a CourseModel read-model.
 func toModel(c *domain.Course) *CourseModel {
@@ -187,5 +605,30 @@ func toModel(c *domain.Course) *CourseModel {
 		Estado:      c.Estado,
 		CreatedAt:   c.CreatedAt,
 		UpdatedAt:   c.UpdatedAt,
+	}
+}
+
+// toSectionModel converts a domain.Section to a SectionModel.
+func toSectionModel(s *domain.Section) *SectionModel {
+	return &SectionModel{
+		ID:        s.ID,
+		CourseID:  s.CourseID,
+		Titulo:    s.Titulo,
+		Orden:     s.Orden,
+		CreatedAt: s.CreatedAt,
+	}
+}
+
+// toVideoModel converts a domain.Video to a VideoModel.
+func toVideoModel(v *domain.Video) *VideoModel {
+	return &VideoModel{
+		ID:        v.ID,
+		SectionID: v.SectionID,
+		Titulo:    v.Titulo,
+		URL:       v.URL,
+		Proveedor: v.Proveedor,
+		DuracionS: v.DuracionS,
+		Orden:     v.Orden,
+		CreatedAt: v.CreatedAt,
 	}
 }

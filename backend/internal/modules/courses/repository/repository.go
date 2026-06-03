@@ -19,6 +19,12 @@ import (
 // ErrCourseNotFound is returned when a course lookup finds no matching row.
 var ErrCourseNotFound = errors.New("course not found")
 
+// ErrSectionNotFound is returned when a section lookup finds no matching row.
+var ErrSectionNotFound = errors.New("section not found")
+
+// ErrVideoNotFound is returned when a video lookup finds no matching row.
+var ErrVideoNotFound = errors.New("video not found")
+
 // Repository defines the data-access contract for the courses module.
 // UpdateEstado is a seam for C2.2/C4.1; it is defined now but not called in C2.1.
 type Repository interface {
@@ -43,6 +49,52 @@ type Repository interface {
 	// Seam for C2.2/C4.1 — implemented now, not called in C2.1.
 	// Returns ErrCourseNotFound when no row matches.
 	UpdateEstado(ctx context.Context, id string, estado domain.Estado) error
+
+	// ── Section methods (C2.2) ─────────────────────────────────────────────────
+
+	// CreateSection persists a new section. Assigns a UUID if ID is empty.
+	CreateSection(ctx context.Context, s *domain.Section) error
+
+	// GetSectionByID fetches a section by primary key.
+	// Returns ErrSectionNotFound when no row matches.
+	GetSectionByID(ctx context.Context, id string) (*domain.Section, error)
+
+	// ListSectionsByCourse returns all sections for a course ordered by orden ASC.
+	ListSectionsByCourse(ctx context.Context, courseID string) ([]domain.Section, error)
+
+	// UpdateSection applies a partial field map update to a section.
+	// RowsAffected==0 → ErrSectionNotFound.
+	UpdateSection(ctx context.Context, id string, fields map[string]any) error
+
+	// DeleteSection deletes a section by ID. FK ON DELETE CASCADE removes child videos.
+	DeleteSection(ctx context.Context, id string) error
+
+	// ReorderSections updates orden=index for each section in ids within a transaction.
+	// ids must match the course's sections exactly (validated at service layer).
+	ReorderSections(ctx context.Context, courseID string, ids []string) error
+
+	// ── Video methods (C2.2) ───────────────────────────────────────────────────
+
+	// CreateVideo persists a new video. Assigns a UUID if ID is empty.
+	CreateVideo(ctx context.Context, v *domain.Video) error
+
+	// GetVideoByID fetches a video by primary key.
+	// Returns ErrVideoNotFound when no row matches.
+	GetVideoByID(ctx context.Context, id string) (*domain.Video, error)
+
+	// ListVideosBySection returns all videos for a section ordered by orden ASC.
+	ListVideosBySection(ctx context.Context, sectionID string) ([]domain.Video, error)
+
+	// UpdateVideo applies a partial field map update to a video.
+	// RowsAffected==0 → ErrVideoNotFound.
+	UpdateVideo(ctx context.Context, id string, fields map[string]any) error
+
+	// DeleteVideo deletes a video by ID.
+	DeleteVideo(ctx context.Context, id string) error
+
+	// HasContent returns true if the course has at least one video (via any section).
+	// Uses an EXISTS subquery joining video → section → course.
+	HasContent(ctx context.Context, courseID string) (bool, error)
 }
 
 // ── gormRepository ─────────────────────────────────────────────────────────────
@@ -134,6 +186,141 @@ func (r *gormRepository) UpdateEstado(ctx context.Context, id string, estado dom
 		return ErrCourseNotFound
 	}
 	return nil
+}
+
+// ── Section implementations ────────────────────────────────────────────────────
+
+func (r *gormRepository) CreateSection(ctx context.Context, s *domain.Section) error {
+	if s.ID == "" {
+		s.ID = uuid.New().String()
+	}
+	return r.db.WithContext(ctx).Create(s).Error
+}
+
+func (r *gormRepository) GetSectionByID(ctx context.Context, id string) (*domain.Section, error) {
+	var s domain.Section
+	result := r.db.WithContext(ctx).Where("id = ?", id).First(&s)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, ErrSectionNotFound
+	}
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &s, nil
+}
+
+func (r *gormRepository) ListSectionsByCourse(ctx context.Context, courseID string) ([]domain.Section, error) {
+	var sections []domain.Section
+	err := r.db.WithContext(ctx).
+		Where("course_id = ?", courseID).
+		Order("orden ASC").
+		Find(&sections).Error
+	if err != nil {
+		return nil, err
+	}
+	return sections, nil
+}
+
+func (r *gormRepository) UpdateSection(ctx context.Context, id string, fields map[string]any) error {
+	result := r.db.WithContext(ctx).
+		Model(&domain.Section{}).
+		Where("id = ?", id).
+		Updates(fields)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrSectionNotFound
+	}
+	return nil
+}
+
+func (r *gormRepository) DeleteSection(ctx context.Context, id string) error {
+	return r.db.WithContext(ctx).Where("id = ?", id).Delete(&domain.Section{}).Error
+}
+
+// ReorderSections updates orden=index for each section in ids within a single transaction.
+// The service layer must validate set-equality before calling this.
+func (r *gormRepository) ReorderSections(ctx context.Context, courseID string, ids []string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for i, id := range ids {
+			result := tx.Model(&domain.Section{}).
+				Where("id = ? AND course_id = ?", id, courseID).
+				Update("orden", i)
+			if result.Error != nil {
+				return result.Error
+			}
+		}
+		return nil
+	})
+}
+
+// ── Video implementations ──────────────────────────────────────────────────────
+
+func (r *gormRepository) CreateVideo(ctx context.Context, v *domain.Video) error {
+	if v.ID == "" {
+		v.ID = uuid.New().String()
+	}
+	return r.db.WithContext(ctx).Create(v).Error
+}
+
+func (r *gormRepository) GetVideoByID(ctx context.Context, id string) (*domain.Video, error) {
+	var v domain.Video
+	result := r.db.WithContext(ctx).Where("id = ?", id).First(&v)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, ErrVideoNotFound
+	}
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &v, nil
+}
+
+func (r *gormRepository) ListVideosBySection(ctx context.Context, sectionID string) ([]domain.Video, error) {
+	var videos []domain.Video
+	err := r.db.WithContext(ctx).
+		Where("section_id = ?", sectionID).
+		Order("orden ASC").
+		Find(&videos).Error
+	if err != nil {
+		return nil, err
+	}
+	return videos, nil
+}
+
+func (r *gormRepository) UpdateVideo(ctx context.Context, id string, fields map[string]any) error {
+	result := r.db.WithContext(ctx).
+		Model(&domain.Video{}).
+		Where("id = ?", id).
+		Updates(fields)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrVideoNotFound
+	}
+	return nil
+}
+
+func (r *gormRepository) DeleteVideo(ctx context.Context, id string) error {
+	return r.db.WithContext(ctx).Where("id = ?", id).Delete(&domain.Video{}).Error
+}
+
+// HasContent checks whether a course has at least one video via an EXISTS subquery.
+// Uses raw SQL to join video → section → course for a single DB round-trip.
+func (r *gormRepository) HasContent(ctx context.Context, courseID string) (bool, error) {
+	var exists bool
+	err := r.db.WithContext(ctx).Raw(
+		`SELECT EXISTS(
+			SELECT 1 FROM video v
+			JOIN section s ON v.section_id = s.id
+			WHERE s.course_id = ?
+		)`, courseID,
+	).Scan(&exists).Error
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
 }
 
 // isPgUniqueViolation reports whether err is a Postgres UNIQUE violation (23505).

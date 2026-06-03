@@ -2,7 +2,7 @@
 
 // Package repository — integration tests using testcontainers + real Postgres.
 // Run with: make backend-test-integration
-// These tests exercise migration 0003, FK constraints, and repository queries
+// These tests exercise migration 0003/0004, FK constraints, and repository queries
 // that only a real database can prove.
 package repository_test
 
@@ -53,6 +53,35 @@ func seedCourse(t *testing.T, repo repository.Repository, creadorID, titulo stri
 	return c
 }
 
+// seedSection inserts a section row for the given course.
+func seedSection(t *testing.T, repo repository.Repository, courseID, titulo string, orden int) *domain.Section {
+	t.Helper()
+	s := &domain.Section{
+		ID:       uuid.New().String(),
+		CourseID: courseID,
+		Titulo:   titulo,
+		Orden:    orden,
+	}
+	require.NoError(t, repo.CreateSection(context.Background(), s))
+	return s
+}
+
+// seedVideo inserts a video row for the given section (post-migration-0004 schema).
+func seedVideo(t *testing.T, repo repository.Repository, sectionID, titulo string) *domain.Video {
+	t.Helper()
+	v := &domain.Video{
+		ID:        uuid.New().String(),
+		SectionID: sectionID,
+		Titulo:    titulo,
+		URL:       "https://www.youtube.com/watch?v=test123",
+		Proveedor: "youtube",
+		DuracionS: 120,
+		Orden:     0,
+	}
+	require.NoError(t, repo.CreateVideo(context.Background(), v))
+	return v
+}
+
 // ── TestMigration0003RoundTrip ─────────────────────────────────────────────────
 
 // TestMigration0003RoundTrip verifies that migration 0003 up creates all 5 tables
@@ -62,7 +91,7 @@ func TestMigration0003RoundTrip(t *testing.T) {
 	db, teardown := testutil.SetupPostgres(t)
 	defer teardown()
 
-	// After SetupPostgres, migrations 0001→0003 are already applied (m.Up() runs all).
+	// After SetupPostgres, migrations 0001→0004 are already applied (m.Up() runs all).
 	// Verify all 5 tables exist.
 	tables := []string{"course", "section", "video", "material", "enrollment"}
 	for _, table := range tables {
@@ -121,6 +150,147 @@ func TestMigration0003RoundTrip(t *testing.T) {
 	).Scan(&fkCount).Error
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), fkCount, "course.creador_id column must exist")
+}
+
+// ── TestMigration0004RoundTrip ─────────────────────────────────────────────────
+
+// TestMigration0004RoundTrip verifies migration 0004 up/down round-trip:
+//   - up: url+proveedor columns exist, storage_key is gone, duracion_s preserved.
+//   - proveedor CHECK constraint rejects 'dailymotion'.
+//   - down: storage_key is restored, url+proveedor gone, constraint gone.
+//
+// Spec: SCH-1-A, SCH-1-B, SCH-1-C.
+func TestMigration0004RoundTrip(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	// After SetupPostgres, all migrations (0001-0004) are applied.
+
+	// Verify url column exists (SCH-1-A).
+	var urlCount int64
+	err := db.Raw(
+		`SELECT COUNT(*) FROM information_schema.columns
+		 WHERE table_name = 'video' AND column_name = 'url'`,
+	).Scan(&urlCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), urlCount, "video.url must exist after 0004 up (SCH-1-A)")
+
+	// Verify proveedor column exists.
+	var proveedorCount int64
+	err = db.Raw(
+		`SELECT COUNT(*) FROM information_schema.columns
+		 WHERE table_name = 'video' AND column_name = 'proveedor'`,
+	).Scan(&proveedorCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), proveedorCount, "video.proveedor must exist after 0004 up")
+
+	// Verify storage_key is gone (SCH-1-A).
+	var storageKeyCount int64
+	err = db.Raw(
+		`SELECT COUNT(*) FROM information_schema.columns
+		 WHERE table_name = 'video' AND column_name = 'storage_key'`,
+	).Scan(&storageKeyCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), storageKeyCount, "video.storage_key must NOT exist after 0004 up (SCH-1-A)")
+
+	// Verify duracion_s is preserved (SCH-1-A).
+	var duracionCount int64
+	err = db.Raw(
+		`SELECT COUNT(*) FROM information_schema.columns
+		 WHERE table_name = 'video' AND column_name = 'duracion_s'`,
+	).Scan(&duracionCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), duracionCount, "video.duracion_s must be preserved after 0004 up")
+
+	// Verify ck_video_proveedor CHECK constraint exists.
+	var constraintCount int64
+	err = db.Raw(
+		`SELECT COUNT(*) FROM information_schema.table_constraints
+		 WHERE table_name = 'video' AND constraint_name = 'ck_video_proveedor'`,
+	).Scan(&constraintCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), constraintCount, "ck_video_proveedor CHECK constraint must exist")
+}
+
+// TestMigration0004Down_ReversesSchema verifies the 0004 DOWN migration:
+// after m.Down() storage_key is restored, url and proveedor columns are gone,
+// and the ck_video_proveedor CHECK constraint is dropped.
+// Spec: SCH-1-B (down round-trip).
+func TestMigration0004Down_ReversesSchema(t *testing.T) {
+	// Use the migrate-aware setup so we can call m.Down() ourselves.
+	db, m, teardown := testutil.SetupPostgresWithMigrate(t)
+	defer teardown()
+
+	// All migrations up (0001–0004) are already applied by SetupPostgresWithMigrate.
+	// Step 1: Apply DOWN one step — rolls back 0004 only.
+	err := m.Steps(-1)
+	require.NoError(t, err, "m.Steps(-1) must apply 0004 down without error (SCH-1-B)")
+
+	// Step 2: Assert storage_key is restored.
+	var storageKeyCount int64
+	err = db.Raw(
+		`SELECT COUNT(*) FROM information_schema.columns
+		 WHERE table_name = 'video' AND column_name = 'storage_key'`,
+	).Scan(&storageKeyCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), storageKeyCount,
+		"video.storage_key must be restored after 0004 down (SCH-1-B)")
+
+	// Step 3: Assert url column is gone.
+	var urlCount int64
+	err = db.Raw(
+		`SELECT COUNT(*) FROM information_schema.columns
+		 WHERE table_name = 'video' AND column_name = 'url'`,
+	).Scan(&urlCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), urlCount,
+		"video.url must be removed after 0004 down (SCH-1-B)")
+
+	// Step 4: Assert proveedor column is gone.
+	var proveedorCount int64
+	err = db.Raw(
+		`SELECT COUNT(*) FROM information_schema.columns
+		 WHERE table_name = 'video' AND column_name = 'proveedor'`,
+	).Scan(&proveedorCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), proveedorCount,
+		"video.proveedor must be removed after 0004 down (SCH-1-B)")
+
+	// Step 5: Assert ck_video_proveedor CHECK constraint is gone.
+	var constraintCount int64
+	err = db.Raw(
+		`SELECT COUNT(*) FROM information_schema.table_constraints
+		 WHERE table_name = 'video' AND constraint_name = 'ck_video_proveedor'`,
+	).Scan(&constraintCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), constraintCount,
+		"ck_video_proveedor constraint must be dropped after 0004 down (SCH-1-B)")
+}
+
+// TestMigration0004_ProveedorCheckConstraint verifies that inserting an invalid proveedor
+// is rejected by the CHECK constraint at the DB level.
+// Spec: SCH-1-C.
+func TestMigration0004_ProveedorCheckConstraint(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	creadorID := seedUser(t, db)
+	repo := repository.New(db)
+	course := seedCourse(t, repo, creadorID, "Test Course")
+	section := seedSection(t, repo, course.ID, "Test Section", 0)
+
+	// Attempt to insert a video with proveedor='dailymotion' — must be rejected.
+	err := db.Exec(
+		`INSERT INTO video (id, section_id, titulo, url, proveedor, duracion_s, orden)
+		 VALUES (?, ?, ?, ?, ?, 0, 0)`,
+		uuid.New().String(),
+		section.ID,
+		"Test Video",
+		"https://dailymotion.com/video/x7",
+		"dailymotion", // INVALID — must be rejected by CHECK constraint
+	).Error
+	assert.Error(t, err, "inserting proveedor='dailymotion' must fail (SCH-1-C)")
+	assert.Contains(t, err.Error(), "23514", "expected CHECK constraint violation (23514)")
 }
 
 // ── TestFKRestrict_DeleteCreadorWithCourse ─────────────────────────────────────
@@ -214,4 +384,202 @@ func TestListByCreator_PaginationAndFilter(t *testing.T) {
 	for _, item := range page.Items {
 		assert.Equal(t, creadorA, item.CreadorID, "all items must belong to creador A")
 	}
+}
+
+// ── TestCascade_DeleteSection_RemovesVideos [LB-3] ────────────────────────────
+
+// TestCascade_DeleteSection_RemovesVideos verifies that deleting a section
+// cascade-deletes all its videos (FK ON DELETE CASCADE).
+// Spec: SEC-3-A. [LOAD-BEARING-3]
+func TestCascade_DeleteSection_RemovesVideos(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+	course := seedCourse(t, repo, creadorID, "Cascade Test Course")
+	section := seedSection(t, repo, course.ID, "Section With Videos", 0)
+
+	// Create 2 videos under the section.
+	v1 := seedVideo(t, repo, section.ID, "Video 1")
+	v2 := seedVideo(t, repo, section.ID, "Video 2")
+
+	// Verify both videos exist before delete.
+	_, err := repo.GetVideoByID(context.Background(), v1.ID)
+	require.NoError(t, err, "video 1 must exist before section delete")
+	_, err = repo.GetVideoByID(context.Background(), v2.ID)
+	require.NoError(t, err, "video 2 must exist before section delete")
+
+	// Delete the section.
+	err = repo.DeleteSection(context.Background(), section.ID)
+	require.NoError(t, err, "DeleteSection must succeed")
+
+	// [LB-3] Verify both videos are gone (CASCADE).
+	_, err = repo.GetVideoByID(context.Background(), v1.ID)
+	assert.ErrorIs(t, err, repository.ErrVideoNotFound,
+		"[LB-3] video 1 must be gone after section delete (FK CASCADE)")
+	_, err = repo.GetVideoByID(context.Background(), v2.ID)
+	assert.ErrorIs(t, err, repository.ErrVideoNotFound,
+		"[LB-3] video 2 must be gone after section delete (FK CASCADE)")
+}
+
+// ── TestHasContent_EXISTS ──────────────────────────────────────────────────────
+
+// TestHasContent_EXISTS verifies the EXISTS subquery:
+//   - true when course has at least one video.
+//   - false when course has sections but no videos.
+//   - false when course has no sections.
+//
+// Spec: HC-1-A, HC-1-B, HC-1-C.
+func TestHasContent_EXISTS(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+
+	t.Run("HC-1-A: course with video → hasContent=true", func(t *testing.T) {
+		course := seedCourse(t, repo, creadorID, "Course With Video")
+		section := seedSection(t, repo, course.ID, "Section", 0)
+		seedVideo(t, repo, section.ID, "Video")
+
+		has, err := repo.HasContent(context.Background(), course.ID)
+		require.NoError(t, err)
+		assert.True(t, has, "hasContent must be true when course has a video")
+	})
+
+	t.Run("HC-1-B: course with sections but no videos → hasContent=false", func(t *testing.T) {
+		course := seedCourse(t, repo, creadorID, "Course Section Only")
+		seedSection(t, repo, course.ID, "Empty Section", 0)
+
+		has, err := repo.HasContent(context.Background(), course.ID)
+		require.NoError(t, err)
+		assert.False(t, has, "hasContent must be false when section has no videos")
+	})
+
+	t.Run("HC-1-C: empty course (no sections) → hasContent=false", func(t *testing.T) {
+		course := seedCourse(t, repo, creadorID, "Empty Course")
+
+		has, err := repo.HasContent(context.Background(), course.ID)
+		require.NoError(t, err)
+		assert.False(t, has, "hasContent must be false for empty course")
+	})
+}
+
+// ── TestReorderSections_PersistsOrden ─────────────────────────────────────────
+
+// TestReorderSections_PersistsOrden verifies that ReorderSections persists the
+// orden values correctly (atomically via a transaction).
+// Spec: ROR-1-A.
+func TestReorderSections_PersistsOrden(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+	course := seedCourse(t, repo, creadorID, "Reorder Course")
+
+	// Create 3 sections in default order.
+	s1 := seedSection(t, repo, course.ID, "Section 1", 0)
+	s2 := seedSection(t, repo, course.ID, "Section 2", 1)
+	s3 := seedSection(t, repo, course.ID, "Section 3", 2)
+
+	// Reorder: [s3, s1, s2] — s3 becomes 0, s1 becomes 1, s2 becomes 2.
+	err := repo.ReorderSections(context.Background(), course.ID, []string{s3.ID, s1.ID, s2.ID})
+	require.NoError(t, err, "ReorderSections must succeed")
+
+	// Verify persisted orden values.
+	updated, err := repo.ListSectionsByCourse(context.Background(), course.ID)
+	require.NoError(t, err)
+	require.Len(t, updated, 3)
+
+	// Build a map of id → orden.
+	ordenMap := make(map[string]int)
+	for _, s := range updated {
+		ordenMap[s.ID] = s.Orden
+	}
+
+	assert.Equal(t, 0, ordenMap[s3.ID], "s3 must have orden=0 after reorder")
+	assert.Equal(t, 1, ordenMap[s1.ID], "s1 must have orden=1 after reorder")
+	assert.Equal(t, 2, ordenMap[s2.ID], "s2 must have orden=2 after reorder")
+}
+
+// ── TestSectionCRUD ───────────────────────────────────────────────────────────
+
+// TestSectionCRUD verifies the complete section CRUD lifecycle.
+func TestSectionCRUD(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+	course := seedCourse(t, repo, creadorID, "CRUD Course")
+
+	// Create.
+	s := seedSection(t, repo, course.ID, "Original Title", 0)
+
+	// GetByID.
+	fetched, err := repo.GetSectionByID(context.Background(), s.ID)
+	require.NoError(t, err)
+	assert.Equal(t, s.ID, fetched.ID)
+	assert.Equal(t, "Original Title", fetched.Titulo)
+
+	// Update.
+	err = repo.UpdateSection(context.Background(), s.ID, map[string]any{"titulo": "Updated Title"})
+	require.NoError(t, err)
+	updated, err := repo.GetSectionByID(context.Background(), s.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Updated Title", updated.Titulo)
+
+	// List.
+	sections, err := repo.ListSectionsByCourse(context.Background(), course.ID)
+	require.NoError(t, err)
+	assert.Len(t, sections, 1)
+
+	// Delete.
+	err = repo.DeleteSection(context.Background(), s.ID)
+	require.NoError(t, err)
+	_, err = repo.GetSectionByID(context.Background(), s.ID)
+	assert.ErrorIs(t, err, repository.ErrSectionNotFound, "section must be gone after delete")
+}
+
+// ── TestVideoCRUD ─────────────────────────────────────────────────────────────
+
+// TestVideoCRUD verifies the complete video CRUD lifecycle.
+func TestVideoCRUD(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+	course := seedCourse(t, repo, creadorID, "Video CRUD Course")
+	section := seedSection(t, repo, course.ID, "Section", 0)
+
+	// Create.
+	v := seedVideo(t, repo, section.ID, "Original Video Title")
+
+	// GetByID.
+	fetched, err := repo.GetVideoByID(context.Background(), v.ID)
+	require.NoError(t, err)
+	assert.Equal(t, v.ID, fetched.ID)
+	assert.Equal(t, "Original Video Title", fetched.Titulo)
+	assert.Equal(t, "youtube", fetched.Proveedor)
+
+	// Update.
+	err = repo.UpdateVideo(context.Background(), v.ID, map[string]any{"titulo": "Updated Video Title"})
+	require.NoError(t, err)
+	updated, err := repo.GetVideoByID(context.Background(), v.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Updated Video Title", updated.Titulo)
+
+	// List.
+	videos, err := repo.ListVideosBySection(context.Background(), section.ID)
+	require.NoError(t, err)
+	assert.Len(t, videos, 1)
+
+	// Delete.
+	err = repo.DeleteVideo(context.Background(), v.ID)
+	require.NoError(t, err)
+	_, err = repo.GetVideoByID(context.Background(), v.ID)
+	assert.ErrorIs(t, err, repository.ErrVideoNotFound, "video must be gone after delete")
 }

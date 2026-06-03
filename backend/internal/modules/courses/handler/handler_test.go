@@ -13,6 +13,14 @@
 //
 // Both reference the SAME sentinel. They MUST NOT be collapsed into one test.
 //
+// C2.2 additions:
+//   - TestCreateVideo_UrlProviderMismatch_Returns400 [LB-1]
+//   - TestCreateVideo_NonOwner_Returns403 [LB-2]
+//   - TestCreateSection_NonOwner_Returns403
+//   - TestGetByID_HasContent_*
+//   - TestReorderSections_* error mapping
+//   - Error map: ErrSectionNotFound→404, ErrVideoNotFound→404, ErrInvalidTransition→409
+//
 // No build tag: runs with standard `make backend-test`.
 package handler_test
 
@@ -75,6 +83,76 @@ func (m *mockCourseSvc) ListByCreator(ctx context.Context, creadorID string, p p
 	return args.Get(0).(pagination.Page[service.CourseModel]), args.Error(1)
 }
 
+func (m *mockCourseSvc) CreateSection(ctx context.Context, creadorID string, req service.SectionCreateRequest) (*service.SectionModel, error) {
+	args := m.Called(ctx, creadorID, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*service.SectionModel), args.Error(1)
+}
+
+func (m *mockCourseSvc) GetSectionByID(ctx context.Context, id string) (*service.SectionModel, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*service.SectionModel), args.Error(1)
+}
+
+func (m *mockCourseSvc) UpdateSection(ctx context.Context, id, creadorID string, req service.SectionUpdateRequest) (*service.SectionModel, error) {
+	args := m.Called(ctx, id, creadorID, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*service.SectionModel), args.Error(1)
+}
+
+func (m *mockCourseSvc) DeleteSection(ctx context.Context, id, creadorID string) error {
+	args := m.Called(ctx, id, creadorID)
+	return args.Error(0)
+}
+
+func (m *mockCourseSvc) ListSections(ctx context.Context, courseID string) ([]service.SectionModel, error) {
+	args := m.Called(ctx, courseID)
+	return args.Get(0).([]service.SectionModel), args.Error(1)
+}
+
+func (m *mockCourseSvc) ReorderSections(ctx context.Context, courseID, creadorID string, ids []string) error {
+	args := m.Called(ctx, courseID, creadorID, ids)
+	return args.Error(0)
+}
+
+func (m *mockCourseSvc) CreateVideo(ctx context.Context, creadorID string, req service.VideoCreateRequest) (*service.VideoModel, error) {
+	args := m.Called(ctx, creadorID, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*service.VideoModel), args.Error(1)
+}
+
+func (m *mockCourseSvc) UpdateVideo(ctx context.Context, id, creadorID string, req service.VideoUpdateRequest) (*service.VideoModel, error) {
+	args := m.Called(ctx, id, creadorID, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*service.VideoModel), args.Error(1)
+}
+
+func (m *mockCourseSvc) DeleteVideo(ctx context.Context, id, creadorID string) error {
+	args := m.Called(ctx, id, creadorID)
+	return args.Error(0)
+}
+
+func (m *mockCourseSvc) ListVideos(ctx context.Context, sectionID string) ([]service.VideoModel, error) {
+	args := m.Called(ctx, sectionID)
+	return args.Get(0).([]service.VideoModel), args.Error(1)
+}
+
+func (m *mockCourseSvc) HasContent(ctx context.Context, courseID, creadorID string) (bool, error) {
+	args := m.Called(ctx, courseID, creadorID)
+	return args.Bool(0), args.Error(1)
+}
+
 // ── Fixtures ───────────────────────────────────────────────────────────────────
 
 func courseModel(id, creadorID string) *service.CourseModel {
@@ -86,6 +164,19 @@ func courseModel(id, creadorID string) *service.CourseModel {
 		Estado:      "borrador",
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
+	}
+}
+
+func videoModel(id, sectionID string) *service.VideoModel {
+	return &service.VideoModel{
+		ID:        id,
+		SectionID: sectionID,
+		Titulo:    "Test Video",
+		URL:       "https://www.youtube.com/watch?v=abc123",
+		Proveedor: "youtube",
+		DuracionS: 120,
+		Orden:     0,
+		CreatedAt: time.Now(),
 	}
 }
 
@@ -202,6 +293,7 @@ func TestGetByID_Owner_Returns200(t *testing.T) {
 
 	model := courseModel(courseID, creadorID)
 	svc.On("GetByID", mock.Anything, courseID, creadorID).Return(model, nil)
+	svc.On("HasContent", mock.Anything, courseID, creadorID).Return(false, nil)
 
 	w := do(engine, http.MethodGet, "/courses/"+courseID, nil)
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -239,6 +331,48 @@ func TestGetByID_NotFound_Returns404(t *testing.T) {
 
 	w := do(engine, http.MethodGet, "/courses/"+courseID, nil)
 	assert.Equal(t, http.StatusNotFound, w.Code)
+	svc.AssertExpectations(t)
+}
+
+// TestGetByID_HasContent_True verifies GET returns hasContent:true when svc.HasContent returns true.
+// Spec: HC-1-A.
+func TestGetByID_HasContent_True(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	courseID := "course-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	model := courseModel(courseID, creadorID)
+	svc.On("GetByID", mock.Anything, courseID, creadorID).Return(model, nil)
+	svc.On("HasContent", mock.Anything, courseID, creadorID).Return(true, nil)
+
+	w := do(engine, http.MethodGet, "/courses/"+courseID, nil)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	_ = json.NewDecoder(w.Body).Decode(&resp)
+	assert.Equal(t, true, resp["hasContent"], "hasContent must be true when course has videos")
+	svc.AssertExpectations(t)
+}
+
+// TestGetByID_HasContent_False verifies GET returns hasContent:false when no videos.
+// Spec: HC-1-B, HC-1-C.
+func TestGetByID_HasContent_False(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	courseID := "course-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	model := courseModel(courseID, creadorID)
+	svc.On("GetByID", mock.Anything, courseID, creadorID).Return(model, nil)
+	svc.On("HasContent", mock.Anything, courseID, creadorID).Return(false, nil)
+
+	w := do(engine, http.MethodGet, "/courses/"+courseID, nil)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	_ = json.NewDecoder(w.Body).Decode(&resp)
+	assert.Equal(t, false, resp["hasContent"], "hasContent must be false when no videos")
 	svc.AssertExpectations(t)
 }
 
@@ -344,4 +478,249 @@ func TestList_MissingCreator_Returns400(t *testing.T) {
 
 	w := do(engine, http.MethodGet, "/courses", nil)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// ── Section handler tests (C2.2) ──────────────────────────────────────────────
+
+// TestCreateSection_NonOwner_Returns403 verifies that a non-owner gets 403.
+// Spec: SEC-1-B.
+func TestCreateSection_NonOwner_Returns403(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	courseID := "course-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("CreateSection", mock.Anything, creadorID, mock.AnythingOfType("service.SectionCreateRequest")).
+		Return(nil, service.ErrNotOwner)
+
+	w := do(engine, http.MethodPost, "/courses/"+courseID+"/sections", map[string]any{
+		"titulo": "Intro",
+	})
+	assert.Equal(t, http.StatusForbidden, w.Code, "non-owner CreateSection must return 403")
+	svc.AssertExpectations(t)
+}
+
+// TestDeleteSection_Returns204 verifies a successful delete returns 204.
+// Spec: SEC-3-A.
+func TestDeleteSection_Returns204(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	sectionID := "section-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("DeleteSection", mock.Anything, sectionID, creadorID).Return(nil)
+
+	w := do(engine, http.MethodDelete, "/sections/"+sectionID, nil)
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	svc.AssertExpectations(t)
+}
+
+// TestReorderSections_ForeignID_Returns400 verifies that a foreign section ID returns 400.
+// Spec: ROR-1-B. ErrInvalidReorderSet is a validation error (wrong input set) → 400, NOT 409.
+func TestReorderSections_ForeignID_Returns400(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	courseID := "course-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("ReorderSections", mock.Anything, courseID, creadorID, mock.Anything).
+		Return(service.ErrInvalidReorderSet)
+
+	w := do(engine, http.MethodPatch, "/courses/"+courseID+"/sections/reorder", map[string]any{
+		"ids": []string{"s1", "s2", "foreign-id"},
+	})
+	// ErrInvalidReorderSet → 400 (INVALID_REORDER_SET): caller sent wrong section IDs.
+	assert.Equal(t, http.StatusBadRequest, w.Code,
+		"foreign section ID in reorder must return 400 (ROR-1-B)")
+	assert.Equal(t, "INVALID_REORDER_SET", respCode(w))
+	svc.AssertExpectations(t)
+}
+
+// TestReorderSections_ValidReorder_Returns200 verifies successful reorder returns 200.
+// Spec: ROR-1-A.
+func TestReorderSections_ValidReorder_Returns200(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	courseID := "course-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	ids := []string{"s3", "s1", "s2"}
+	svc.On("ReorderSections", mock.Anything, courseID, creadorID, ids).Return(nil)
+
+	w := do(engine, http.MethodPatch, "/courses/"+courseID+"/sections/reorder", map[string]any{
+		"ids": ids,
+	})
+	assert.Equal(t, http.StatusOK, w.Code)
+	svc.AssertExpectations(t)
+}
+
+// TestReorderSections_NonOwner_Returns403 verifies that a non-owner calling the
+// reorder route receives 403. Spec: ROR-1-D.
+func TestReorderSections_NonOwner_Returns403(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-other"
+	courseID := "course-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("ReorderSections", mock.Anything, courseID, creadorID, mock.Anything).
+		Return(service.ErrNotOwner)
+
+	w := do(engine, http.MethodPatch, "/courses/"+courseID+"/sections/reorder", map[string]any{
+		"ids": []string{"s1", "s2"},
+	})
+	assert.Equal(t, http.StatusForbidden, w.Code,
+		"non-owner reorder must return 403 (ROR-1-D)")
+	assert.Equal(t, "NOT_OWNER", respCode(w))
+	svc.AssertExpectations(t)
+}
+
+// ── Video handler tests (C2.2) ────────────────────────────────────────────────
+
+// [LOAD-BEARING: LB-1] TestCreateVideo_UrlProviderMismatch_Returns400 verifies that a
+// Vimeo URL with proveedor=youtube returns 400.
+// Spec: VID-1-E.
+func TestCreateVideo_UrlProviderMismatch_Returns400(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	sectionID := "section-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("CreateVideo", mock.Anything, creadorID, mock.AnythingOfType("service.VideoCreateRequest")).
+		Return(nil, service.ErrURLProviderMismatch)
+
+	w := do(engine, http.MethodPost, "/sections/"+sectionID+"/videos", map[string]any{
+		"titulo":    "Test Video",
+		"url":       "https://vimeo.com/123",
+		"proveedor": "youtube", // MISMATCH
+	})
+	assert.Equal(t, http.StatusBadRequest, w.Code,
+		"[LB-1] vimeo URL + proveedor=youtube must return 400")
+	assert.Equal(t, "URL_PROVIDER_MISMATCH", respCode(w))
+	svc.AssertExpectations(t)
+}
+
+// [LOAD-BEARING: LB-2] TestCreateVideo_NonOwner_Returns403 verifies that a non-owner gets 403.
+// Spec: VID-1-F.
+func TestCreateVideo_NonOwner_Returns403(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	sectionID := "section-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("CreateVideo", mock.Anything, creadorID, mock.AnythingOfType("service.VideoCreateRequest")).
+		Return(nil, service.ErrNotOwner)
+
+	w := do(engine, http.MethodPost, "/sections/"+sectionID+"/videos", map[string]any{
+		"titulo":    "Test Video",
+		"url":       "https://www.youtube.com/watch?v=abc",
+		"proveedor": "youtube",
+	})
+	assert.Equal(t, http.StatusForbidden, w.Code,
+		"[LB-2] non-owner video creation must return 403")
+	svc.AssertExpectations(t)
+}
+
+// TestDeleteVideo_Returns204 verifies a successful video delete returns 204.
+// Spec: VID-3-A.
+func TestDeleteVideo_Returns204(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	videoID := "video-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("DeleteVideo", mock.Anything, videoID, creadorID).Return(nil)
+
+	w := do(engine, http.MethodDelete, "/videos/"+videoID, nil)
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	svc.AssertExpectations(t)
+}
+
+// ── Error map coverage tests ──────────────────────────────────────────────────
+
+// TestSectionNotFound_Returns404 verifies ErrSectionNotFound → 404.
+// Spec: ERR-1.
+func TestSectionNotFound_Returns404(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	sectionID := "nonexistent-section"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("DeleteSection", mock.Anything, sectionID, creadorID).Return(service.ErrSectionNotFound)
+
+	w := do(engine, http.MethodDelete, "/sections/"+sectionID, nil)
+	assert.Equal(t, http.StatusNotFound, w.Code, "ErrSectionNotFound must return 404")
+	assert.Equal(t, "SECTION_NOT_FOUND", respCode(w))
+	svc.AssertExpectations(t)
+}
+
+// TestVideoNotFound_Returns404 verifies ErrVideoNotFound → 404.
+// Spec: ERR-1.
+func TestVideoNotFound_Returns404(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	videoID := "nonexistent-video"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("DeleteVideo", mock.Anything, videoID, creadorID).Return(service.ErrVideoNotFound)
+
+	w := do(engine, http.MethodDelete, "/videos/"+videoID, nil)
+	assert.Equal(t, http.StatusNotFound, w.Code, "ErrVideoNotFound must return 404")
+	assert.Equal(t, "VIDEO_NOT_FOUND", respCode(w))
+	svc.AssertExpectations(t)
+}
+
+// TestCreateSection_EnRevision_Returns409 verifies ErrInvalidTransition → 409.
+// Spec: SEC-1-E, ERR-1.
+func TestCreateSection_EnRevision_Returns409(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	courseID := "course-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("CreateSection", mock.Anything, creadorID, mock.AnythingOfType("service.SectionCreateRequest")).
+		Return(nil, service.ErrInvalidTransition)
+
+	w := do(engine, http.MethodPost, "/courses/"+courseID+"/sections", map[string]any{
+		"titulo": "Intro",
+	})
+	assert.Equal(t, http.StatusConflict, w.Code, "ErrInvalidTransition must return 409")
+	svc.AssertExpectations(t)
+}
+
+// TestUpdateVideo_NonOwner_Returns403 verifies ErrNotOwner on PATCH video → 403.
+// Spec: VID-2-C.
+func TestUpdateVideo_NonOwner_Returns403(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-other"
+	videoID := "video-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("UpdateVideo", mock.Anything, videoID, creadorID, mock.AnythingOfType("service.VideoUpdateRequest")).
+		Return(nil, service.ErrNotOwner)
+
+	titulo := "New Title"
+	w := do(engine, http.MethodPatch, "/videos/"+videoID, map[string]any{"titulo": titulo})
+	assert.Equal(t, http.StatusForbidden, w.Code, "non-owner UpdateVideo must return 403")
+	svc.AssertExpectations(t)
+}
+
+// TestCreateVideo_HappyPath_Returns201 verifies a valid YouTube video creation returns 201.
+// Spec: VID-1-A.
+func TestCreateVideo_HappyPath_Returns201(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	sectionID := "section-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	vm := videoModel("video-1", sectionID)
+	svc.On("CreateVideo", mock.Anything, creadorID, mock.AnythingOfType("service.VideoCreateRequest")).
+		Return(vm, nil)
+
+	w := do(engine, http.MethodPost, "/sections/"+sectionID+"/videos", map[string]any{
+		"titulo":    "Test Video",
+		"url":       "https://www.youtube.com/watch?v=abc123",
+		"proveedor": "youtube",
+	})
+	assert.Equal(t, http.StatusCreated, w.Code)
+	svc.AssertExpectations(t)
 }

@@ -107,3 +107,76 @@ func SetupPostgres(t *testing.T) (*gorm.DB, func()) {
 
 	return db, teardown
 }
+
+// SetupPostgresWithMigrate is like SetupPostgres but also returns the
+// *migrate.Migrate instance so tests can run Down() and Up() themselves.
+// The caller is responsible for calling m.Close() before teardown.
+func SetupPostgresWithMigrate(t *testing.T) (*gorm.DB, *migrate.Migrate, func()) {
+	t.Helper()
+	ctx := context.Background()
+
+	container, err := tcpostgres.Run(ctx,
+		"postgres:16-alpine",
+		tcpostgres.WithDatabase("testdb"),
+		tcpostgres.WithUsername("testuser"),
+		tcpostgres.WithPassword("testpass"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(60*time.Second),
+		),
+	)
+	if err != nil {
+		t.Fatalf("SetupPostgresWithMigrate: failed to start container: %v", err)
+	}
+
+	teardown := func() {
+		if err := container.Terminate(ctx); err != nil {
+			t.Logf("SetupPostgresWithMigrate: failed to terminate container: %v", err)
+		}
+	}
+
+	dsn, err := container.ConnectionString(ctx, "sslmode=disable")
+	if err != nil {
+		teardown()
+		t.Fatalf("SetupPostgresWithMigrate: failed to get connection string: %v", err)
+	}
+
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		teardown()
+		t.Fatalf("SetupPostgresWithMigrate: failed to open GORM connection: %v", err)
+	}
+
+	if err := db.Exec("CREATE EXTENSION IF NOT EXISTS pgcrypto").Error; err != nil {
+		teardown()
+		t.Fatalf("SetupPostgresWithMigrate: failed to create pgcrypto extension: %v", err)
+	}
+
+	_, thisFile, _, _ := runtime.Caller(0)
+	migrationsDir := filepath.Join(filepath.Dir(thisFile), "..", "..", "migrations")
+	migrationsDir = filepath.Clean(migrationsDir)
+	migrationsURL := fmt.Sprintf("file://%s", migrationsDir)
+
+	m, err := migrate.New(migrationsURL, dsn)
+	if err != nil {
+		teardown()
+		t.Fatalf("SetupPostgresWithMigrate: failed to create migrate instance: %v", err)
+	}
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		teardown()
+		t.Fatalf("SetupPostgresWithMigrate: migration up failed: %v", err)
+	}
+
+	// Seed the role table.
+	seedSQL := `INSERT INTO role (nombre)
+		VALUES ('alumno'), ('creador'), ('supervisor'), ('administrador')
+		ON CONFLICT DO NOTHING`
+	if err := db.Exec(seedSQL).Error; err != nil {
+		teardown()
+		t.Fatalf("SetupPostgresWithMigrate: failed to seed roles: %v", err)
+	}
+
+	return db, m, teardown
+}

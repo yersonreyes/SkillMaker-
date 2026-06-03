@@ -156,6 +156,43 @@ export interface paths {
       };
     };
   };
+  "/courses/{courseId}/sections": {
+    /** Crea una seccion. El curso debe estar en borrador o rechazado y pertenecer al caller. */
+    post: {
+      parameters: {
+        path: {
+          /** UUID del curso */
+          courseId: string;
+        };
+        body: {
+          /** Datos de la seccion */
+          body: definitions["dto.SectionCreateRequest"];
+        };
+      };
+      responses: {
+        /** Created */
+        201: {
+          schema: definitions["dto.SectionResponse"];
+        };
+        /** Bad Request */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** no es propietario del curso */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** curso no encontrado */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** estado no permite edicion */
+        409: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
   "/courses/{id}": {
     /** Retorna el detalle de un curso. Solo el creador propietario puede verlo. */
     get: {
@@ -227,6 +264,136 @@ export interface paths {
         };
         /** Internal Server Error */
         500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/courses/{id}/sections/reorder": {
+    /** Actualiza el orden de las secciones. ids debe ser el conjunto exacto de secciones del curso. */
+    patch: {
+      parameters: {
+        path: {
+          /** UUID del curso */
+          id: string;
+        };
+        body: {
+          /** IDs en el nuevo orden */
+          body: definitions["dto.ReorderRequest"];
+        };
+      };
+      responses: {
+        /** OK */
+        200: unknown;
+        /** IDs invalidos o incompletos */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Forbidden */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Not Found */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/sections/{id}": {
+    /** Elimina la seccion y todos sus videos. Requiere ser propietario. */
+    delete: {
+      parameters: {
+        path: {
+          /** UUID de la seccion */
+          id: string;
+        };
+      };
+      responses: {
+        /** No Content */
+        204: never;
+        /** Forbidden */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Not Found */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Conflict */
+        409: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+    /** Actualiza titulo de una seccion. Requiere ser propietario del curso. */
+    patch: {
+      parameters: {
+        path: {
+          /** UUID de la seccion */
+          id: string;
+        };
+        body: {
+          /** Campos a actualizar */
+          body: definitions["dto.SectionUpdateRequest"];
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.SectionResponse"];
+        };
+        /** Bad Request */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Forbidden */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** seccion no encontrada */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Conflict */
+        409: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/sections/{sectionId}/videos": {
+    /** Crea un video. La seccion y el curso deben pertenecer al caller. URL y proveedor se validan cruzadamente. */
+    post: {
+      parameters: {
+        path: {
+          /** UUID de la seccion */
+          sectionId: string;
+        };
+        body: {
+          /** Datos del video */
+          body: definitions["dto.VideoCreateRequest"];
+        };
+      };
+      responses: {
+        /** Created */
+        201: {
+          schema: definitions["dto.VideoResponse"];
+        };
+        /** url/proveedor invalidos */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Forbidden */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Not Found */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Conflict */
+        409: {
           schema: definitions["httperr.Error"];
         };
       };
@@ -508,6 +675,64 @@ export interface paths {
       };
     };
   };
+  "/videos/{id}": {
+    /** Elimina un video. Requiere ser propietario del curso. */
+    delete: {
+      parameters: {
+        path: {
+          /** UUID del video */
+          id: string;
+        };
+      };
+      responses: {
+        /** No Content */
+        204: never;
+        /** Forbidden */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Not Found */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+    /** Actualiza campos de un video. Si url o proveedor cambia, se re-validan cruzadamente. */
+    patch: {
+      parameters: {
+        path: {
+          /** UUID del video */
+          id: string;
+        };
+        body: {
+          /** Campos a actualizar */
+          body: definitions["dto.VideoUpdateRequest"];
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.VideoResponse"];
+        };
+        /** Bad Request */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Forbidden */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Not Found */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Conflict */
+        409: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
 }
 
 export interface definitions {
@@ -519,6 +744,7 @@ export interface definitions {
     createdAt?: string;
     descripcion?: string;
     estado?: string;
+    hasContent?: boolean;
     id?: string;
     titulo?: string;
     updatedAt?: string;
@@ -539,9 +765,25 @@ export interface definitions {
   "dto.RefreshRequest": {
     refreshToken: string;
   };
+  "dto.ReorderRequest": {
+    ids: string[];
+  };
   "dto.RolesPatchRequest": {
     add: string[];
     remove: string[];
+  };
+  "dto.SectionCreateRequest": {
+    titulo: string;
+  };
+  "dto.SectionResponse": {
+    courseId?: string;
+    createdAt?: string;
+    id?: string;
+    orden?: number;
+    titulo?: string;
+  };
+  "dto.SectionUpdateRequest": {
+    titulo?: string;
   };
   "dto.SupervisionCreateRequest": {
     empleadoId: string;
@@ -571,6 +813,30 @@ export interface definitions {
     nombre?: string;
     roles?: string[];
     updatedAt?: string;
+  };
+  "dto.VideoCreateRequest": {
+    duracionS?: number;
+    /** @enum {string} */
+    proveedor: "youtube" | "vimeo";
+    titulo: string;
+    url: string;
+  };
+  "dto.VideoResponse": {
+    createdAt?: string;
+    duracionS?: number;
+    id?: string;
+    orden?: number;
+    proveedor?: string;
+    sectionId?: string;
+    titulo?: string;
+    url?: string;
+  };
+  "dto.VideoUpdateRequest": {
+    duracionS?: number;
+    /** @enum {string} */
+    proveedor?: "youtube" | "vimeo";
+    titulo?: string;
+    url?: string;
   };
   "httperr.Error": {
     code?: string;

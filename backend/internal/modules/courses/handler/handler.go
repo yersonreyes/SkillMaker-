@@ -5,6 +5,7 @@
 // CRITICAL: ErrNotOwner maps to DIFFERENT HTTP statuses depending on the route:
 //   - GET  /api/courses/:id  → 404 via renderCourseErrorRead  (hides existence)
 //   - PATCH /api/courses/:id → 403 via renderCourseErrorWrite (signals authz failure)
+//   - POST/PATCH/DELETE sections/videos → 403 via renderCourseErrorWrite
 //
 // This asymmetry is enforced by TWO separate render helpers (not a flag or switch)
 // and is verified by TWO separate tests in handler_test.go. See REQ-DIVERGENCE.
@@ -34,11 +35,25 @@ type Handler struct {
 func Register(creatorGrp *gin.RouterGroup, svc service.Service) {
 	h := &Handler{svc: svc}
 
+	// Course CRUD (C2.1).
 	creatorGrp.POST("/courses", h.Create)
 	creatorGrp.GET("/courses/:id", h.GetByID)
 	creatorGrp.PATCH("/courses/:id", h.Update)
 	creatorGrp.GET("/courses", h.List)
+
+	// Section routes (C2.2).
+	creatorGrp.POST("/courses/:courseId/sections", h.CreateSection)
+	creatorGrp.PATCH("/courses/:id/sections/reorder", h.ReorderSections)
+	creatorGrp.PATCH("/sections/:id", h.UpdateSection)
+	creatorGrp.DELETE("/sections/:id", h.DeleteSection)
+
+	// Video routes (C2.2).
+	creatorGrp.POST("/sections/:sectionId/videos", h.CreateVideo)
+	creatorGrp.PATCH("/videos/:id", h.UpdateVideo)
+	creatorGrp.DELETE("/videos/:id", h.DeleteVideo)
 }
+
+// ── Course handlers ────────────────────────────────────────────────────────────
 
 // Create godoc
 // @Summary     Crea un curso (borrador)
@@ -77,7 +92,7 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, dto.ToCourseDetail(model))
+	c.JSON(http.StatusCreated, dto.ToCourseDetail(model, false))
 }
 
 // GetByID godoc
@@ -85,6 +100,7 @@ func (h *Handler) Create(c *gin.Context) {
 // @Description Retorna el detalle de un curso. Solo el creador propietario puede verlo.
 //
 //	ErrNotOwner → 404 (oculta existencia de borradores ajenos).
+//	hasContent se computa via svc.HasContent.
 //
 // @Tags        courses
 // @Produce     json
@@ -106,7 +122,15 @@ func (h *Handler) GetByID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.ToCourseDetail(model))
+	// Compute hasContent for the GET detail response (spec HC-1).
+	hasContent, err := h.svc.HasContent(c.Request.Context(), id, creadorID)
+	if err != nil {
+		// Non-fatal: default to false and log.
+		slog.Warn("courses.getbyid: hasContent failed", "courseID", id, "err", err)
+		hasContent = false
+	}
+
+	c.JSON(http.StatusOK, dto.ToCourseDetail(model, hasContent))
 }
 
 // Update godoc
@@ -155,7 +179,7 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.ToCourseDetail(model))
+	c.JSON(http.StatusOK, dto.ToCourseDetail(model, false))
 }
 
 // List godoc
@@ -193,6 +217,239 @@ func (h *Handler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.ToCourseListPage(page))
 }
 
+// ── Section handlers (C2.2) ───────────────────────────────────────────────────
+
+// CreateSection godoc
+// @Summary     Crea una seccion en un curso
+// @Description Crea una seccion. El curso debe estar en borrador o rechazado y pertenecer al caller.
+// @Tags        sections
+// @Accept      json
+// @Produce     json
+// @Security    BearerAuth
+// @Param       courseId path   string                    true "UUID del curso"
+// @Param       body     body   dto.SectionCreateRequest  true "Datos de la seccion"
+// @Success     201 {object} dto.SectionResponse
+// @Failure     400 {object} httperr.Error
+// @Failure     403 {object} httperr.Error "no es propietario del curso"
+// @Failure     404 {object} httperr.Error "curso no encontrado"
+// @Failure     409 {object} httperr.Error "estado no permite edicion"
+// @Router      /courses/{courseId}/sections [post]
+func (h *Handler) CreateSection(c *gin.Context) {
+	courseID := c.Param("courseId")
+	creadorID := middleware.UserIDFrom(c)
+
+	var req dto.SectionCreateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperr.Render(c, httperr.BadRequest("INVALID_BODY", "body invalido: "+err.Error()))
+		return
+	}
+
+	model, err := h.svc.CreateSection(c.Request.Context(), creadorID, service.SectionCreateRequest{
+		CourseID: courseID,
+		Titulo:   req.Titulo,
+	})
+	if err != nil {
+		h.renderCourseErrorWrite(c, err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, dto.ToSection(model))
+}
+
+// UpdateSection godoc
+// @Summary     Actualiza una seccion (PATCH parcial)
+// @Description Actualiza titulo de una seccion. Requiere ser propietario del curso.
+// @Tags        sections
+// @Accept      json
+// @Produce     json
+// @Security    BearerAuth
+// @Param       id   path   string                    true "UUID de la seccion"
+// @Param       body body   dto.SectionUpdateRequest  true "Campos a actualizar"
+// @Success     200 {object} dto.SectionResponse
+// @Failure     400 {object} httperr.Error
+// @Failure     403 {object} httperr.Error
+// @Failure     404 {object} httperr.Error "seccion no encontrada"
+// @Failure     409 {object} httperr.Error
+// @Router      /sections/{id} [patch]
+func (h *Handler) UpdateSection(c *gin.Context) {
+	id := c.Param("id")
+	creadorID := middleware.UserIDFrom(c)
+
+	var req dto.SectionUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperr.Render(c, httperr.BadRequest("INVALID_BODY", "body invalido: "+err.Error()))
+		return
+	}
+
+	model, err := h.svc.UpdateSection(c.Request.Context(), id, creadorID, service.SectionUpdateRequest{
+		Titulo: req.Titulo,
+	})
+	if err != nil {
+		h.renderCourseErrorWrite(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.ToSection(model))
+}
+
+// DeleteSection godoc
+// @Summary     Elimina una seccion (y sus videos en cascada)
+// @Description Elimina la seccion y todos sus videos. Requiere ser propietario.
+// @Tags        sections
+// @Security    BearerAuth
+// @Param       id path string true "UUID de la seccion"
+// @Success     204
+// @Failure     403 {object} httperr.Error
+// @Failure     404 {object} httperr.Error
+// @Failure     409 {object} httperr.Error
+// @Router      /sections/{id} [delete]
+func (h *Handler) DeleteSection(c *gin.Context) {
+	id := c.Param("id")
+	creadorID := middleware.UserIDFrom(c)
+
+	if err := h.svc.DeleteSection(c.Request.Context(), id, creadorID); err != nil {
+		h.renderCourseErrorWrite(c, err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+// ReorderSections godoc
+// @Summary     Reordena las secciones de un curso
+// @Description Actualiza el orden de las secciones. ids debe ser el conjunto exacto de secciones del curso.
+// @Tags        sections
+// @Accept      json
+// @Produce     json
+// @Security    BearerAuth
+// @Param       id   path   string             true "UUID del curso"
+// @Param       body body   dto.ReorderRequest true "IDs en el nuevo orden"
+// @Success     200
+// @Failure     400 {object} httperr.Error "IDs invalidos o incompletos"
+// @Failure     403 {object} httperr.Error
+// @Failure     404 {object} httperr.Error
+// @Router      /courses/{id}/sections/reorder [patch]
+func (h *Handler) ReorderSections(c *gin.Context) {
+	courseID := c.Param("id")
+	creadorID := middleware.UserIDFrom(c)
+
+	var req dto.ReorderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperr.Render(c, httperr.BadRequest("INVALID_BODY", "body invalido: "+err.Error()))
+		return
+	}
+
+	if err := h.svc.ReorderSections(c.Request.Context(), courseID, creadorID, req.IDs); err != nil {
+		h.renderCourseErrorWrite(c, err)
+		return
+	}
+
+	c.Status(http.StatusOK)
+}
+
+// ── Video handlers (C2.2) ─────────────────────────────────────────────────────
+
+// CreateVideo godoc
+// @Summary     Crea un video en una seccion
+// @Description Crea un video. La seccion y el curso deben pertenecer al caller. URL y proveedor se validan cruzadamente.
+// @Tags        videos
+// @Accept      json
+// @Produce     json
+// @Security    BearerAuth
+// @Param       sectionId path   string                  true "UUID de la seccion"
+// @Param       body      body   dto.VideoCreateRequest  true "Datos del video"
+// @Success     201 {object} dto.VideoResponse
+// @Failure     400 {object} httperr.Error "url/proveedor invalidos"
+// @Failure     403 {object} httperr.Error
+// @Failure     404 {object} httperr.Error
+// @Failure     409 {object} httperr.Error
+// @Router      /sections/{sectionId}/videos [post]
+func (h *Handler) CreateVideo(c *gin.Context) {
+	sectionID := c.Param("sectionId")
+	creadorID := middleware.UserIDFrom(c)
+
+	var req dto.VideoCreateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperr.Render(c, httperr.BadRequest("INVALID_BODY", "body invalido: "+err.Error()))
+		return
+	}
+
+	model, err := h.svc.CreateVideo(c.Request.Context(), creadorID, service.VideoCreateRequest{
+		SectionID: sectionID,
+		Titulo:    req.Titulo,
+		URL:       req.URL,
+		Proveedor: req.Proveedor,
+		DuracionS: req.DuracionS,
+	})
+	if err != nil {
+		h.renderCourseErrorWrite(c, err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, dto.ToVideo(model))
+}
+
+// UpdateVideo godoc
+// @Summary     Actualiza un video (PATCH parcial)
+// @Description Actualiza campos de un video. Si url o proveedor cambia, se re-validan cruzadamente.
+// @Tags        videos
+// @Accept      json
+// @Produce     json
+// @Security    BearerAuth
+// @Param       id   path   string                  true "UUID del video"
+// @Param       body body   dto.VideoUpdateRequest  true "Campos a actualizar"
+// @Success     200 {object} dto.VideoResponse
+// @Failure     400 {object} httperr.Error
+// @Failure     403 {object} httperr.Error
+// @Failure     404 {object} httperr.Error
+// @Failure     409 {object} httperr.Error
+// @Router      /videos/{id} [patch]
+func (h *Handler) UpdateVideo(c *gin.Context) {
+	id := c.Param("id")
+	creadorID := middleware.UserIDFrom(c)
+
+	var req dto.VideoUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperr.Render(c, httperr.BadRequest("INVALID_BODY", "body invalido: "+err.Error()))
+		return
+	}
+
+	model, err := h.svc.UpdateVideo(c.Request.Context(), id, creadorID, service.VideoUpdateRequest{
+		Titulo:    req.Titulo,
+		URL:       req.URL,
+		Proveedor: req.Proveedor,
+		DuracionS: req.DuracionS,
+	})
+	if err != nil {
+		h.renderCourseErrorWrite(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.ToVideo(model))
+}
+
+// DeleteVideo godoc
+// @Summary     Elimina un video
+// @Description Elimina un video. Requiere ser propietario del curso.
+// @Tags        videos
+// @Security    BearerAuth
+// @Param       id path string true "UUID del video"
+// @Success     204
+// @Failure     403 {object} httperr.Error
+// @Failure     404 {object} httperr.Error
+// @Router      /videos/{id} [delete]
+func (h *Handler) DeleteVideo(c *gin.Context) {
+	id := c.Param("id")
+	creadorID := middleware.UserIDFrom(c)
+
+	if err := h.svc.DeleteVideo(c.Request.Context(), id, creadorID); err != nil {
+		h.renderCourseErrorWrite(c, err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
 // ── Error render helpers (TWO — deliberate, enforces REQ-DIVERGENCE) ───────────
 
 // renderCourseErrorRead maps service sentinels to HTTP statuses for READ routes (GET).
@@ -201,27 +458,44 @@ func (h *Handler) renderCourseErrorRead(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, service.ErrCourseNotFound):
 		httperr.Render(c, httperr.NotFound("COURSE_NOT_FOUND", "course not found"))
+	case errors.Is(err, service.ErrSectionNotFound):
+		httperr.Render(c, httperr.NotFound("SECTION_NOT_FOUND", "section not found"))
+	case errors.Is(err, service.ErrVideoNotFound):
+		httperr.Render(c, httperr.NotFound("VIDEO_NOT_FOUND", "video not found"))
 	case errors.Is(err, service.ErrNotOwner):
 		httperr.Render(c, httperr.NotFound("COURSE_NOT_FOUND", "course not found")) // 404: hide existence
 	case errors.Is(err, service.ErrInvalidTransition):
 		httperr.Render(c, httperr.Conflict("INVALID_TRANSITION", "course estado does not permit this edit"))
+	case errors.Is(err, service.ErrInvalidReorderSet):
+		httperr.Render(c, httperr.BadRequest("INVALID_REORDER_SET", "reorder ids must exactly match the course's section set"))
 	default:
 		slog.Error("courses: unexpected error (read)", "err", err)
 		httperr.Render(c, httperr.Internal(err.Error()))
 	}
 }
 
-// renderCourseErrorWrite maps service sentinels to HTTP statuses for WRITE routes (PATCH).
+// renderCourseErrorWrite maps service sentinels to HTTP statuses for WRITE routes (PATCH/POST/DELETE).
 // CRITICAL: ErrNotOwner → 403 here (signals authz failure per AC3 / REQ-DIVERGENCE).
 // The ONLY difference from renderCourseErrorRead is the ErrNotOwner case.
+// ErrInvalidReorderSet → 400 (validation error: wrong section IDs sent).
+// ErrInvalidTransition → 409 (state error: course not editable).
+// These are DISTINCT: one is about the input set, the other about course estado.
 func (h *Handler) renderCourseErrorWrite(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, service.ErrCourseNotFound):
 		httperr.Render(c, httperr.NotFound("COURSE_NOT_FOUND", "course not found"))
+	case errors.Is(err, service.ErrSectionNotFound):
+		httperr.Render(c, httperr.NotFound("SECTION_NOT_FOUND", "section not found"))
+	case errors.Is(err, service.ErrVideoNotFound):
+		httperr.Render(c, httperr.NotFound("VIDEO_NOT_FOUND", "video not found"))
 	case errors.Is(err, service.ErrNotOwner):
 		httperr.Render(c, httperr.Forbidden("NOT_OWNER", "you do not own this course")) // 403: authz signal
+	case errors.Is(err, service.ErrInvalidReorderSet):
+		httperr.Render(c, httperr.BadRequest("INVALID_REORDER_SET", "reorder ids must exactly match the course's section set"))
 	case errors.Is(err, service.ErrInvalidTransition):
 		httperr.Render(c, httperr.Conflict("INVALID_TRANSITION", "course estado does not permit this edit"))
+	case errors.Is(err, service.ErrURLProviderMismatch):
+		httperr.Render(c, httperr.BadRequest("URL_PROVIDER_MISMATCH", "url host does not match declared proveedor"))
 	default:
 		slog.Error("courses: unexpected error (write)", "err", err)
 		httperr.Render(c, httperr.Internal(err.Error()))

@@ -277,6 +277,76 @@ const docTemplate = `{
                 }
             }
         },
+        "/courses/{courseId}/sections": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Crea una seccion. El curso debe estar en borrador o rechazado y pertenecer al caller.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sections"
+                ],
+                "summary": "Crea una seccion en un curso",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID del curso",
+                        "name": "courseId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Datos de la seccion",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.SectionCreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SectionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "no es propietario del curso",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "curso no encontrado",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "estado no permite edicion",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/courses/{id}": {
             "get": {
                 "security": [
@@ -408,6 +478,251 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/courses/{id}/sections/reorder": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Actualiza el orden de las secciones. ids debe ser el conjunto exacto de secciones del curso.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sections"
+                ],
+                "summary": "Reordena las secciones de un curso",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID del curso",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "IDs en el nuevo orden",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ReorderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "IDs invalidos o incompletos",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/sections/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Elimina la seccion y todos sus videos. Requiere ser propietario.",
+                "tags": [
+                    "sections"
+                ],
+                "summary": "Elimina una seccion (y sus videos en cascada)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID de la seccion",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Actualiza titulo de una seccion. Requiere ser propietario del curso.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sections"
+                ],
+                "summary": "Actualiza una seccion (PATCH parcial)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID de la seccion",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Campos a actualizar",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.SectionUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SectionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "seccion no encontrada",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/sections/{sectionId}/videos": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Crea un video. La seccion y el curso deben pertenecer al caller. URL y proveedor se validan cruzadamente.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "videos"
+                ],
+                "summary": "Crea un video en una seccion",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID de la seccion",
+                        "name": "sectionId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Datos del video",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.VideoCreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/dto.VideoResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "url/proveedor invalidos",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/httperr.Error"
                         }
@@ -928,6 +1243,114 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/videos/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Elimina un video. Requiere ser propietario del curso.",
+                "tags": [
+                    "videos"
+                ],
+                "summary": "Elimina un video",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID del video",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Actualiza campos de un video. Si url o proveedor cambia, se re-validan cruzadamente.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "videos"
+                ],
+                "summary": "Actualiza un video (PATCH parcial)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID del video",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Campos a actualizar",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.VideoUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.VideoResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -956,6 +1379,9 @@ const docTemplate = `{
                 },
                 "estado": {
                     "type": "string"
+                },
+                "hasContent": {
+                    "type": "boolean"
                 },
                 "id": {
                     "type": "string"
@@ -1024,6 +1450,21 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.ReorderRequest": {
+            "type": "object",
+            "required": [
+                "ids"
+            ],
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "dto.RolesPatchRequest": {
             "type": "object",
             "required": [
@@ -1042,6 +1483,49 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "dto.SectionCreateRequest": {
+            "type": "object",
+            "required": [
+                "titulo"
+            ],
+            "properties": {
+                "titulo": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "minLength": 1
+                }
+            }
+        },
+        "dto.SectionResponse": {
+            "type": "object",
+            "properties": {
+                "courseId": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "orden": {
+                    "type": "integer"
+                },
+                "titulo": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.SectionUpdateRequest": {
+            "type": "object",
+            "properties": {
+                "titulo": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "minLength": 1
                 }
             }
         },
@@ -1136,6 +1620,88 @@ const docTemplate = `{
                     }
                 },
                 "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.VideoCreateRequest": {
+            "type": "object",
+            "required": [
+                "proveedor",
+                "titulo",
+                "url"
+            ],
+            "properties": {
+                "duracionS": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "proveedor": {
+                    "type": "string",
+                    "enum": [
+                        "youtube",
+                        "vimeo"
+                    ]
+                },
+                "titulo": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "minLength": 1
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.VideoResponse": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "duracionS": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "orden": {
+                    "type": "integer"
+                },
+                "proveedor": {
+                    "type": "string"
+                },
+                "sectionId": {
+                    "type": "string"
+                },
+                "titulo": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.VideoUpdateRequest": {
+            "type": "object",
+            "properties": {
+                "duracionS": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "proveedor": {
+                    "type": "string",
+                    "enum": [
+                        "youtube",
+                        "vimeo"
+                    ]
+                },
+                "titulo": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "minLength": 1
+                },
+                "url": {
                     "type": "string"
                 }
             }

@@ -17,6 +17,8 @@ definitions:
         type: string
       estado:
         type: string
+      hasContent:
+        type: boolean
       id:
         type: string
       titulo:
@@ -61,6 +63,16 @@ definitions:
     required:
     - refreshToken
     type: object
+  dto.ReorderRequest:
+    properties:
+      ids:
+        items:
+          type: string
+        minItems: 1
+        type: array
+    required:
+    - ids
+    type: object
   dto.RolesPatchRequest:
     properties:
       add:
@@ -74,6 +86,35 @@ definitions:
     required:
     - add
     - remove
+    type: object
+  dto.SectionCreateRequest:
+    properties:
+      titulo:
+        maxLength: 200
+        minLength: 1
+        type: string
+    required:
+    - titulo
+    type: object
+  dto.SectionResponse:
+    properties:
+      courseId:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: string
+      orden:
+        type: integer
+      titulo:
+        type: string
+    type: object
+  dto.SectionUpdateRequest:
+    properties:
+      titulo:
+        maxLength: 200
+        minLength: 1
+        type: string
     type: object
   dto.SupervisionCreateRequest:
     properties:
@@ -136,6 +177,63 @@ definitions:
           type: string
         type: array
       updatedAt:
+        type: string
+    type: object
+  dto.VideoCreateRequest:
+    properties:
+      duracionS:
+        minimum: 0
+        type: integer
+      proveedor:
+        enum:
+        - youtube
+        - vimeo
+        type: string
+      titulo:
+        maxLength: 200
+        minLength: 1
+        type: string
+      url:
+        type: string
+    required:
+    - proveedor
+    - titulo
+    - url
+    type: object
+  dto.VideoResponse:
+    properties:
+      createdAt:
+        type: string
+      duracionS:
+        type: integer
+      id:
+        type: string
+      orden:
+        type: integer
+      proveedor:
+        type: string
+      sectionId:
+        type: string
+      titulo:
+        type: string
+      url:
+        type: string
+    type: object
+  dto.VideoUpdateRequest:
+    properties:
+      duracionS:
+        minimum: 0
+        type: integer
+      proveedor:
+        enum:
+        - youtube
+        - vimeo
+        type: string
+      titulo:
+        maxLength: 200
+        minLength: 1
+        type: string
+      url:
         type: string
     type: object
   httperr.Error:
@@ -334,6 +432,52 @@ paths:
       summary: Crea un curso (borrador)
       tags:
       - courses
+  /courses/{courseId}/sections:
+    post:
+      consumes:
+      - application/json
+      description: Crea una seccion. El curso debe estar en borrador o rechazado y
+        pertenecer al caller.
+      parameters:
+      - description: UUID del curso
+        in: path
+        name: courseId
+        required: true
+        type: string
+      - description: Datos de la seccion
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SectionCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.SectionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: no es propietario del curso
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: curso no encontrado
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "409":
+          description: estado no permite edicion
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Crea una seccion en un curso
+      tags:
+      - sections
   /courses/{id}:
     get:
       description: Retorna el detalle de un curso. Solo el creador propietario puede
@@ -424,6 +568,165 @@ paths:
       summary: Actualiza un curso (PATCH parcial, solo owner)
       tags:
       - courses
+  /courses/{id}/sections/reorder:
+    patch:
+      consumes:
+      - application/json
+      description: Actualiza el orden de las secciones. ids debe ser el conjunto exacto
+        de secciones del curso.
+      parameters:
+      - description: UUID del curso
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: IDs en el nuevo orden
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ReorderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: IDs invalidos o incompletos
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Reordena las secciones de un curso
+      tags:
+      - sections
+  /sections/{id}:
+    delete:
+      description: Elimina la seccion y todos sus videos. Requiere ser propietario.
+      parameters:
+      - description: UUID de la seccion
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Elimina una seccion (y sus videos en cascada)
+      tags:
+      - sections
+    patch:
+      consumes:
+      - application/json
+      description: Actualiza titulo de una seccion. Requiere ser propietario del curso.
+      parameters:
+      - description: UUID de la seccion
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Campos a actualizar
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SectionUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.SectionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: seccion no encontrada
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Actualiza una seccion (PATCH parcial)
+      tags:
+      - sections
+  /sections/{sectionId}/videos:
+    post:
+      consumes:
+      - application/json
+      description: Crea un video. La seccion y el curso deben pertenecer al caller.
+        URL y proveedor se validan cruzadamente.
+      parameters:
+      - description: UUID de la seccion
+        in: path
+        name: sectionId
+        required: true
+        type: string
+      - description: Datos del video
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.VideoCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.VideoResponse'
+        "400":
+          description: url/proveedor invalidos
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Crea un video en una seccion
+      tags:
+      - videos
   /supervisions:
     get:
       description: Retorna todas las relaciones supervisor-empleado. Solo administradores.
@@ -754,6 +1057,76 @@ paths:
       summary: Perfil del usuario autenticado
       tags:
       - users
+  /videos/{id}:
+    delete:
+      description: Elimina un video. Requiere ser propietario del curso.
+      parameters:
+      - description: UUID del video
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Elimina un video
+      tags:
+      - videos
+    patch:
+      consumes:
+      - application/json
+      description: Actualiza campos de un video. Si url o proveedor cambia, se re-validan
+        cruzadamente.
+      parameters:
+      - description: UUID del video
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Campos a actualizar
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.VideoUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.VideoResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Actualiza un video (PATCH parcial)
+      tags:
+      - videos
 securityDefinitions:
   BearerAuth:
     in: header

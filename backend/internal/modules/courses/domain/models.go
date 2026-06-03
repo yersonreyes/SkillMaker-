@@ -1,6 +1,6 @@
 // Package domain contains the GORM models for the courses module.
-// Only Course is exercised in C2.1; the other 4 structs are schema-mapped for
-// future use by C2.2–C2.4 (TableName + minimal tags only).
+// Course is fully exercised since C2.1. Section and Video are activated in C2.2.
+// Material and Enrollment remain schema-only (C2.3/C2.4 will add endpoints).
 package domain
 
 import "time"
@@ -41,7 +41,7 @@ type Course struct {
 // TableName overrides GORM's default pluralisation to match migration 0003.
 func (Course) TableName() string { return "course" }
 
-// Section is schema-only in C2.1 (no endpoints). Tags map to migration 0003.
+// Section maps to the section table (migration 0003). Activated in C2.2.
 type Section struct {
 	ID        string    `gorm:"type:uuid;primaryKey"`
 	CourseID  string    `gorm:"type:uuid;not null"`
@@ -52,15 +52,16 @@ type Section struct {
 
 func (Section) TableName() string { return "section" }
 
-// Video is schema-only in C2.1.
+// Video maps to the video table (migration 0004 corrects schema: url+proveedor replace storage_key).
 type Video struct {
-	ID         string    `gorm:"type:uuid;primaryKey"`
-	SectionID  string    `gorm:"type:uuid;not null"`
-	Titulo     string    `gorm:"type:text;not null"`
-	StorageKey string    `gorm:"type:text;not null"`
-	DuracionS  int       `gorm:"column:duracion_s;not null;default:0"`
-	Orden      int       `gorm:"not null;default:0"`
-	CreatedAt  time.Time `gorm:"type:timestamptz;default:now()"`
+	ID        string    `gorm:"type:uuid;primaryKey"`
+	SectionID string    `gorm:"type:uuid;not null"`
+	Titulo    string    `gorm:"type:text;not null"`
+	URL       string    `gorm:"column:url;type:text;not null"`
+	Proveedor string    `gorm:"column:proveedor;type:text;not null"`
+	DuracionS int       `gorm:"column:duracion_s;not null;default:0"`
+	Orden     int       `gorm:"not null;default:0"`
+	CreatedAt time.Time `gorm:"type:timestamptz;default:now()"`
 }
 
 func (Video) TableName() string { return "video" }
