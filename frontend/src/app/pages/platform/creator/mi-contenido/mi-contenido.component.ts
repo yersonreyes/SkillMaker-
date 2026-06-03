@@ -4,7 +4,7 @@ import {
   signal,
   OnInit,
 } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TableModule } from 'primeng/table';
@@ -49,6 +49,7 @@ export class MiContenidoComponent implements OnInit {
   private readonly courseService = inject(CourseService);
   private readonly ui = inject(UiDialogService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   // ── List state ───────────────────────────────────────────────────────────────
   readonly courses = signal<CourseListItem[]>([]);
@@ -67,6 +68,10 @@ export class MiContenidoComponent implements OnInit {
 
   ngOnInit(): void {
     void this.load({ page: 1, size: 20 });
+    // "Crear curso" menu item links here with ?nuevo=1 to open the create dialog.
+    if (this.route.snapshot.queryParamMap.get('nuevo')) {
+      this.openCreateDialog();
+    }
   }
 
   /** Called by PrimeNG Table's (onLazyLoad) event. */

@@ -1,5 +1,4 @@
 import { Routes } from '@angular/router';
-import { PendingViewComponent } from '@shared/components/pending-view/pending-view.component';
 
 export const CREATOR_ROUTES: Routes = [
   {
@@ -13,11 +12,6 @@ export const CREATOR_ROUTES: Routes = [
     loadComponent: () =>
       import('./curso-editar/curso-editar.component').then(m => m.CursoEditarComponent),
     data: { title: 'Editar curso' },
-  },
-  {
-    path: 'crear-curso',
-    component: PendingViewComponent,
-    data: { title: 'Crear curso' },
   },
   { path: '', redirectTo: 'mi-contenido', pathMatch: 'full' },
 ];

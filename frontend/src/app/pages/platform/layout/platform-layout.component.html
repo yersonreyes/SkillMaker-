@@ -57,6 +57,7 @@
           @for (item of creatorItems; track item.route) {
             <a
               [routerLink]="item.route"
+              [queryParams]="item.queryParams ?? null"
               routerLinkActive="is-active"
               class="rail__item"
               [pTooltip]="collapsed() ? item.label : ''"
@@ -82,6 +83,7 @@
           @for (item of supervisorItems; track item.route) {
             <a
               [routerLink]="item.route"
+              [queryParams]="item.queryParams ?? null"
               routerLinkActive="is-active"
               class="rail__item"
               [pTooltip]="collapsed() ? item.label : ''"
@@ -107,6 +109,7 @@
           @for (item of adminItems; track item.route) {
             <a
               [routerLink]="item.route"
+              [queryParams]="item.queryParams ?? null"
               routerLinkActive="is-active"
               class="rail__item"
               [pTooltip]="collapsed() ? item.label : ''"

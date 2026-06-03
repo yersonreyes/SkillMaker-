@@ -8,7 +8,7 @@
  */
 import { TestBed } from '@angular/core/testing';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter, Router, ActivatedRoute, convertToParamMap } from '@angular/router';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 
@@ -155,5 +155,26 @@ describe('MiContenidoComponent', () => {
     // Must be the absolute /platform-prefixed path; '/creator/...' does not match
     // any route (platform routes are mounted under /platform) and bounces to catalog.
     expect(navigateSpy).toHaveBeenCalledWith(['/platform/creator/curso-editar', 'c-1']);
+  });
+
+  // ── "Crear curso" shortcut: ?nuevo=1 opens the create dialog ───────────────
+
+  it('opens the create dialog on init when navigated with ?nuevo=1', () => {
+    TestBed.overrideProvider(ActivatedRoute, {
+      useValue: { snapshot: { queryParamMap: convertToParamMap({ nuevo: '1' }) } },
+    });
+    const fixture = TestBed.createComponent(MiContenidoComponent);
+    const comp = fixture.componentInstance;
+    fixture.detectChanges();
+
+    expect(comp.dialogVisible()).toBe(true);
+  });
+
+  it('does NOT open the create dialog on init without the ?nuevo param', () => {
+    const fixture = TestBed.createComponent(MiContenidoComponent);
+    const comp = fixture.componentInstance;
+    fixture.detectChanges();
+
+    expect(comp.dialogVisible()).toBe(false);
   });
 });

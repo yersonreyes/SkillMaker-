@@ -9,6 +9,7 @@ interface NavItem {
   label: string;
   icon: string;
   route: string;
+  queryParams?: Record<string, string | number>;
 }
 
 @Component({
@@ -60,7 +61,7 @@ export class PlatformLayoutComponent implements OnInit {
 
   protected creatorItems: NavItem[] = [
     { label: 'Mi contenido', icon: 'pi pi-folder',      route: '/platform/creator/mi-contenido' },
-    { label: 'Crear curso',  icon: 'pi pi-plus-circle', route: '/platform/creator/crear-curso' },
+    { label: 'Crear curso',  icon: 'pi pi-plus-circle', route: '/platform/creator/mi-contenido', queryParams: { nuevo: 1 } },
   ];
 
   protected supervisorItems: NavItem[] = [
