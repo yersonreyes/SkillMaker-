@@ -1,0 +1,69 @@
+// material-uploader — Cyanotype Workshop file picker zone
+// Blueprint pattern: hairline border, cyan accent, mono labels.
+
+\:host
+  display: block
+
+// ── Drop zone / pick zone ─────────────────────────────────────────────────────
+.uploader
+  width: 100%
+
+.uploader__zone
+  display: flex
+  align-items: center
+  justify-content: center
+  min-height: 72px
+  padding: 16px 24px
+  border: 1px dashed var(--page-ink-faint)
+  border-radius: 2px
+  background: var(--page-bg)
+  cursor: pointer
+  transition: border-color 0.16s ease, background 0.16s ease
+
+  &:hover:not(.uploader__zone--busy)
+    border-color: var(--page-cyan)
+    background: var(--page-cyan-soft)
+
+  &--busy
+    border-style: solid
+    border-color: var(--page-cyan-edge)
+    cursor: not-allowed
+
+// Hide the native file input visually; the label acts as the click target.
+.uploader__input
+  position: absolute
+  width: 1px
+  height: 1px
+  overflow: hidden
+  opacity: 0
+  pointer-events: none
+
+.uploader__hint
+  display: inline-flex
+  align-items: center
+  gap: 10px
+  font-family: var(--font-mono)
+  font-size: 10.5px
+  font-weight: 500
+  letter-spacing: 0.14em
+  text-transform: uppercase
+  color: var(--page-ink-soft)
+
+  i
+    font-size: 14px
+    color: var(--page-cyan)
+
+// ── Progress bar ──────────────────────────────────────────────────────────────
+.uploader__progress-bar
+  width: 100%
+  height: 3px
+  background: var(--page-ink-hairline)
+  border-radius: 2px
+  margin-top: 6px
+  overflow: hidden
+
+.uploader__progress-fill
+  height: 100%
+  background: var(--page-cyan)
+  border-radius: 2px
+  transition: width 0.2s ease

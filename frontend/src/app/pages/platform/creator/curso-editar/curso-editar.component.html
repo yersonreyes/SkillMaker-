@@ -139,6 +139,47 @@
       </section>
     </div>
 
+    <!-- ── Material adjunto ─────────────────────────────────────────────────── -->
+    <section class="panel editor__materials reveal" style="--d: 180ms">
+      <div class="panel__head">
+        <i class="pi pi-paperclip"></i><span>Material adjunto</span>
+        <span class="panel__count">
+          {{ materials().length }} {{ materials().length === 1 ? 'archivo' : 'archivos' }}
+        </span>
+      </div>
+
+      <div class="panel__body">
+        <!-- Uploader -->
+        <app-material-uploader
+          [courseId]="course()?.id ?? ''"
+          (uploaded)="onMaterialUploaded($event)" />
+
+        <!-- Materials table -->
+        @if (materialsLoading()) {
+          <div class="editor__skel" style="margin-top: 16px"><p-skeleton height="3rem" /></div>
+        } @else if (materials().length > 0) {
+          <!-- mat-table: uses inline styles to avoid pushing curso-editar.sass over the 12kB anyComponentStyle budget -->
+          <ul class="mat-list" style="list-style:none;margin:16px 0 0;padding:0;display:flex;flex-direction:column;gap:6px">
+            @for (mat of materials(); track mat.id) {
+              <li style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--page-bg);border:1px solid var(--page-ink-hairline);border-radius:2px">
+                <i class="pi pi-file" style="color:var(--page-ink-dim);font-size:13px;flex:0 0 auto"></i>
+                <span style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px">{{ mat.nombre }}</span>
+                <span style="font-family:var(--font-mono);font-size:11px;color:var(--page-ink-dim);white-space:nowrap;flex:0 0 auto">{{ humanizeBytes(mat.tamanoBytes) }}</span>
+                <div style="display:flex;gap:4px;flex:0 0 auto">
+                  <button class="icon-btn" type="button" pTooltip="Descargar" tooltipPosition="top" (click)="downloadMaterial(mat)">
+                    <i class="pi pi-download"></i>
+                  </button>
+                  <button class="icon-btn icon-btn--danger" type="button" pTooltip="Eliminar" tooltipPosition="top" (click)="deleteMaterial(mat)">
+                    <i class="pi pi-trash"></i>
+                  </button>
+                </div>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    </section>
+
     <!-- ── Sticky actions ───────────────────────────────────────────────────── -->
     <footer class="editor__foot">
       <p class="editor__foot-note">

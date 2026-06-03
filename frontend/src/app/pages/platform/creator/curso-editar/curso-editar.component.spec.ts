@@ -23,10 +23,12 @@ import { CursoEditarComponent } from './curso-editar.component';
 import { CourseService } from '@core/services/courseService/course.service';
 import { SectionService } from '@core/services/sectionService/section.service';
 import { VideoService } from '@core/services/videoService/video.service';
+import { MaterialService } from '@core/services/materialService/material.service';
 import { UiDialogService } from '@core/services/ui-dialog.service';
 import type { CourseDetail } from '@core/services/courseService/course.res.dto';
 import type { SectionItem, SectionWithVideos } from '@core/services/sectionService/section.res.dto';
 import type { VideoItem } from '@core/services/videoService/video.res.dto';
+import type { MaterialResponse } from '@core/services/materialService/material.types';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -62,10 +64,19 @@ const MOCK_VIDEO: VideoItem = {
 
 // ── Spec ──────────────────────────────────────────────────────────────────────
 
+const MOCK_MATERIAL: MaterialResponse = {
+  id: 'mat-1',
+  nombre: 'slides.pdf',
+  mimeType: 'application/pdf',
+  tamanoBytes: 5_000_000,
+  createdAt: '2026-06-03T15:00:00Z',
+};
+
 describe('CursoEditarComponent', () => {
   let courseServiceSpy: Partial<CourseService>;
   let sectionServiceSpy: Partial<SectionService>;
   let videoServiceSpy: Partial<VideoService>;
+  let materialServiceSpy: Partial<MaterialService>;
   let uiDialogSpy: Partial<UiDialogService>;
 
   beforeEach(async () => {
@@ -88,6 +99,15 @@ describe('CursoEditarComponent', () => {
       delete: vi.fn().mockResolvedValue(undefined),
     };
 
+    materialServiceSpy = {
+      list: vi.fn().mockResolvedValue([]),
+      downloadUrl: vi.fn().mockResolvedValue({ url: 'http://minio/download', expiresAt: '2026-06-04T00:00:00Z' }),
+      remove: vi.fn().mockResolvedValue(undefined),
+      presign: vi.fn().mockResolvedValue({ uploadUrl: 'http://minio/put', key: 'k', expiresAt: '2026-06-04T00:00:00Z' }),
+      confirm: vi.fn().mockResolvedValue(MOCK_MATERIAL),
+      uploadToStorage: vi.fn().mockResolvedValue(undefined),
+    };
+
     uiDialogSpy = {
       showSuccess: vi.fn(),
       showError: vi.fn(),
@@ -101,6 +121,7 @@ describe('CursoEditarComponent', () => {
         { provide: CourseService, useValue: courseServiceSpy },
         { provide: SectionService, useValue: sectionServiceSpy },
         { provide: VideoService, useValue: videoServiceSpy },
+        { provide: MaterialService, useValue: materialServiceSpy },
         { provide: UiDialogService, useValue: uiDialogSpy },
         {
           provide: ActivatedRoute,
@@ -371,5 +392,99 @@ describe('CursoEditarComponent', () => {
     await comp.onSectionsReorder(newOrder);
 
     expect(sectionServiceSpy.reorder).toHaveBeenCalledWith('c-1', ['sec-2', 'sec-1']);
+  });
+
+  // ── Material adjunto section — C2.3 (PR-B) ───────────────────────────────────
+
+  it('MAT-1: loadMaterials() calls MaterialService.list and populates materials signal', async () => {
+    materialServiceSpy.list = vi.fn().mockResolvedValue([MOCK_MATERIAL]);
+
+    const fixture = TestBed.createComponent(CursoEditarComponent);
+    const comp = fixture.componentInstance;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (comp as any)['courseId'] = 'c-1';
+    await comp.loadMaterials();
+
+    expect(materialServiceSpy.list).toHaveBeenCalledWith('c-1');
+    expect(comp.materials()).toHaveLength(1);
+    expect(comp.materials()[0].id).toBe('mat-1');
+  });
+
+  it('MAT-2: onMaterialUploaded() appends the new material to the list', () => {
+    const fixture = TestBed.createComponent(CursoEditarComponent);
+    const comp = fixture.componentInstance;
+
+    comp.materials.set([]);
+    comp.onMaterialUploaded(MOCK_MATERIAL);
+
+    expect(comp.materials()).toHaveLength(1);
+    expect(comp.materials()[0].id).toBe('mat-1');
+  });
+
+  it('MAT-3: onMaterialUploaded() shows success toast', () => {
+    const fixture = TestBed.createComponent(CursoEditarComponent);
+    const comp = fixture.componentInstance;
+
+    comp.onMaterialUploaded(MOCK_MATERIAL);
+
+    expect(uiDialogSpy.showSuccess).toHaveBeenCalled();
+  });
+
+  it('MAT-4 (delete with confirm): deleteMaterial() calls confirmDelete then MaterialService.remove, removes item from list', async () => {
+    const fixture = TestBed.createComponent(CursoEditarComponent);
+    const comp = fixture.componentInstance;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (comp as any)['courseId'] = 'c-1';
+    comp.materials.set([MOCK_MATERIAL]);
+
+    await comp.deleteMaterial(MOCK_MATERIAL);
+
+    expect(uiDialogSpy.confirmDelete).toHaveBeenCalled();
+    expect(materialServiceSpy.remove).toHaveBeenCalledWith('mat-1');
+    expect(comp.materials()).toHaveLength(0);
+  });
+
+  it('MAT-5: deleteMaterial() does NOT call remove when confirm is rejected', async () => {
+    uiDialogSpy.confirmDelete = vi.fn().mockResolvedValue(false);
+
+    const fixture = TestBed.createComponent(CursoEditarComponent);
+    const comp = fixture.componentInstance;
+    comp.materials.set([MOCK_MATERIAL]);
+
+    await comp.deleteMaterial(MOCK_MATERIAL);
+
+    expect(materialServiceSpy.remove).not.toHaveBeenCalled();
+    expect(comp.materials()).toHaveLength(1);
+  });
+
+  it('MAT-6 (download): downloadMaterial() calls MaterialService.downloadUrl', async () => {
+    const fixture = TestBed.createComponent(CursoEditarComponent);
+    const comp = fixture.componentInstance;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (comp as any)['courseId'] = 'c-1';
+
+    await comp.downloadMaterial(MOCK_MATERIAL);
+
+    expect(materialServiceSpy.downloadUrl).toHaveBeenCalledWith('c-1', 'mat-1');
+  });
+
+  it('MAT-7: loadCourse() loads materials alongside sections via Promise.all', async () => {
+    materialServiceSpy.list = vi.fn().mockResolvedValue([MOCK_MATERIAL]);
+
+    const fixture = TestBed.createComponent(CursoEditarComponent);
+    const comp = fixture.componentInstance;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (comp as any)['courseId'] = 'c-1';
+    await comp.loadCourse();
+
+    // Both loads must have been called
+    expect(materialServiceSpy.list).toHaveBeenCalledWith('c-1');
+    expect(sectionServiceSpy.listByCourse).toHaveBeenCalledWith('c-1');
+    // Materials signal populated
+    expect(comp.materials()).toHaveLength(1);
   });
 });

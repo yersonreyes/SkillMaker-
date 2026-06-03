@@ -18,12 +18,15 @@ import { OrderListModule } from 'primeng/orderlist';
 import { CourseService } from '@core/services/courseService/course.service';
 import { SectionService } from '@core/services/sectionService/section.service';
 import { VideoService } from '@core/services/videoService/video.service';
+import { MaterialService } from '@core/services/materialService/material.service';
 import { UiDialogService } from '@core/services/ui-dialog.service';
 import { VideoEmbedComponent } from '@shared/components/video-embed/video-embed.component';
+import { MaterialUploaderComponent, humanizeBytes } from '@shared/components/material-uploader/material-uploader.component';
 import type { CourseDetail, CourseEstado } from '@core/services/courseService/course.res.dto';
 import type { SectionItem } from '@core/services/sectionService/section.res.dto';
 import type { VideoItem } from '@core/services/videoService/video.res.dto';
 import type { VideoProveedor } from '@core/services/videoService/video.req.dto';
+import type { MaterialResponse } from '@core/services/materialService/material.types';
 
 /** Section enriched with its videos list for the UI. */
 export interface SectionWithVideos extends SectionItem {
@@ -51,6 +54,7 @@ export interface VideoFormState {
     SelectModule,
     OrderListModule,
     VideoEmbedComponent,
+    MaterialUploaderComponent,
   ],
   templateUrl: './curso-editar.component.html',
   styleUrl: './curso-editar.component.sass',
@@ -59,6 +63,7 @@ export class CursoEditarComponent implements OnInit {
   private readonly courseService = inject(CourseService);
   private readonly sectionService = inject(SectionService);
   private readonly videoService = inject(VideoService);
+  private readonly materialService = inject(MaterialService);
   private readonly ui = inject(UiDialogService);
   private readonly route = inject(ActivatedRoute);
 
@@ -79,6 +84,13 @@ export class CursoEditarComponent implements OnInit {
   // ── Sections state ───────────────────────────────────────────────────────────
   readonly sections = signal<SectionWithVideos[]>([]);
   readonly sectionsLoading = signal<boolean>(false);
+
+  // ── Materials state ──────────────────────────────────────────────────────────
+  readonly materials = signal<MaterialResponse[]>([]);
+  readonly materialsLoading = signal<boolean>(false);
+
+  /** Expose humanizeBytes for the template (pure function, no injection needed). */
+  readonly humanizeBytes = humanizeBytes;
 
   // ── Add section dialog ───────────────────────────────────────────────────────
   readonly addSectionVisible = signal<boolean>(false);
@@ -124,8 +136,8 @@ export class CursoEditarComponent implements OnInit {
       this.loading.set(false);
     }
 
-    // Load sections in parallel (independent of course form data)
-    await this.loadSections();
+    // Load sections and materials in parallel (independent of course form data)
+    await Promise.all([this.loadSections(), this.loadMaterials()]);
   }
 
   async loadSections(): Promise<void> {
@@ -260,6 +272,52 @@ export class CursoEditarComponent implements OnInit {
         ),
       );
       this.ui.showSuccess('Video eliminado');
+    } catch {
+      // Error toast already shown
+    }
+  }
+
+  // ── Material operations ──────────────────────────────────────────────────────
+
+  async loadMaterials(): Promise<void> {
+    if (!this.courseId) return;
+    this.materialsLoading.set(true);
+    try {
+      const items = await this.materialService.list(this.courseId);
+      this.materials.set(items);
+    } catch {
+      // Error toast already shown by HttpPromiseBuilderService
+    } finally {
+      this.materialsLoading.set(false);
+    }
+  }
+
+  onMaterialUploaded(material: MaterialResponse): void {
+    // Append the new material to the list (no full reload needed).
+    this.materials.update(list => [...list, material]);
+    this.ui.showSuccess('Material agregado');
+  }
+
+  async downloadMaterial(material: MaterialResponse): Promise<void> {
+    if (!this.courseId) return;
+    try {
+      const resp = await this.materialService.downloadUrl(this.courseId, material.id);
+      window.open(resp.url, '_blank', 'noopener');
+    } catch {
+      // Error toast already shown
+    }
+  }
+
+  async deleteMaterial(material: MaterialResponse): Promise<void> {
+    const confirmed = await this.ui.confirmDelete(
+      `¿Eliminar "${material.nombre}"? Esta accion no se puede deshacer.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      await this.materialService.remove(material.id);
+      this.materials.update(list => list.filter(m => m.id !== material.id));
+      this.ui.showSuccess('Material eliminado');
     } catch {
       // Error toast already shown
     }
