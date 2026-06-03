@@ -35,9 +35,9 @@
 > Esta seccion es el "punto de partida". Cualquier change posterior parte de este estado.
 > Actualizar cuando se archive un change importante.
 
-**Fecha del snapshot:** 2026-06-02
-**Commits totales del scaffold:** 16 (+ 3 chained PRs para C1.1)
-**LOC totales (Go + TS + SQL):** ~2700 (+ ~900 LOC en C1.1)
+**Fecha del snapshot:** 2026-06-02 (actualizado tras C2.1 archive)
+**Commits totales del scaffold:** 16 (+ 3 chained PRs para C1.1) (+ 2 PRs para C2.1) (+ 2 post-merge fixes)
+**LOC totales (Go + TS + SQL):** ~2700 (+ ~900 LOC en C1.1) (+ ~1100 LOC en C2.1)
 
 ### Modulos del dominio (los 7 declarados en RT)
 
@@ -45,7 +45,7 @@
 |--------|--------|----------------------|
 | `auth` | ✅ Completo | `refresh_token` |
 | `users` | ✅ Completo (C1.1: list, roles, supervision, soft-delete, last-admin guard) | `user`, `role`, `user_role`, `supervision` |
-| `courses` | ❌ No existe | ninguna |
+| `courses` | 🟡 En progreso (C2.1: dominio + CRUD de borradores) | `course`, `section`, `video`, `material`, `enrollment` (schema) |
 | `evaluations` | ❌ No existe | ninguna |
 | `approvals` | ❌ No existe | ninguna |
 | `certificates` | ❌ No existe | ninguna |
@@ -61,7 +61,8 @@
 | `pages/platform/my-courses` | 🟡 Stub "Pendiente" |
 | `pages/platform/profile` | ✅ Funcional (read-only desde JWT) |
 | `pages/platform/{certificates,badges,courses/:id,evaluations/:id}` | 🟡 Routes → `PendingViewComponent` |
-| `pages/platform/creator/*` | 🟡 Routes → `PendingViewComponent` |
+| `pages/platform/creator/mi-contenido` | ✅ Funcional (C2.1: lazy Table paginated + estado badge + create dialog) |
+| `pages/platform/creator/curso-editar/:id` | ✅ Funcional (C2.1: form titulo/descripcion, Save, disabled "Enviar a revisión") |
 | `pages/platform/admin/user-management` | ✅ Funcional (C1.1: lazy Table, role/active filters, edit dialog) |
 | `pages/platform/admin/supervision` | ✅ Funcional (C1.1: list, assign supervisor-employee, remove) |
 | `pages/platform/admin/{approvals,reports}` | 🟡 Routes → `PendingViewComponent` |
