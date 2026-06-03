@@ -43,6 +43,7 @@ func Register(creatorGrp *gin.RouterGroup, svc service.Service) {
 
 	// Section routes (C2.2).
 	creatorGrp.POST("/courses/:courseId/sections", h.CreateSection)
+	creatorGrp.GET("/courses/:id/sections", h.ListContent) // CRITICAL: read path for content tree
 	creatorGrp.PATCH("/courses/:id/sections/reorder", h.ReorderSections)
 	creatorGrp.PATCH("/sections/:id", h.UpdateSection)
 	creatorGrp.DELETE("/sections/:id", h.DeleteSection)
@@ -254,6 +255,40 @@ func (h *Handler) CreateSection(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, dto.ToSection(model))
+}
+
+// ListContent godoc
+// @Summary     Lista las secciones de un curso con sus videos anidados
+// @Description Retorna el arbol de contenido del curso: secciones ordenadas por orden,
+//
+//	cada una con sus videos ordenados por orden. Solo el propietario del curso puede verlo.
+//	ErrNotOwner → 404 (oculta existencia, consistente con GET /courses/:id).
+//
+// @Tags        sections
+// @Produce     json
+// @Security    BearerAuth
+// @Param       id path string true "UUID del curso"
+// @Success     200 {array}  dto.SectionWithVideosResponse
+// @Failure     401 {object} httperr.Error
+// @Failure     403 {object} httperr.Error "rol creador requerido"
+// @Failure     404 {object} httperr.Error "curso no encontrado o no pertenece al caller"
+// @Failure     500 {object} httperr.Error
+// @Router      /courses/{id}/sections [get]
+func (h *Handler) ListContent(c *gin.Context) {
+	courseID := c.Param("id")
+	creadorID := middleware.UserIDFrom(c)
+
+	content, err := h.svc.ListContent(c.Request.Context(), courseID, creadorID)
+	if err != nil {
+		h.renderCourseErrorRead(c, err)
+		return
+	}
+
+	resp := make([]dto.SectionWithVideosResponse, 0, len(content))
+	for i := range content {
+		resp = append(resp, dto.ToSectionWithVideos(&content[i]))
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // UpdateSection godoc

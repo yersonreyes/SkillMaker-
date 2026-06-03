@@ -1,5 +1,5 @@
 <!-- curso-editar.component.html -->
-<div class="p-4 space-y-6 max-w-2xl">
+<div class="p-4 space-y-6 max-w-3xl">
 
   <!-- Header -->
   <div class="flex items-center justify-between">
@@ -19,7 +19,8 @@
       <p-skeleton height="6rem" />
     </div>
   } @else {
-    <!-- Form -->
+
+    <!-- ── Course metadata form ──────────────────────────────────────────── -->
     <div class="space-y-4">
 
       <div class="flex flex-col gap-1">
@@ -49,7 +50,95 @@
 
     </div>
 
-    <!-- Actions -->
+    <!-- ── Sections panel ────────────────────────────────────────────────── -->
+    <div class="space-y-3">
+
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-semibold">Secciones y contenido</h2>
+        <p-button
+          label="+ Seccion"
+          icon="pi pi-plus"
+          severity="secondary"
+          size="small"
+          (onClick)="openAddSectionDialog()" />
+      </div>
+
+      @if (sectionsLoading()) {
+        <p-skeleton height="3rem" />
+      } @else if (sections().length === 0) {
+        <div class="flex flex-col items-center justify-center py-10 text-surface-400 gap-2">
+          <i class="pi pi-list text-4xl"></i>
+          <p class="text-sm">Aun no hay secciones. Agrega una para comenzar.</p>
+        </div>
+      } @else {
+
+        <!-- OrderList for drag-to-reorder -->
+        <p-orderList
+          [value]="sections()"
+          [dragdrop]="true"
+          (onReorder)="onSectionsReorder($any($event).value)"
+          styleClass="border-0 p-0">
+          <ng-template let-section pTemplate="item">
+
+            <p-panel
+              [toggleable]="true"
+              [collapsed]="false"
+              styleClass="mb-2 w-full">
+              <ng-template pTemplate="header">
+                <div class="flex items-center justify-between w-full pr-2">
+                  <span class="font-medium">{{ section.titulo }}</span>
+                  <div class="flex gap-1" (click)="$event.stopPropagation()">
+                    <p-button
+                      icon="pi pi-plus"
+                      [text]="true"
+                      size="small"
+                      pTooltip="Agregar video"
+                      (onClick)="openAddVideoDialog(section.id)" />
+                    <p-button
+                      icon="pi pi-trash"
+                      [text]="true"
+                      severity="danger"
+                      size="small"
+                      pTooltip="Eliminar seccion"
+                      (onClick)="deleteSection(section.id)" />
+                  </div>
+                </div>
+              </ng-template>
+
+              <!-- Videos within section -->
+              @if (section.videos.length === 0) {
+                <p class="text-sm text-surface-400 italic px-2">Sin videos aun.</p>
+              } @else {
+                <div class="space-y-3">
+                  @for (video of section.videos; track video.id) {
+                    <div class="flex flex-col gap-1">
+                      <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium">{{ video.titulo }}</span>
+                        <p-button
+                          icon="pi pi-trash"
+                          [text]="true"
+                          severity="danger"
+                          size="small"
+                          pTooltip="Eliminar video"
+                          (onClick)="deleteVideo(section.id, video.id)" />
+                      </div>
+                      <app-video-embed
+                        [url]="video.url"
+                        [proveedor]="video.proveedor" />
+                    </div>
+                  }
+                </div>
+              }
+
+            </p-panel>
+
+          </ng-template>
+        </p-orderList>
+
+      }
+    </div>
+
+    <!-- ── Actions ───────────────────────────────────────────────────────── -->
     <div class="flex gap-3">
       <p-button
         label="Guardar"
@@ -63,10 +152,128 @@
         label="Enviar a revision"
         icon="pi pi-send"
         severity="secondary"
-        [disabled]="submitDisabled"
-        pTooltip="Disponible cuando el curso tenga contenido (C2.2)"
+        [disabled]="submitDisabled()"
+        pTooltip="Disponible en C4.1 (flujo de aprobacion) — requiere contenido y revision de supervisor"
         tooltipPosition="top" />
     </div>
   }
 
 </div>
+
+<!-- ── Add Section Dialog ──────────────────────────────────────────────────── -->
+<p-dialog
+  header="Nueva seccion"
+  [modal]="true"
+  [visible]="addSectionVisible()"
+  (visibleChange)="addSectionVisible.set($event)"
+  [style]="{ width: '28rem' }">
+
+  <div class="flex flex-col gap-3 pt-2">
+    <div class="flex flex-col gap-1">
+      <label class="text-sm font-medium" for="new-section-titulo">Titulo *</label>
+      <input
+        id="new-section-titulo"
+        pInputText
+        type="text"
+        [ngModel]="newSectionTitulo()"
+        (ngModelChange)="newSectionTitulo.set($event)"
+        placeholder="Ej. Introduccion al tema" />
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <p-button
+      label="Cancelar"
+      severity="secondary"
+      [text]="true"
+      (onClick)="addSectionVisible.set(false)" />
+    <p-button
+      label="Agregar"
+      icon="pi pi-check"
+      [loading]="addingSectionBusy()"
+      [disabled]="!newSectionTitulo().trim()"
+      (onClick)="addSection()" />
+  </ng-template>
+
+</p-dialog>
+
+<!-- ── Add Video Dialog ────────────────────────────────────────────────────── -->
+<p-dialog
+  header="Nuevo video"
+  [modal]="true"
+  [visible]="addVideoVisible()"
+  (visibleChange)="addVideoVisible.set($event)"
+  [style]="{ width: '34rem' }">
+
+  <div class="flex flex-col gap-3 pt-2">
+
+    <div class="flex flex-col gap-1">
+      <label class="text-sm font-medium" for="vid-titulo">Titulo *</label>
+      <input
+        id="vid-titulo"
+        pInputText
+        type="text"
+        [ngModel]="videoForm().titulo"
+        (ngModelChange)="videoForm.update(f => ({ ...f, titulo: $event }))"
+        placeholder="Nombre del video" />
+    </div>
+
+    <div class="flex flex-col gap-1">
+      <label class="text-sm font-medium" for="vid-url">URL del video *</label>
+      <input
+        id="vid-url"
+        pInputText
+        type="text"
+        [ngModel]="videoForm().url"
+        (ngModelChange)="videoForm.update(f => ({ ...f, url: $event }))"
+        placeholder="https://www.youtube.com/watch?v=..." />
+    </div>
+
+    <div class="flex flex-col gap-1">
+      <label class="text-sm font-medium">Proveedor *</label>
+      <p-select
+        [options]="proveedorOptions"
+        [ngModel]="videoForm().proveedor"
+        (ngModelChange)="videoForm.update(f => ({ ...f, proveedor: $event }))"
+        optionLabel="label"
+        optionValue="value" />
+    </div>
+
+    <div class="flex flex-col gap-1">
+      <label class="text-sm font-medium" for="vid-duracion">Duracion (segundos, opcional)</label>
+      <input
+        id="vid-duracion"
+        pInputText
+        type="number"
+        [ngModel]="videoForm().duracionS"
+        (ngModelChange)="videoForm.update(f => ({ ...f, duracionS: $event || undefined }))"
+        placeholder="300" />
+    </div>
+
+    <!-- Live preview -->
+    @if (videoForm().url && videoForm().proveedor) {
+      <div>
+        <p class="text-sm font-medium mb-1">Vista previa:</p>
+        <app-video-embed
+          [url]="videoForm().url"
+          [proveedor]="videoForm().proveedor" />
+      </div>
+    }
+
+  </div>
+
+  <ng-template pTemplate="footer">
+    <p-button
+      label="Cancelar"
+      severity="secondary"
+      [text]="true"
+      (onClick)="addVideoVisible.set(false)" />
+    <p-button
+      label="Agregar video"
+      icon="pi pi-check"
+      [loading]="addingVideoBusy()"
+      [disabled]="!videoForm().titulo.trim() || !videoForm().url.trim()"
+      (onClick)="addVideo(addVideoSectionId())" />
+  </ng-template>
+
+</p-dialog>

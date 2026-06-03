@@ -269,6 +269,39 @@ export interface paths {
       };
     };
   };
+  "/courses/{id}/sections": {
+    /** Retorna el arbol de contenido del curso: secciones ordenadas por orden, */
+    get: {
+      parameters: {
+        path: {
+          /** UUID del curso */
+          id: string;
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.SectionWithVideosResponse"][];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** rol creador requerido */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** curso no encontrado o no pertenece al caller */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Internal Server Error */
+        500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
   "/courses/{id}/sections/reorder": {
     /** Actualiza el orden de las secciones. ids debe ser el conjunto exacto de secciones del curso. */
     patch: {
@@ -784,6 +817,14 @@ export interface definitions {
   };
   "dto.SectionUpdateRequest": {
     titulo?: string;
+  };
+  "dto.SectionWithVideosResponse": {
+    courseId?: string;
+    createdAt?: string;
+    id?: string;
+    orden?: number;
+    titulo?: string;
+    videos?: definitions["dto.VideoResponse"][];
   };
   "dto.SupervisionCreateRequest": {
     empleadoId: string;

@@ -30,6 +30,8 @@ export interface CourseDetail {
   titulo: string;
   descripcion: string;
   estado: CourseEstado;
+  /** C2.2: true when the course has at least one video (via any section). */
+  hasContent: boolean;
   createdAt: string; // ISO 8601
   updatedAt: string; // ISO 8601
 }

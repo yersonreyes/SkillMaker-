@@ -1,0 +1,15 @@
+<!-- video-embed.component.html -->
+@if (safeUrl(); as src) {
+  <iframe
+    [src]="src"
+    class="w-full aspect-video rounded-md border-0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowfullscreen
+    title="Video embebido">
+  </iframe>
+} @else {
+  <div class="flex items-center justify-center w-full aspect-video rounded-md bg-surface-100 text-surface-400 text-sm gap-2">
+    <i class="pi pi-video"></i>
+    <span>Vista previa no disponible</span>
+  </div>
+}

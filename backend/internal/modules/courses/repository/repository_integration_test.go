@@ -583,3 +583,55 @@ func TestVideoCRUD(t *testing.T) {
 	_, err = repo.GetVideoByID(context.Background(), v.ID)
 	assert.ErrorIs(t, err, repository.ErrVideoNotFound, "video must be gone after delete")
 }
+
+// TestListContent_SectionWithVideosOrderedByOrden verifies the repository-level building
+// blocks for the GET /courses/:courseId/sections nested tree response.
+// Creates a course with 1 section and 2 videos (inserted in reverse orden) and asserts
+// that ListSectionsByCourse + ListVideosBySection return both in orden=0,1 order.
+// This is the regression test for the CRITICAL missing read path (verify obs #263).
+func TestListContent_SectionWithVideosOrderedByOrden(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+	course := seedCourse(t, repo, creadorID, "Content Tree Course")
+	section := seedSection(t, repo, course.ID, "Cap 1", 0)
+
+	// Insert video with orden=1 first, then orden=0 — assert ListVideosBySection orders by orden ASC.
+	v1 := &domain.Video{
+		ID:        uuid.New().String(),
+		SectionID: section.ID,
+		Titulo:    "Segunda clase",
+		URL:       "https://www.youtube.com/watch?v=v1",
+		Proveedor: "youtube",
+		DuracionS: 60,
+		Orden:     1,
+	}
+	v0 := &domain.Video{
+		ID:        uuid.New().String(),
+		SectionID: section.ID,
+		Titulo:    "Primera clase",
+		URL:       "https://vimeo.com/123456",
+		Proveedor: "vimeo",
+		DuracionS: 90,
+		Orden:     0,
+	}
+	require.NoError(t, repo.CreateVideo(context.Background(), v1))
+	require.NoError(t, repo.CreateVideo(context.Background(), v0))
+
+	// ListSectionsByCourse must return the section.
+	sections, err := repo.ListSectionsByCourse(context.Background(), course.ID)
+	require.NoError(t, err)
+	require.Len(t, sections, 1, "course must have exactly 1 section")
+	assert.Equal(t, section.ID, sections[0].ID)
+
+	// ListVideosBySection must return both videos in orden ASC order.
+	videos, err := repo.ListVideosBySection(context.Background(), section.ID)
+	require.NoError(t, err)
+	require.Len(t, videos, 2, "section must have 2 videos")
+	assert.Equal(t, 0, videos[0].Orden, "first video must have orden=0")
+	assert.Equal(t, "Primera clase", videos[0].Titulo, "videos[0] must be the one with orden=0")
+	assert.Equal(t, 1, videos[1].Orden, "second video must have orden=1")
+	assert.Equal(t, "Segunda clase", videos[1].Titulo, "videos[1] must be the one with orden=1")
+}

@@ -41,6 +41,13 @@ type SectionModel struct {
 	CreatedAt time.Time
 }
 
+// SectionWithVideosModel is the service-layer read model for the nested content tree.
+// Used by ListContent to return sections with their videos already fetched and nested.
+type SectionWithVideosModel struct {
+	Section SectionModel
+	Videos  []VideoModel
+}
+
 // VideoModel is the service-layer read model for a video.
 type VideoModel struct {
 	ID        string
@@ -142,6 +149,13 @@ type Service interface {
 
 	// ListSections returns all sections for a course ordered by orden ASC.
 	ListSections(ctx context.Context, courseID string) ([]SectionModel, error)
+
+	// ListContent returns the nested content tree for a course the caller owns:
+	// sections ordered by orden, each with their videos ordered by orden.
+	// Owner-gated: returns ErrNotOwner if creadorID does not own the course.
+	// Approach: one ListSectionsByCourse query + one ListVideosBySection per section
+	// (N+1 avoided in practice: section counts are tiny; avoids join complexity).
+	ListContent(ctx context.Context, courseID, creadorID string) ([]SectionWithVideosModel, error)
 
 	// ReorderSections reorders the sections of a course.
 	// ids must be the EXACT full set of section IDs for the course.
@@ -339,6 +353,46 @@ func (s *serviceImpl) ListSections(ctx context.Context, courseID string) ([]Sect
 	for i := range sections {
 		result = append(result, *toSectionModel(&sections[i]))
 	}
+	return result, nil
+}
+
+// ListContent returns the nested content tree for a course the caller owns.
+// Implementation: ownership check (load course, compare CreadorID) → one
+// ListSectionsByCourse query + one ListVideosBySection per section, composed in Go.
+// This avoids a complex JOIN while keeping N tiny (sections per course < 50 in MVP).
+func (s *serviceImpl) ListContent(ctx context.Context, courseID, creadorID string) ([]SectionWithVideosModel, error) {
+	// 1. Load course and verify ownership (read route → ErrNotOwner, handler maps to 404).
+	c, err := s.repo.GetByID(ctx, courseID)
+	if err != nil {
+		return nil, wrapNotFound(err)
+	}
+	if c.CreadorID != creadorID {
+		return nil, ErrNotOwner // handler maps to 404 (hides existence) per ERR-1-A
+	}
+
+	// 2. Fetch sections for this course, ordered by orden ASC.
+	sections, err := s.repo.ListSectionsByCourse(ctx, courseID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 3. For each section, fetch its videos ordered by orden ASC.
+	result := make([]SectionWithVideosModel, 0, len(sections))
+	for i := range sections {
+		videos, err := s.repo.ListVideosBySection(ctx, sections[i].ID)
+		if err != nil {
+			return nil, err
+		}
+		videoModels := make([]VideoModel, 0, len(videos))
+		for j := range videos {
+			videoModels = append(videoModels, *toVideoModel(&videos[j]))
+		}
+		result = append(result, SectionWithVideosModel{
+			Section: *toSectionModel(&sections[i]),
+			Videos:  videoModels,
+		})
+	}
+
 	return result, nil
 }
 

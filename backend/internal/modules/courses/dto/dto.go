@@ -103,6 +103,18 @@ type SectionResponse struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+// SectionWithVideosResponse is the wire shape for GET /courses/:courseId/sections.
+// Returns the full nested content tree: sections with their videos embedded.
+// Spec: ERR-1-A (read ownership → 404); frontend curso-editar calls this on page load.
+type SectionWithVideosResponse struct {
+	ID        string          `json:"id"`
+	CourseID  string          `json:"courseId"`
+	Titulo    string          `json:"titulo"`
+	Orden     int             `json:"orden"`
+	CreatedAt time.Time       `json:"createdAt"`
+	Videos    []VideoResponse `json:"videos"`
+}
+
 // ── Video response shapes ──────────────────────────────────────────────────────
 
 // VideoResponse is the wire shape for a video returned by the API.
@@ -170,6 +182,24 @@ func ToSection(m *service.SectionModel) SectionResponse {
 		Titulo:    m.Titulo,
 		Orden:     m.Orden,
 		CreatedAt: m.CreatedAt,
+	}
+}
+
+// ToSectionWithVideos converts a service.SectionWithVideosModel to the nested wire shape.
+// Videos are already ordered by orden ASC from the service layer.
+// m is passed by pointer to avoid copying the Videos slice (gocritic hugeParam).
+func ToSectionWithVideos(m *service.SectionWithVideosModel) SectionWithVideosResponse {
+	videos := make([]VideoResponse, 0, len(m.Videos))
+	for i := range m.Videos {
+		videos = append(videos, ToVideo(&m.Videos[i]))
+	}
+	return SectionWithVideosResponse{
+		ID:        m.Section.ID,
+		CourseID:  m.Section.CourseID,
+		Titulo:    m.Section.Titulo,
+		Orden:     m.Section.Orden,
+		CreatedAt: m.Section.CreatedAt,
+		Videos:    videos,
 	}
 }
 

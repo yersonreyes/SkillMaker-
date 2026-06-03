@@ -148,6 +148,11 @@ func (m *mockCourseSvc) ListVideos(ctx context.Context, sectionID string) ([]ser
 	return args.Get(0).([]service.VideoModel), args.Error(1)
 }
 
+func (m *mockCourseSvc) ListContent(ctx context.Context, courseID, creadorID string) ([]service.SectionWithVideosModel, error) {
+	args := m.Called(ctx, courseID, creadorID)
+	return args.Get(0).([]service.SectionWithVideosModel), args.Error(1)
+}
+
 func (m *mockCourseSvc) HasContent(ctx context.Context, courseID, creadorID string) (bool, error) {
 	args := m.Called(ctx, courseID, creadorID)
 	return args.Bool(0), args.Error(1)
@@ -701,6 +706,95 @@ func TestUpdateVideo_NonOwner_Returns403(t *testing.T) {
 	titulo := "New Title"
 	w := do(engine, http.MethodPatch, "/videos/"+videoID, map[string]any{"titulo": titulo})
 	assert.Equal(t, http.StatusForbidden, w.Code, "non-owner UpdateVideo must return 403")
+	svc.AssertExpectations(t)
+}
+
+// ── GET /courses/:courseId/sections (ListContent) ─────────────────────────────
+// [CRITICAL] These tests verify the read path for a course's content tree.
+// The frontend curso-editar calls this on page load to render existing sections+videos.
+
+// TestListContent_Owner_Returns200WithNestedTree verifies the owner receives a 200
+// with sections nested with their videos. Spec: ERR-1-A (ownership-guarded read → 404 on non-owner).
+func TestListContent_Owner_Returns200WithNestedTree(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	courseID := "course-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	content := []service.SectionWithVideosModel{
+		{
+			Section: service.SectionModel{
+				ID:       "sec-1",
+				CourseID: courseID,
+				Titulo:   "Intro",
+				Orden:    0,
+			},
+			Videos: []service.VideoModel{
+				{
+					ID:        "vid-1",
+					SectionID: "sec-1",
+					Titulo:    "Video 1",
+					URL:       "https://www.youtube.com/watch?v=abc",
+					Proveedor: "youtube",
+					Orden:     0,
+				},
+				{
+					ID:        "vid-2",
+					SectionID: "sec-1",
+					Titulo:    "Video 2",
+					URL:       "https://vimeo.com/999",
+					Proveedor: "vimeo",
+					Orden:     1,
+				},
+			},
+		},
+	}
+	svc.On("ListContent", mock.Anything, courseID, creadorID).Return(content, nil)
+
+	w := do(engine, http.MethodGet, "/courses/"+courseID+"/sections", nil)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp []map[string]any
+	_ = json.NewDecoder(w.Body).Decode(&resp)
+	assert.Len(t, resp, 1, "response must contain one section")
+	videos, ok := resp[0]["videos"].([]any)
+	assert.True(t, ok, "section must have a videos array")
+	assert.Len(t, videos, 2, "section must have 2 nested videos")
+	svc.AssertExpectations(t)
+}
+
+// TestListContent_NonOwner_Returns404 verifies that ErrNotOwner on this GET read
+// route returns 404 (consistent with GET /courses/:id behavior, ERR-1-A).
+func TestListContent_NonOwner_Returns404(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-other"
+	courseID := "course-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("ListContent", mock.Anything, courseID, creadorID).Return([]service.SectionWithVideosModel{}, service.ErrNotOwner)
+
+	w := do(engine, http.MethodGet, "/courses/"+courseID+"/sections", nil)
+	assert.Equal(t, http.StatusNotFound, w.Code, "ErrNotOwner on GET sections must return 404")
+	svc.AssertExpectations(t)
+}
+
+// TestListContent_EmptyCourse_Returns200EmptyArray verifies that a course with no sections
+// returns 200 with an empty array (not null, not 404).
+func TestListContent_EmptyCourse_Returns200EmptyArray(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	courseID := "course-empty"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("ListContent", mock.Anything, courseID, creadorID).Return([]service.SectionWithVideosModel{}, nil)
+
+	w := do(engine, http.MethodGet, "/courses/"+courseID+"/sections", nil)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp []any
+	_ = json.NewDecoder(w.Body).Decode(&resp)
+	assert.NotNil(t, resp, "empty course must return [] not null")
+	assert.Len(t, resp, 0)
 	svc.AssertExpectations(t)
 }
 
