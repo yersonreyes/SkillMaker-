@@ -4,8 +4,15 @@ import { PendingViewComponent } from '@shared/components/pending-view/pending-vi
 export const CREATOR_ROUTES: Routes = [
   {
     path: 'mi-contenido',
-    component: PendingViewComponent,
+    loadComponent: () =>
+      import('./mi-contenido/mi-contenido.component').then(m => m.MiContenidoComponent),
     data: { title: 'Mi contenido' },
+  },
+  {
+    path: 'curso-editar/:id',
+    loadComponent: () =>
+      import('./curso-editar/curso-editar.component').then(m => m.CursoEditarComponent),
+    data: { title: 'Editar curso' },
   },
   {
     path: 'crear-curso',

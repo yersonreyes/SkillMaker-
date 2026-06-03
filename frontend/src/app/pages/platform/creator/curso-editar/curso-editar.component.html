@@ -1,0 +1,72 @@
+<!-- curso-editar.component.html -->
+<div class="p-4 space-y-6 max-w-2xl">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <h1 class="text-2xl font-semibold">Editar curso</h1>
+      @if (course(); as c) {
+        <p-tag
+          [value]="estadoLabel(c.estado)"
+          [severity]="estadoSeverity(c.estado)" />
+      }
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="space-y-4">
+      <p-skeleton height="2.5rem" />
+      <p-skeleton height="6rem" />
+    </div>
+  } @else {
+    <!-- Form -->
+    <div class="space-y-4">
+
+      <div class="flex flex-col gap-1">
+        <label class="text-sm font-medium" for="curso-titulo">Titulo *</label>
+        <input
+          id="curso-titulo"
+          pInputText
+          type="text"
+          [ngModel]="titulo()"
+          (ngModelChange)="titulo.set($event)"
+          placeholder="Nombre del curso"
+          class="w-full" />
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <label class="text-sm font-medium" for="curso-descripcion">Descripcion</label>
+        <textarea
+          id="curso-descripcion"
+          pTextarea
+          rows="6"
+          [ngModel]="descripcion()"
+          (ngModelChange)="descripcion.set($event)"
+          placeholder="Descripcion del curso"
+          class="w-full">
+        </textarea>
+      </div>
+
+    </div>
+
+    <!-- Actions -->
+    <div class="flex gap-3">
+      <p-button
+        label="Guardar"
+        icon="pi pi-save"
+        severity="primary"
+        [loading]="saving()"
+        [disabled]="!titulo().trim()"
+        (onClick)="onSave()" />
+
+      <p-button
+        label="Enviar a revision"
+        icon="pi pi-send"
+        severity="secondary"
+        [disabled]="submitDisabled"
+        pTooltip="Disponible cuando el curso tenga contenido (C2.2)"
+        tooltipPosition="top" />
+    </div>
+  }
+
+</div>
