@@ -7,6 +7,35 @@ definitions:
     required:
     - active
     type: object
+  dto.CourseDetail:
+    properties:
+      creadorId:
+        type: string
+      createdAt:
+        type: string
+      descripcion:
+        type: string
+      estado:
+        type: string
+      id:
+        type: string
+      titulo:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  dto.CreateCourseRequest:
+    properties:
+      descripcion:
+        maxLength: 5000
+        type: string
+      titulo:
+        maxLength: 200
+        minLength: 3
+        type: string
+    required:
+    - titulo
+    type: object
   dto.GoogleLoginRequest:
     properties:
       idToken:
@@ -65,6 +94,16 @@ definitions:
       id:
         type: string
       supervisorId:
+        type: string
+    type: object
+  dto.UpdateCourseRequest:
+    properties:
+      descripcion:
+        maxLength: 5000
+        type: string
+      titulo:
+        maxLength: 200
+        minLength: 3
         type: string
     type: object
   dto.UserDTO:
@@ -210,6 +249,181 @@ paths:
       summary: Renueva el access token rotando el refresh token
       tags:
       - auth
+  /courses:
+    get:
+      description: Retorna una pagina de cursos del caller. ?creator=me es obligatorio.
+      parameters:
+      - description: Debe ser 'me' (solo cursos propios)
+        in: query
+        name: creator
+        required: true
+        type: string
+      - description: Pagina (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: Tamano de pagina (max 100, default 20)
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: pagina de cursos (items, page, size, total, totalPages)
+          schema:
+            type: object
+        "400":
+          description: creator debe ser 'me'
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: rol creador requerido
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Lista mis cursos (paginado)
+      tags:
+      - courses
+    post:
+      consumes:
+      - application/json
+      description: Crea un nuevo curso con estado=borrador. El creadorID viene del
+        JWT.
+      parameters:
+      - description: Datos del curso
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateCourseRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.CourseDetail'
+        "400":
+          description: titulo faltante o invalido
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: rol creador requerido
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Crea un curso (borrador)
+      tags:
+      - courses
+  /courses/{id}:
+    get:
+      description: Retorna el detalle de un curso. Solo el creador propietario puede
+        verlo.
+      parameters:
+      - description: UUID del curso
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.CourseDetail'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: rol creador requerido
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: curso no encontrado o no pertenece al caller
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Detalle de curso por ID (solo owner)
+      tags:
+      - courses
+    patch:
+      consumes:
+      - application/json
+      description: Actualiza titulo y/o descripcion de un curso. Solo borrador o rechazado.
+      parameters:
+      - description: UUID del curso
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Campos a actualizar (parcial)
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateCourseRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.CourseDetail'
+        "400":
+          description: body invalido o sin campos
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: no es propietario del curso
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: curso no encontrado
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "409":
+          description: estado no permite edicion
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Actualiza un curso (PATCH parcial, solo owner)
+      tags:
+      - courses
   /supervisions:
     get:
       description: Retorna todas las relaciones supervisor-empleado. Solo administradores.

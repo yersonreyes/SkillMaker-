@@ -32,6 +32,7 @@ import (
 
 	"github.com/yersonreyes/SkillMaker-/backend/internal/middleware"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/auth"
+	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/users"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/platform/config"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/platform/database"
@@ -65,6 +66,9 @@ func main() {
 	usersRepo := users.NewRepository(db)
 	usersSvc := users.NewService(usersRepo)
 
+	coursesRepo := courses.NewRepository(db)
+	coursesSvc := courses.NewService(coursesRepo)
+
 	authRepo := auth.NewRepository(db)
 	authCfg := auth.Config{
 		JWTSecret:             cfg.Auth.JWTSecret,
@@ -89,7 +93,11 @@ func main() {
 	protected := api.Group("", middleware.JWT(cfg.Auth.JWTSecret))
 	adminGrp := protected.Group("", middleware.RequireRole("administrador"))
 	users.RegisterRoutes(adminGrp, protected, usersSvc)
-	// Additional modules (courses, evaluations, approvals, certificates,
+
+	// Courses module — creador-only routes.
+	creatorGrp := protected.Group("", middleware.RequireRole("creador"))
+	courses.RegisterRoutes(creatorGrp, coursesSvc)
+	// Additional modules (evaluations, approvals, certificates,
 	// reporting) will be wired here as they are implemented in subsequent changes.
 
 	srv := httpserver.NewServer(cfg.Port, router)

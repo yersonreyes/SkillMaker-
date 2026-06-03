@@ -88,6 +88,150 @@ export interface paths {
       };
     };
   };
+  "/courses": {
+    /** Retorna una pagina de cursos del caller. ?creator=me es obligatorio. */
+    get: {
+      parameters: {
+        query: {
+          /** Debe ser 'me' (solo cursos propios) */
+          creator: string;
+          /** Pagina (default 1) */
+          page?: number;
+          /** Tamano de pagina (max 100, default 20) */
+          size?: number;
+        };
+      };
+      responses: {
+        /** pagina de cursos (items, page, size, total, totalPages) */
+        200: {
+          schema: { [key: string]: unknown };
+        };
+        /** creator debe ser 'me' */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** rol creador requerido */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Internal Server Error */
+        500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+    /** Crea un nuevo curso con estado=borrador. El creadorID viene del JWT. */
+    post: {
+      parameters: {
+        body: {
+          /** Datos del curso */
+          body: definitions["dto.CreateCourseRequest"];
+        };
+      };
+      responses: {
+        /** Created */
+        201: {
+          schema: definitions["dto.CourseDetail"];
+        };
+        /** titulo faltante o invalido */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** rol creador requerido */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Internal Server Error */
+        500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/courses/{id}": {
+    /** Retorna el detalle de un curso. Solo el creador propietario puede verlo. */
+    get: {
+      parameters: {
+        path: {
+          /** UUID del curso */
+          id: string;
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.CourseDetail"];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** rol creador requerido */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** curso no encontrado o no pertenece al caller */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Internal Server Error */
+        500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+    /** Actualiza titulo y/o descripcion de un curso. Solo borrador o rechazado. */
+    patch: {
+      parameters: {
+        path: {
+          /** UUID del curso */
+          id: string;
+        };
+        body: {
+          /** Campos a actualizar (parcial) */
+          body: definitions["dto.UpdateCourseRequest"];
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.CourseDetail"];
+        };
+        /** body invalido o sin campos */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** no es propietario del curso */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** curso no encontrado */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** estado no permite edicion */
+        409: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Internal Server Error */
+        500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
   "/supervisions": {
     /** Retorna todas las relaciones supervisor-empleado. Solo administradores. */
     get: {
@@ -370,6 +514,19 @@ export interface definitions {
   "dto.ActivePatchRequest": {
     active: boolean;
   };
+  "dto.CourseDetail": {
+    creadorId?: string;
+    createdAt?: string;
+    descripcion?: string;
+    estado?: string;
+    id?: string;
+    titulo?: string;
+    updatedAt?: string;
+  };
+  "dto.CreateCourseRequest": {
+    descripcion?: string;
+    titulo: string;
+  };
   "dto.GoogleLoginRequest": {
     idToken: string;
   };
@@ -395,6 +552,10 @@ export interface definitions {
     empleadoId?: string;
     id?: string;
     supervisorId?: string;
+  };
+  "dto.UpdateCourseRequest": {
+    descripcion?: string;
+    titulo?: string;
   };
   "dto.UserDTO": {
     email?: string;
