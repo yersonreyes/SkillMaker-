@@ -103,7 +103,7 @@ export class MiContenidoComponent implements OnInit {
       this.dialogVisible.set(false);
       this.ui.showSuccess('Curso creado');
       // Navigate to edit view for the new course
-      void this.router.navigate(['/creator/curso-editar', created.id]);
+      void this.router.navigate(['/platform/creator/curso-editar', created.id]);
     } catch {
       // Error toast already shown by HttpPromiseBuilderService
     } finally {
@@ -113,7 +113,7 @@ export class MiContenidoComponent implements OnInit {
 
   /** Navigate to curso-editar/:id on row click. */
   navigateToCourse(id: string): void {
-    void this.router.navigate(['/creator/curso-editar', id]);
+    void this.router.navigate(['/platform/creator/curso-editar', id]);
   }
 
   /** Map estado to PrimeNG Tag severity. */

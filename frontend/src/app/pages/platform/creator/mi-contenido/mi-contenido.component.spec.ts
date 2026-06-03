@@ -152,6 +152,8 @@ describe('MiContenidoComponent', () => {
 
     comp.navigateToCourse('c-1');
 
-    expect(navigateSpy).toHaveBeenCalledWith(['/creator/curso-editar', 'c-1']);
+    // Must be the absolute /platform-prefixed path; '/creator/...' does not match
+    // any route (platform routes are mounted under /platform) and bounces to catalog.
+    expect(navigateSpy).toHaveBeenCalledWith(['/platform/creator/curso-editar', 'c-1']);
   });
 });
