@@ -7,16 +7,13 @@ import {
 } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { TagModule } from 'primeng/tag';
 import { InputTextModule } from 'primeng/inputtext';
-import { ButtonModule } from 'primeng/button';
 import { TextareaModule } from 'primeng/textarea';
 import { TooltipModule } from 'primeng/tooltip';
 import { SkeletonModule } from 'primeng/skeleton';
 import { DialogModule } from 'primeng/dialog';
 import { SelectModule } from 'primeng/select';
 import { OrderListModule } from 'primeng/orderlist';
-import { PanelModule } from 'primeng/panel';
 
 import { CourseService } from '@core/services/courseService/course.service';
 import { SectionService } from '@core/services/sectionService/section.service';
@@ -27,15 +24,6 @@ import type { CourseDetail, CourseEstado } from '@core/services/courseService/co
 import type { SectionItem } from '@core/services/sectionService/section.res.dto';
 import type { VideoItem } from '@core/services/videoService/video.res.dto';
 import type { VideoProveedor } from '@core/services/videoService/video.req.dto';
-
-type TagSeverity = 'success' | 'info' | 'warn' | 'danger' | 'secondary' | 'contrast';
-
-const ESTADO_SEVERITY: Record<CourseEstado, TagSeverity> = {
-  borrador:    'secondary',
-  en_revision: 'info',
-  aprobado:    'success',
-  rechazado:   'danger',
-};
 
 /** Section enriched with its videos list for the UI. */
 export interface SectionWithVideos extends SectionItem {
@@ -55,19 +43,17 @@ export interface VideoFormState {
   standalone: true,
   imports: [
     FormsModule,
-    TagModule,
     InputTextModule,
-    ButtonModule,
     TextareaModule,
     TooltipModule,
     SkeletonModule,
     DialogModule,
     SelectModule,
     OrderListModule,
-    PanelModule,
     VideoEmbedComponent,
   ],
   templateUrl: './curso-editar.component.html',
+  styleUrl: './curso-editar.component.sass',
 })
 export class CursoEditarComponent implements OnInit {
   private readonly courseService = inject(CourseService);
@@ -280,10 +266,6 @@ export class CursoEditarComponent implements OnInit {
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
-
-  estadoSeverity(estado: CourseEstado): TagSeverity {
-    return ESTADO_SEVERITY[estado] ?? 'secondary';
-  }
 
   estadoLabel(estado: CourseEstado): string {
     const labels: Record<CourseEstado, string> = {

@@ -1,0 +1,625 @@
+// curso-editar — Cyanotype Workshop editor
+// Blueprint sheets over the desk: midnight ink + cyan, Instrument Serif display,
+// Geist Mono labels, sharp 2px corners, hairline borders.
+
+\:host
+  display: block
+
+// Footer is fixed (~62px); panels fill down to ~10px above it.
+$foot-clear: 76px
+
+.editor
+  padding: 32px 48px $foot-clear
+  max-width: 1180px
+  margin: 0 auto
+
+  @media (max-width: 720px)
+    padding: 22px 18px 120px
+
+// ── Head ─────────────────────────────────────────────────────────────────────
+.editor__head
+  margin-bottom: 28px
+
+.editor__sep
+  color: var(--page-ink-faint)
+  margin: 0 2px
+
+.editor__title-row
+  display: flex
+  align-items: baseline
+  gap: 16px
+  flex-wrap: wrap
+
+.editor__title
+  font-family: var(--font-display)
+  font-style: italic
+  font-weight: 400
+  font-size: clamp(30px, 4vw, 46px)
+  line-height: 1.04
+  letter-spacing: -0.02em
+  color: var(--page-ink)
+  margin: 6px 0 0
+
+// Estado pill — mono, uppercase, colour-coded
+.estado
+  display: inline-flex
+  align-items: center
+  padding: 4px 11px
+  border-radius: 2px
+  border: 1px solid var(--page-ink-hairline)
+  background: var(--page-surface)
+  font-family: var(--font-mono)
+  font-size: 10.5px
+  font-weight: 500
+  letter-spacing: 0.16em
+  text-transform: uppercase
+  color: var(--page-ink-soft)
+  white-space: nowrap
+
+  &::before
+    content: ""
+    width: 6px
+    height: 6px
+    border-radius: 50%
+    margin-right: 8px
+    background: currentColor
+
+  &--borrador
+    color: var(--page-ink-dim)
+  &--en_revision
+    color: var(--page-cyan)
+    border-color: var(--page-cyan-edge)
+    background: var(--page-cyan-soft)
+  &--aprobado
+    color: #1f7a4d
+    border-color: rgba(31, 122, 77, 0.3)
+    background: rgba(31, 122, 77, 0.08)
+  &--rechazado
+    color: #b3402f
+    border-color: rgba(179, 64, 47, 0.3)
+    background: rgba(179, 64, 47, 0.08)
+
+// ── Layout ───────────────────────────────────────────────────────────────────
+.editor__layout
+  display: grid
+  grid-template-columns: minmax(0, 360px) minmax(0, 1fr)
+  align-items: stretch
+  gap: 22px
+
+  @media (max-width: 940px)
+    grid-template-columns: 1fr
+
+// Both columns fill the viewport down to ~10px above the fixed footer, and
+// grow past it when content is taller (page scrolls — no internal scroll).
+.editor__meta, .editor__structure
+  display: flex
+  flex-direction: column
+  min-height: calc(100dvh - 260px)
+
+  @media (max-width: 940px)
+    min-height: 0
+
+.editor__meta .panel__body, .editor__structure .panel__body--flush
+  flex: 1 1 auto
+
+.editor__skel
+  display: flex
+  flex-direction: column
+  gap: 14px
+
+  &--pad
+    padding: 22px 24px
+
+// Panel head extensions (count + right-aligned action)
+.panel__count
+  margin-left: 10px
+  font-family: var(--font-mono)
+  font-size: 10.5px
+  letter-spacing: 0.16em
+  color: var(--page-ink-dim)
+  text-transform: none
+
+.panel__action
+  margin-left: auto
+
+.panel__body--flush
+  padding: 16px
+  counter-reset: secn
+
+// ── Fields ───────────────────────────────────────────────────────────────────
+.field
+  display: flex
+  flex-direction: column
+  gap: 7px
+
+  & + .field
+    margin-top: 18px
+
+.field__label
+  font-family: var(--font-mono)
+  font-size: 10.5px
+  font-weight: 500
+  letter-spacing: 0.18em
+  text-transform: uppercase
+  color: var(--page-ink-soft)
+
+  .req
+    color: var(--page-cyan)
+    margin-left: 1px
+
+.field__input
+  width: 100%
+  font-family: var(--font-ui)
+  font-size: 14px
+  color: var(--page-ink)
+  background: var(--page-surface)
+  border: 1px solid var(--page-ink-hairline)
+  border-radius: 2px
+  padding: 10px 12px
+  transition: border-color 0.16s ease, box-shadow 0.16s ease
+
+  &::placeholder
+    color: var(--page-ink-dim)
+
+  &:hover
+    border-color: var(--page-ink-faint)
+
+  &:focus, &:focus-visible
+    outline: none
+    border-color: var(--page-cyan)
+    box-shadow: 0 0 0 3px var(--page-cyan-soft)
+
+  &--area
+    resize: vertical
+    min-height: 120px
+    line-height: 1.6
+
+// ── Buttons ──────────────────────────────────────────────────────────────────
+.btn
+  display: inline-flex
+  align-items: center
+  justify-content: center
+  gap: 8px
+  font-family: var(--font-mono)
+  font-size: 11px
+  font-weight: 500
+  letter-spacing: 0.14em
+  text-transform: uppercase
+  border-radius: 2px
+  padding: 9px 16px
+  cursor: pointer
+  border: 1px solid transparent
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease, transform 0.08s ease
+  white-space: nowrap
+
+  i
+    font-size: 12px
+
+  &:active
+    transform: translateY(1px)
+
+  &:disabled
+    cursor: not-allowed
+    opacity: 0.5
+    transform: none
+
+  &--cyan
+    background: var(--page-cyan)
+    color: #fff
+    &:hover:not(:disabled)
+      background: var(--page-cyan-hover)
+
+  &--outline
+    background: var(--page-surface)
+    border-color: var(--page-ink-hairline)
+    color: var(--page-ink-soft)
+    &:hover:not(:disabled)
+      border-color: var(--page-cyan-edge)
+      color: var(--page-cyan)
+
+  &--ghost
+    background: transparent
+    color: var(--page-ink-soft)
+    padding: 7px 12px
+    &:hover:not(:disabled)
+      background: var(--page-cyan-soft)
+      color: var(--page-cyan)
+
+// Icon-only buttons
+.icon-btn
+  display: inline-flex
+  align-items: center
+  justify-content: center
+  width: 30px
+  height: 30px
+  border-radius: 2px
+  border: 1px solid transparent
+  background: transparent
+  color: var(--page-ink-dim)
+  cursor: pointer
+  transition: background 0.15s ease, color 0.15s ease
+
+  i
+    font-size: 13px
+
+  &:hover
+    background: var(--page-cyan-soft)
+    color: var(--page-cyan)
+
+  &--danger:hover
+    background: rgba(179, 64, 47, 0.1)
+    color: #b3402f
+
+// ── Empty state ──────────────────────────────────────────────────────────────
+.empty
+  display: flex
+  flex-direction: column
+  align-items: center
+  text-align: center
+  padding: 48px 24px 44px
+  gap: 6px
+
+.empty__mark
+  display: inline-flex
+  align-items: center
+  justify-content: center
+  width: 56px
+  height: 56px
+  margin-bottom: 10px
+  border-radius: 3px
+  background: var(--page-cyan-soft)
+  border: 1px solid var(--page-cyan-edge)
+  color: var(--page-cyan)
+
+  i
+    font-size: 22px
+
+.empty__title
+  font-family: var(--font-display)
+  font-style: italic
+  font-size: 22px
+  color: var(--page-ink)
+  margin: 0
+
+.empty__lede
+  font-size: 13.5px
+  color: var(--page-ink-soft)
+  max-width: 340px
+  line-height: 1.55
+  margin: 0 0 16px
+
+// ── Section card ─────────────────────────────────────────────────────────────
+.sec
+  position: relative
+  width: 100%
+  background: var(--page-surface)
+  border: 1px solid var(--page-ink-hairline)
+  border-left: 2px solid var(--page-ink-faint)
+  border-radius: 2px
+  transition: border-color 0.18s ease, box-shadow 0.18s ease
+  overflow: hidden
+
+  &:hover
+    border-left-color: var(--page-cyan)
+    box-shadow: var(--page-surface-shadow)
+
+.sec__bar
+  display: flex
+  align-items: center
+  gap: 12px
+  padding: 12px 14px
+
+.sec__grip
+  display: inline-flex
+  color: var(--page-ink-dim)
+  cursor: grab
+  transition: color 0.15s ease
+
+  &:hover
+    color: var(--page-cyan)
+
+  i
+    font-size: 13px
+
+.sec__idx
+  font-family: var(--font-mono)
+  font-size: 12px
+  font-weight: 500
+  letter-spacing: 0.06em
+  color: var(--page-cyan)
+
+  &::before
+    content: counter(secn, decimal-leading-zero)
+
+.sec
+  counter-increment: secn
+
+.sec__title
+  font-family: var(--font-ui)
+  font-weight: 500
+  font-size: 15px
+  color: var(--page-ink)
+  margin: 0
+  flex: 1
+  min-width: 0
+  overflow: hidden
+  text-overflow: ellipsis
+  white-space: nowrap
+
+.sec__count
+  display: inline-flex
+  align-items: center
+  gap: 5px
+  font-family: var(--font-mono)
+  font-size: 11px
+  color: var(--page-cyan)
+  background: var(--page-cyan-soft)
+  border: 1px solid var(--page-cyan-edge)
+  padding: 2px 8px
+  border-radius: 2px
+
+  i
+    font-size: 11px
+
+  &--empty
+    color: var(--page-ink-dim)
+    background: transparent
+    border-color: var(--page-ink-hairline)
+
+.sec__actions
+  display: inline-flex
+  gap: 2px
+
+.sec__empty
+  font-size: 13px
+  font-style: italic
+  color: var(--page-ink-dim)
+  padding: 0 14px 16px
+  margin: 0
+
+// ── Videos ───────────────────────────────────────────────────────────────────
+.vids
+  list-style: none
+  margin: 0
+  padding: 4px 14px 16px
+  display: flex
+  flex-direction: column
+  gap: 10px
+
+// Each video is a full-width row: compact embed left, meta fills the rest.
+.vid
+  display: flex
+  align-items: stretch
+  gap: 14px
+  width: 100%
+  padding: 10px
+  background: var(--page-bg)
+  border: 1px solid var(--page-ink-hairline)
+  border-radius: 2px
+  transition: border-color 0.15s ease
+
+  &:hover
+    border-color: var(--page-cyan-edge)
+
+  @media (max-width: 560px)
+    flex-direction: column
+
+.vid__frame
+  position: relative
+  flex: 0 0 auto
+  width: clamp(170px, 34%, 248px)
+  align-self: flex-start
+  border: 1px solid var(--page-ink-hairline)
+  border-radius: 2px
+  overflow: hidden
+  background: var(--reel-ink-deep)
+
+  @media (max-width: 560px)
+    width: 100%
+
+.vid__meta
+  flex: 1 1 auto
+  min-width: 0
+  display: flex
+  flex-direction: column
+  align-items: flex-start
+  gap: 8px
+  padding-top: 2px
+
+.vid__prov
+  display: inline-flex
+  align-items: center
+  gap: 5px
+  font-family: var(--font-mono)
+  font-size: 9.5px
+  font-weight: 500
+  letter-spacing: 0.12em
+  text-transform: uppercase
+  padding: 3px 7px
+  border-radius: 2px
+  border: 1px solid transparent
+
+  i
+    font-size: 11px
+
+  &--youtube
+    color: #c4302b
+    background: rgba(196, 48, 43, 0.08)
+    border-color: rgba(196, 48, 43, 0.22)
+  &--vimeo
+    color: var(--page-cyan)
+    background: var(--page-cyan-soft)
+    border-color: var(--page-cyan-edge)
+
+.vid__title
+  font-size: 14px
+  color: var(--page-ink)
+  line-height: 1.4
+  display: -webkit-box
+  -webkit-line-clamp: 2
+  -webkit-box-orient: vertical
+  overflow: hidden
+
+.vid__dur
+  display: inline-flex
+  align-items: center
+  gap: 5px
+  font-family: var(--font-mono)
+  font-size: 10.5px
+  color: var(--page-ink-dim)
+  margin-top: auto
+
+  i
+    font-size: 10px
+
+.vid__del
+  flex: 0 0 auto
+  align-self: flex-start
+
+// ── Sticky footer ────────────────────────────────────────────────────────────
+.editor__foot
+  position: fixed
+  left: 0
+  right: 0
+  bottom: 0
+  z-index: 20
+  display: flex
+  align-items: center
+  justify-content: space-between
+  gap: 18px
+  padding: 14px 48px
+  background: rgba(244, 246, 251, 0.86)
+  backdrop-filter: blur(10px)
+  border-top: 1px solid var(--page-ink-hairline)
+
+  @media (max-width: 720px)
+    padding: 12px 18px
+    flex-direction: column
+    align-items: stretch
+    gap: 10px
+
+.editor__foot-note
+  display: inline-flex
+  align-items: center
+  gap: 8px
+  font-size: 12.5px
+  color: var(--page-ink-soft)
+  margin: 0
+
+  i
+    color: var(--page-cyan)
+
+.editor__foot-actions
+  display: inline-flex
+  gap: 10px
+
+// ── Dialog grid ──────────────────────────────────────────────────────────────
+.dlg__grid
+  display: grid
+  grid-template-columns: 1fr 1fr
+  gap: 16px
+  padding-top: 4px
+
+.field--span
+  grid-column: 1 / -1
+
+// ── Entrance ─────────────────────────────────────────────────────────────────
+.reveal
+  opacity: 0
+  transform: translateY(10px)
+  animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) forwards
+  animation-delay: var(--d, 0ms)
+
+@keyframes rise
+  to
+    opacity: 1
+    transform: translateY(0)
+
+@media (prefers-reduced-motion: reduce)
+  .reveal
+    animation: none
+    opacity: 1
+    transform: none
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PrimeNG internals — restyle to the workshop language
+// ═══════════════════════════════════════════════════════════════════════════
+\:host ::ng-deep
+  // OrderList — drag-only, no chrome
+  .ol
+    width: 100%
+    .p-orderlist
+      width: 100%
+    .p-orderlist-controls
+      display: none
+    // PrimeNG 21 renders the OrderList as an internal listbox: the real scroll
+    // container is .p-listbox-list-container with an inline max-height: 14rem.
+    // Kill it (!important beats the inline style) so all sections flow down the
+    // page with no internal scroll.
+    .p-orderlist-list-container, .p-orderlist-list,
+    .p-listbox-list-container, .p-listbox-list
+      border: 0 !important
+      background: transparent !important
+      padding: 0 !important
+      width: 100%
+      height: auto !important
+      max-height: none !important
+      min-height: 0 !important
+      overflow: visible !important
+    .p-orderlist-item, .p-listbox-option
+      width: 100% !important
+      padding: 0 !important
+      margin: 0 0 12px !important
+      background: transparent !important
+      border: 0 !important
+      border-radius: 2px
+      &:last-child
+        margin-bottom: 0 !important
+      &.p-listbox-option-selected, &.p-orderlist-item-selected, &.p-focus, &:focus
+        background: transparent !important
+        box-shadow: none !important
+        outline: none
+
+  // Select — match field inputs
+  .field__select
+    width: 100%
+    .p-select
+      width: 100%
+      border: 1px solid var(--page-ink-hairline)
+      border-radius: 2px
+      background: var(--page-surface)
+      &:not(.p-disabled):hover
+        border-color: var(--page-ink-faint)
+      &.p-focus
+        border-color: var(--page-cyan)
+        box-shadow: 0 0 0 3px var(--page-cyan-soft)
+    .p-select-label
+      font-family: var(--font-ui)
+      font-size: 14px
+      color: var(--page-ink)
+      padding: 10px 12px
+
+  // Dialog — blueprint sheet
+  .dlg
+    border: 1px solid var(--page-ink-hairline)
+    border-radius: 2px
+    box-shadow: 0 24px 60px -24px rgba(12, 24, 48, 0.4)
+    .p-dialog-header
+      background: var(--page-cyan-soft)
+      border-bottom: 1px solid var(--page-ink-hairline)
+      padding: 14px 20px
+    .p-dialog-title
+      font-family: var(--font-mono)
+      font-size: 11px
+      font-weight: 600
+      letter-spacing: 0.2em
+      text-transform: uppercase
+      color: var(--page-cyan)
+    .p-dialog-content
+      padding: 20px
+    .p-dialog-footer
+      padding: 14px 20px
+      border-top: 1px solid var(--page-ink-hairline)
+      display: flex
+      justify-content: flex-end
+      gap: 10px
