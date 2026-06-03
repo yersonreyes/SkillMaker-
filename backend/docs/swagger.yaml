@@ -38,6 +38,13 @@ definitions:
     required:
     - titulo
     type: object
+  dto.DownloadResponse:
+    properties:
+      expiresAt:
+        type: string
+      url:
+        type: string
+    type: object
   dto.GoogleLoginRequest:
     properties:
       idToken:
@@ -55,6 +62,64 @@ definitions:
         type: string
       user:
         $ref: '#/definitions/dto.UserDTO'
+    type: object
+  dto.MaterialConfirmRequest:
+    properties:
+      contentType:
+        type: string
+      key:
+        type: string
+      nombre:
+        maxLength: 255
+        minLength: 1
+        type: string
+      tamanoBytes:
+        minimum: 1
+        type: integer
+    required:
+    - contentType
+    - key
+    - nombre
+    - tamanoBytes
+    type: object
+  dto.MaterialPresignRequest:
+    properties:
+      contentType:
+        type: string
+      nombre:
+        maxLength: 255
+        minLength: 1
+        type: string
+      tamanoBytes:
+        minimum: 1
+        type: integer
+    required:
+    - contentType
+    - nombre
+    - tamanoBytes
+    type: object
+  dto.MaterialResponse:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: string
+      mimeType:
+        type: string
+      nombre:
+        description: mapped from MaterialModel.Titulo
+        type: string
+      tamanoBytes:
+        type: integer
+    type: object
+  dto.PresignResponse:
+    properties:
+      expiresAt:
+        type: string
+      key:
+        type: string
+      uploadUrl:
+        type: string
     type: object
   dto.RefreshRequest:
     properties:
@@ -449,6 +514,114 @@ paths:
       summary: Crea un curso (borrador)
       tags:
       - courses
+  /courses/{courseId}/materials:
+    post:
+      consumes:
+      - application/json
+      description: Persiste el material tras un PUT presignado exitoso. Re-valida
+        tamano y MIME.
+      parameters:
+      - description: UUID del curso
+        in: path
+        name: courseId
+        required: true
+        type: string
+      - description: Datos del material confirmado
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.MaterialConfirmRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.MaterialResponse'
+        "400":
+          description: clave de objeto invalida o campos faltantes
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: no es propietario del curso
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: curso no encontrado
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "409":
+          description: estado no permite edicion
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "413":
+          description: archivo demasiado grande
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "415":
+          description: tipo de contenido no permitido
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Confirma la subida de un material (crea la fila en DB)
+      tags:
+      - materials
+  /courses/{courseId}/materials/presign:
+    post:
+      consumes:
+      - application/json
+      description: Genera una URL PUT presignada para que el browser suba el archivo
+        directamente a MinIO.
+      parameters:
+      - description: UUID del curso
+        in: path
+        name: courseId
+        required: true
+        type: string
+      - description: Datos del archivo a subir
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.MaterialPresignRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.PresignResponse'
+        "400":
+          description: body invalido o campos faltantes
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: no es propietario del curso
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: curso no encontrado
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "409":
+          description: estado no permite edicion
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "413":
+          description: archivo demasiado grande
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "415":
+          description: tipo de contenido no permitido
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Genera URL presignada para subir un archivo
+      tags:
+      - materials
   /courses/{courseId}/sections:
     post:
       consumes:
@@ -585,6 +758,85 @@ paths:
       summary: Actualiza un curso (PATCH parcial, solo owner)
       tags:
       - courses
+  /courses/{id}/materials:
+    get:
+      description: Retorna todos los materiales del curso ordenados por fecha de creacion
+        ASC. Solo el propietario.
+      parameters:
+      - description: UUID del curso
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.MaterialResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: rol creador requerido
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: curso no encontrado o no pertenece al caller
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Lista los materiales de un curso
+      tags:
+      - materials
+  /courses/{id}/materials/{materialId}/download:
+    get:
+      description: Retorna una URL GET presignada con TTL = PresignTTL. Solo el propietario
+        del curso.
+      parameters:
+      - description: UUID del curso
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: UUID del material
+        in: path
+        name: materialId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.DownloadResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: material o curso no encontrado
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Genera URL presignada para descargar un material
+      tags:
+      - materials
   /courses/{id}/sections:
     get:
       description: 'Retorna el arbol de contenido del curso: secciones ordenadas por
@@ -665,6 +917,32 @@ paths:
       summary: Reordena las secciones de un curso
       tags:
       - sections
+  /materials/{id}:
+    delete:
+      description: Elimina la fila de material y hace un best-effort delete del objeto
+        en storage.
+      parameters:
+      - description: UUID del material
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "403":
+          description: no es propietario del curso
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: material no encontrado
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Elimina un material
+      tags:
+      - materials
   /sections/{id}:
     delete:
       description: Elimina la seccion y todos sus videos. Requiere ser propietario.

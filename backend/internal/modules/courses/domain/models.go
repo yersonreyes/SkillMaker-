@@ -66,13 +66,17 @@ type Video struct {
 
 func (Video) TableName() string { return "video" }
 
-// Material is schema-only in C2.1.
+// Material represents an uploaded file attachment for a course (C2.3).
+// MimeType and TamanoBytes are added by migration 0005.
+// The wire label for Titulo is "nombre" (D1: titulo is the persisted contract).
 type Material struct {
-	ID         string    `gorm:"type:uuid;primaryKey"`
-	CourseID   string    `gorm:"type:uuid;not null"`
-	Titulo     string    `gorm:"type:text;not null"`
-	StorageKey string    `gorm:"type:text;not null"`
-	CreatedAt  time.Time `gorm:"type:timestamptz;default:now()"`
+	ID          string    `gorm:"type:uuid;primaryKey"`
+	CourseID    string    `gorm:"type:uuid;not null"`
+	Titulo      string    `gorm:"type:text;not null"`
+	StorageKey  string    `gorm:"type:text;not null"`
+	MimeType    string    `gorm:"column:mime_type;type:text;not null"`
+	TamanoBytes int64     `gorm:"column:tamano_bytes;not null"`
+	CreatedAt   time.Time `gorm:"type:timestamptz;default:now()"`
 }
 
 func (Material) TableName() string { return "material" }

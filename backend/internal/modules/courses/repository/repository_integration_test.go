@@ -2,7 +2,7 @@
 
 // Package repository — integration tests using testcontainers + real Postgres.
 // Run with: make backend-test-integration
-// These tests exercise migration 0003/0004, FK constraints, and repository queries
+// These tests exercise migrations 0003/0004/0005, FK constraints, and repository queries
 // that only a real database can prove.
 package repository_test
 
@@ -216,15 +216,17 @@ func TestMigration0004RoundTrip(t *testing.T) {
 // after m.Down() storage_key is restored, url and proveedor columns are gone,
 // and the ck_video_proveedor CHECK constraint is dropped.
 // Spec: SCH-1-B (down round-trip).
+// NOTE (C2.3): after migration 0005 was added, we must roll back 2 steps (0005 then 0004)
+// to reach the state where 0004 has been reversed. The assertions remain unchanged.
 func TestMigration0004Down_ReversesSchema(t *testing.T) {
 	// Use the migrate-aware setup so we can call m.Down() ourselves.
 	db, m, teardown := testutil.SetupPostgresWithMigrate(t)
 	defer teardown()
 
-	// All migrations up (0001–0004) are already applied by SetupPostgresWithMigrate.
-	// Step 1: Apply DOWN one step — rolls back 0004 only.
-	err := m.Steps(-1)
-	require.NoError(t, err, "m.Steps(-1) must apply 0004 down without error (SCH-1-B)")
+	// All migrations up (0001–0005) are applied by SetupPostgresWithMigrate.
+	// Roll back 2 steps: first 0005, then 0004.
+	err := m.Steps(-2)
+	require.NoError(t, err, "m.Steps(-2) must roll back 0005+0004 without error (SCH-1-B)")
 
 	// Step 2: Assert storage_key is restored.
 	var storageKeyCount int64
@@ -634,4 +636,134 @@ func TestListContent_SectionWithVideosOrderedByOrden(t *testing.T) {
 	assert.Equal(t, "Primera clase", videos[0].Titulo, "videos[0] must be the one with orden=0")
 	assert.Equal(t, 1, videos[1].Orden, "second video must have orden=1")
 	assert.Equal(t, "Segunda clase", videos[1].Titulo, "videos[1] must be the one with orden=1")
+}
+
+// ── TestMigration0005RoundTrip ─────────────────────────────────────────────────
+
+// TestMigration0005RoundTrip verifies migration 0005 up/down round-trip:
+//   - up adds mime_type TEXT NOT NULL and tamano_bytes BIGINT NOT NULL to material.
+//   - down removes both columns cleanly.
+//
+// Spec: REQ-SCH "Migration round-trip" scenario, AC8.
+func TestMigration0005RoundTrip(t *testing.T) {
+	db, m, teardown := testutil.SetupPostgresWithMigrate(t)
+	defer teardown()
+
+	// After SetupPostgresWithMigrate, all migrations (0001–0005) are applied.
+
+	// Verify mime_type column exists after 0005 up.
+	var mimeCount int64
+	err := db.Raw(
+		`SELECT COUNT(*) FROM information_schema.columns
+		 WHERE table_name = 'material' AND column_name = 'mime_type'`,
+	).Scan(&mimeCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), mimeCount,
+		"material.mime_type must exist after 0005 up (AC8)")
+
+	// Verify tamano_bytes column exists after 0005 up.
+	var tamanoCount int64
+	err = db.Raw(
+		`SELECT COUNT(*) FROM information_schema.columns
+		 WHERE table_name = 'material' AND column_name = 'tamano_bytes'`,
+	).Scan(&tamanoCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), tamanoCount,
+		"material.tamano_bytes must exist after 0005 up (AC8)")
+
+	// Apply DOWN one step — rolls back 0005 only.
+	err = m.Steps(-1)
+	require.NoError(t, err, "m.Steps(-1) must roll back 0005 without error (AC8)")
+
+	// Verify mime_type is gone after 0005 down.
+	err = db.Raw(
+		`SELECT COUNT(*) FROM information_schema.columns
+		 WHERE table_name = 'material' AND column_name = 'mime_type'`,
+	).Scan(&mimeCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), mimeCount,
+		"material.mime_type must be removed after 0005 down (AC8)")
+
+	// Verify tamano_bytes is gone after 0005 down.
+	err = db.Raw(
+		`SELECT COUNT(*) FROM information_schema.columns
+		 WHERE table_name = 'material' AND column_name = 'tamano_bytes'`,
+	).Scan(&tamanoCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), tamanoCount,
+		"material.tamano_bytes must be removed after 0005 down (AC8)")
+}
+
+// ── TestMaterialCRUD ──────────────────────────────────────────────────────────
+
+// TestMaterialCRUD verifies the complete material CRUD lifecycle with migration 0005.
+// Tests: CreateMaterial, GetMaterialByID, ListMaterialsByCourse (ordered created_at ASC),
+//
+//	DeleteMaterial, ErrMaterialNotFound after delete.
+//
+// Spec: REQ-SCH, REQ-CONFIRM persistence, REQ-DELETE DB row removal, AC8.
+func TestMaterialCRUD(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+	course := seedCourse(t, repo, creadorID, "Material CRUD Course")
+
+	// Create first material.
+	m1 := &domain.Material{
+		ID:          uuid.New().String(),
+		CourseID:    course.ID,
+		Titulo:      "documento-1.pdf",
+		StorageKey:  "courses/" + course.ID + "/materials/uuid1-documento-1.pdf",
+		MimeType:    "application/pdf",
+		TamanoBytes: 1024,
+	}
+	err := repo.CreateMaterial(context.Background(), m1)
+	require.NoError(t, err, "CreateMaterial must succeed for first material")
+
+	// Create second material (slight delay to differentiate created_at ordering).
+	m2 := &domain.Material{
+		ID:          uuid.New().String(),
+		CourseID:    course.ID,
+		Titulo:      "imagen-2.png",
+		StorageKey:  "courses/" + course.ID + "/materials/uuid2-imagen-2.png",
+		MimeType:    "image/png",
+		TamanoBytes: 2048,
+	}
+	err = repo.CreateMaterial(context.Background(), m2)
+	require.NoError(t, err, "CreateMaterial must succeed for second material")
+
+	// GetMaterialByID — verify all fields are persisted correctly.
+	fetched, err := repo.GetMaterialByID(context.Background(), m1.ID)
+	require.NoError(t, err, "GetMaterialByID must return the created material")
+	assert.Equal(t, m1.ID, fetched.ID)
+	assert.Equal(t, course.ID, fetched.CourseID)
+	assert.Equal(t, "documento-1.pdf", fetched.Titulo)
+	assert.Equal(t, "application/pdf", fetched.MimeType,
+		"MimeType must be persisted correctly (migration 0005 column)")
+	assert.Equal(t, int64(1024), fetched.TamanoBytes,
+		"TamanoBytes must be persisted correctly (migration 0005 column)")
+
+	// ListMaterialsByCourse — verify order is created_at ASC and both materials appear.
+	materials, err := repo.ListMaterialsByCourse(context.Background(), course.ID)
+	require.NoError(t, err)
+	require.Len(t, materials, 2, "course must have 2 materials")
+	// m1 was created first, so it must come first in ASC order.
+	assert.Equal(t, m1.ID, materials[0].ID,
+		"first material in ASC order must be m1 (created first)")
+	assert.Equal(t, m2.ID, materials[1].ID,
+		"second material in ASC order must be m2 (created second)")
+
+	// DeleteMaterial — delete m1 and verify it is gone.
+	err = repo.DeleteMaterial(context.Background(), m1.ID)
+	require.NoError(t, err, "DeleteMaterial must succeed")
+
+	_, err = repo.GetMaterialByID(context.Background(), m1.ID)
+	assert.ErrorIs(t, err, repository.ErrMaterialNotFound,
+		"GetMaterialByID must return ErrMaterialNotFound after delete")
+
+	// m2 must still exist.
+	_, err = repo.GetMaterialByID(context.Background(), m2.ID)
+	require.NoError(t, err, "m2 must still exist after deleting m1")
 }

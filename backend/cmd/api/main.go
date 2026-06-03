@@ -67,7 +67,7 @@ func main() {
 	usersSvc := users.NewService(usersRepo)
 
 	coursesRepo := courses.NewRepository(db)
-	coursesSvc := courses.NewService(coursesRepo)
+	coursesSvc := courses.NewService(coursesRepo, storageClient, cfg.Storage.PresignTTL, cfg.Storage.MaxUploadBytes)
 
 	authRepo := auth.NewRepository(db)
 	authCfg := auth.Config{

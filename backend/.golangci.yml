@@ -47,3 +47,9 @@ issues:
     - linters:
         - misspell
       text: "Descripcion"
+    - linters:
+        - misspell
+      text: "materiales"
+    - linters:
+        - misspell
+      text: "Materiales"

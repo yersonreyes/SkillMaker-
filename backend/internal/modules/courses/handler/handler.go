@@ -52,6 +52,16 @@ func Register(creatorGrp *gin.RouterGroup, svc service.Service) {
 	creatorGrp.POST("/sections/:sectionId/videos", h.CreateVideo)
 	creatorGrp.PATCH("/videos/:id", h.UpdateVideo)
 	creatorGrp.DELETE("/videos/:id", h.DeleteVideo)
+
+	// Material routes (C2.3).
+	// POST tree: uses :courseId (matches existing POST /courses/:courseId/sections).
+	// GET tree: uses :id (matches existing GET /courses/:id/sections).
+	// DELETE: flat /materials/:id (no conflict).
+	creatorGrp.POST("/courses/:courseId/materials/presign", h.PresignMaterial)
+	creatorGrp.POST("/courses/:courseId/materials", h.ConfirmMaterial)
+	creatorGrp.GET("/courses/:id/materials", h.ListMaterials)
+	creatorGrp.GET("/courses/:id/materials/:materialId/download", h.DownloadMaterial)
+	creatorGrp.DELETE("/materials/:id", h.DeleteMaterial)
 }
 
 // ── Course handlers ────────────────────────────────────────────────────────────
@@ -485,6 +495,184 @@ func (h *Handler) DeleteVideo(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// ── Material handlers (C2.3) ──────────────────────────────────────────────────
+
+// PresignMaterial godoc
+// @Summary     Genera URL presignada para subir un archivo
+// @Description Genera una URL PUT presignada para que el browser suba el archivo directamente a MinIO.
+//
+//	ErrFileTooLarge → 413, ErrMIMENotAllowed → 415.
+//
+// @Tags        materials
+// @Accept      json
+// @Produce     json
+// @Security    BearerAuth
+// @Param       courseId path   string                         true "UUID del curso"
+// @Param       body     body   dto.MaterialPresignRequest     true "Datos del archivo a subir"
+// @Success     200 {object} dto.PresignResponse
+// @Failure     400 {object} httperr.Error "body invalido o campos faltantes"
+// @Failure     403 {object} httperr.Error "no es propietario del curso"
+// @Failure     404 {object} httperr.Error "curso no encontrado"
+// @Failure     409 {object} httperr.Error "estado no permite edicion"
+// @Failure     413 {object} httperr.Error "archivo demasiado grande"
+// @Failure     415 {object} httperr.Error "tipo de contenido no permitido"
+// @Router      /courses/{courseId}/materials/presign [post]
+func (h *Handler) PresignMaterial(c *gin.Context) {
+	courseID := c.Param("courseId")
+	creadorID := middleware.UserIDFrom(c)
+
+	var req dto.MaterialPresignRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperr.Render(c, httperr.BadRequest("INVALID_BODY", "body invalido: "+err.Error()))
+		return
+	}
+
+	result, err := h.svc.PresignUpload(c.Request.Context(), courseID, creadorID, service.PresignInput{
+		Nombre:      req.Nombre,
+		ContentType: req.ContentType,
+		TamanoBytes: req.TamanoBytes,
+	})
+	if err != nil {
+		h.renderCourseErrorWrite(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.PresignResponse{
+		UploadURL: result.UploadURL,
+		Key:       result.Key,
+		ExpiresAt: result.ExpiresAt,
+	})
+}
+
+// ConfirmMaterial godoc
+// @Summary     Confirma la subida de un material (crea la fila en DB)
+// @Description Persiste el material tras un PUT presignado exitoso. Re-valida tamano y MIME.
+//
+//	ErrInvalidMaterialKey → 400, ErrFileTooLarge → 413, ErrMIMENotAllowed → 415.
+//
+// @Tags        materials
+// @Accept      json
+// @Produce     json
+// @Security    BearerAuth
+// @Param       courseId path   string                         true "UUID del curso"
+// @Param       body     body   dto.MaterialConfirmRequest     true "Datos del material confirmado"
+// @Success     201 {object} dto.MaterialResponse
+// @Failure     400 {object} httperr.Error "clave de objeto invalida o campos faltantes"
+// @Failure     403 {object} httperr.Error "no es propietario del curso"
+// @Failure     404 {object} httperr.Error "curso no encontrado"
+// @Failure     409 {object} httperr.Error "estado no permite edicion"
+// @Failure     413 {object} httperr.Error "archivo demasiado grande"
+// @Failure     415 {object} httperr.Error "tipo de contenido no permitido"
+// @Router      /courses/{courseId}/materials [post]
+func (h *Handler) ConfirmMaterial(c *gin.Context) {
+	courseID := c.Param("courseId")
+	creadorID := middleware.UserIDFrom(c)
+
+	var req dto.MaterialConfirmRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperr.Render(c, httperr.BadRequest("INVALID_BODY", "body invalido: "+err.Error()))
+		return
+	}
+
+	model, err := h.svc.ConfirmUpload(c.Request.Context(), courseID, creadorID, service.ConfirmInput{
+		Key:         req.Key,
+		Nombre:      req.Nombre,
+		ContentType: req.ContentType,
+		TamanoBytes: req.TamanoBytes,
+	})
+	if err != nil {
+		h.renderCourseErrorWrite(c, err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, dto.ToMaterial(model))
+}
+
+// ListMaterials godoc
+// @Summary     Lista los materiales de un curso
+// @Description Retorna todos los materiales del curso ordenados por fecha de creacion ASC. Solo el propietario.
+// @Tags        materials
+// @Produce     json
+// @Security    BearerAuth
+// @Param       id path string true "UUID del curso"
+// @Success     200 {array}  dto.MaterialResponse
+// @Failure     401 {object} httperr.Error
+// @Failure     403 {object} httperr.Error "rol creador requerido"
+// @Failure     404 {object} httperr.Error "curso no encontrado o no pertenece al caller"
+// @Failure     500 {object} httperr.Error
+// @Router      /courses/{id}/materials [get]
+func (h *Handler) ListMaterials(c *gin.Context) {
+	courseID := c.Param("id")
+	creadorID := middleware.UserIDFrom(c)
+
+	materials, err := h.svc.ListMaterials(c.Request.Context(), courseID, creadorID)
+	if err != nil {
+		h.renderCourseErrorRead(c, err)
+		return
+	}
+
+	resp := make([]dto.MaterialResponse, 0, len(materials))
+	for i := range materials {
+		resp = append(resp, dto.ToMaterial(&materials[i]))
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+// DownloadMaterial godoc
+// @Summary     Genera URL presignada para descargar un material
+// @Description Retorna una URL GET presignada con TTL = PresignTTL. Solo el propietario del curso.
+// @Tags        materials
+// @Produce     json
+// @Security    BearerAuth
+// @Param       id         path string true "UUID del curso"
+// @Param       materialId path string true "UUID del material"
+// @Success     200 {object} dto.DownloadResponse
+// @Failure     401 {object} httperr.Error
+// @Failure     404 {object} httperr.Error "material o curso no encontrado"
+// @Failure     500 {object} httperr.Error
+// @Router      /courses/{id}/materials/{materialId}/download [get]
+func (h *Handler) DownloadMaterial(c *gin.Context) {
+	courseID := c.Param("id")
+	materialID := c.Param("materialId")
+	creadorID := middleware.UserIDFrom(c)
+
+	result, err := h.svc.PresignDownload(c.Request.Context(), courseID, materialID, creadorID)
+	if err != nil {
+		h.renderCourseErrorRead(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.DownloadResponse{
+		URL:       result.URL,
+		ExpiresAt: result.ExpiresAt,
+	})
+}
+
+// DeleteMaterial godoc
+// @Summary     Elimina un material
+// @Description Elimina la fila de material y hace un best-effort delete del objeto en storage.
+//
+//	Si el objeto ya no existe, la peticion igual retorna 204 (D5).
+//
+// @Tags        materials
+// @Security    BearerAuth
+// @Param       id path string true "UUID del material"
+// @Success     204
+// @Failure     403 {object} httperr.Error "no es propietario del curso"
+// @Failure     404 {object} httperr.Error "material no encontrado"
+// @Router      /materials/{id} [delete]
+func (h *Handler) DeleteMaterial(c *gin.Context) {
+	materialID := c.Param("id")
+	creadorID := middleware.UserIDFrom(c)
+
+	if err := h.svc.DeleteMaterial(c.Request.Context(), materialID, creadorID); err != nil {
+		h.renderCourseErrorWrite(c, err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
 // ── Error render helpers (TWO — deliberate, enforces REQ-DIVERGENCE) ───────────
 
 // renderCourseErrorRead maps service sentinels to HTTP statuses for READ routes (GET).
@@ -497,6 +685,8 @@ func (h *Handler) renderCourseErrorRead(c *gin.Context, err error) {
 		httperr.Render(c, httperr.NotFound("SECTION_NOT_FOUND", "section not found"))
 	case errors.Is(err, service.ErrVideoNotFound):
 		httperr.Render(c, httperr.NotFound("VIDEO_NOT_FOUND", "video not found"))
+	case errors.Is(err, service.ErrMaterialNotFound):
+		httperr.Render(c, httperr.NotFound("MATERIAL_NOT_FOUND", "material not found"))
 	case errors.Is(err, service.ErrNotOwner):
 		httperr.Render(c, httperr.NotFound("COURSE_NOT_FOUND", "course not found")) // 404: hide existence
 	case errors.Is(err, service.ErrInvalidTransition):
@@ -514,6 +704,7 @@ func (h *Handler) renderCourseErrorRead(c *gin.Context, err error) {
 // The ONLY difference from renderCourseErrorRead is the ErrNotOwner case.
 // ErrInvalidReorderSet → 400 (validation error: wrong section IDs sent).
 // ErrInvalidTransition → 409 (state error: course not editable).
+// ErrFileTooLarge → 413, ErrMIMENotAllowed → 415 (material upload validation).
 // These are DISTINCT: one is about the input set, the other about course estado.
 func (h *Handler) renderCourseErrorWrite(c *gin.Context, err error) {
 	switch {
@@ -523,6 +714,8 @@ func (h *Handler) renderCourseErrorWrite(c *gin.Context, err error) {
 		httperr.Render(c, httperr.NotFound("SECTION_NOT_FOUND", "section not found"))
 	case errors.Is(err, service.ErrVideoNotFound):
 		httperr.Render(c, httperr.NotFound("VIDEO_NOT_FOUND", "video not found"))
+	case errors.Is(err, service.ErrMaterialNotFound):
+		httperr.Render(c, httperr.NotFound("MATERIAL_NOT_FOUND", "material not found"))
 	case errors.Is(err, service.ErrNotOwner):
 		httperr.Render(c, httperr.Forbidden("NOT_OWNER", "you do not own this course")) // 403: authz signal
 	case errors.Is(err, service.ErrInvalidReorderSet):
@@ -531,6 +724,12 @@ func (h *Handler) renderCourseErrorWrite(c *gin.Context, err error) {
 		httperr.Render(c, httperr.Conflict("INVALID_TRANSITION", "course estado does not permit this edit"))
 	case errors.Is(err, service.ErrURLProviderMismatch):
 		httperr.Render(c, httperr.BadRequest("URL_PROVIDER_MISMATCH", "url host does not match declared proveedor"))
+	case errors.Is(err, service.ErrFileTooLarge):
+		httperr.Render(c, httperr.PayloadTooLarge("FILE_TOO_LARGE", "file exceeds max upload size"))
+	case errors.Is(err, service.ErrMIMENotAllowed):
+		httperr.Render(c, httperr.UnsupportedMediaType("MIME_NOT_ALLOWED", "content type not allowed"))
+	case errors.Is(err, service.ErrInvalidMaterialKey):
+		httperr.Render(c, httperr.BadRequest("INVALID_KEY", "material key prefix mismatch"))
 	default:
 		slog.Error("courses: unexpected error (write)", "err", err)
 		httperr.Render(c, httperr.Internal(err.Error()))

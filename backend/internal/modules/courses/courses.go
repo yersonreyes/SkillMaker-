@@ -6,12 +6,15 @@
 package courses
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses/handler"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses/repository"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses/service"
+	"github.com/yersonreyes/SkillMaker-/backend/internal/platform/storage"
 )
 
 // Re-export the public types so callers only need to import "courses".
@@ -28,9 +31,11 @@ func NewRepository(db *gorm.DB) Repository {
 	return repository.New(db)
 }
 
-// NewService constructs a Service that delegates to the given Repository.
-func NewService(r Repository) Service {
-	return service.New(r)
+// NewService constructs a Service that delegates to the given Repository and storage Client.
+// presignTTL controls how long presigned URLs are valid; maxUploadBytes is the maximum
+// file size allowed for uploads.
+func NewService(r Repository, store storage.Client, presignTTL time.Duration, maxUploadBytes int64) Service {
+	return service.New(r, store, presignTTL, maxUploadBytes)
 }
 
 // RegisterRoutes mounts the courses routes onto the given Gin route group.

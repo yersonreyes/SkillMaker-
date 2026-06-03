@@ -48,6 +48,18 @@ func Unauthorized(code, message string) *Error {
 	return &Error{Status: http.StatusUnauthorized, Code: code, Message: message}
 }
 
+// PayloadTooLarge returns a 413 Request Entity Too Large error.
+// Used when the uploaded file exceeds the maximum allowed size.
+func PayloadTooLarge(code, message string) *Error {
+	return &Error{Status: http.StatusRequestEntityTooLarge, Code: code, Message: message}
+}
+
+// UnsupportedMediaType returns a 415 Unsupported Media Type error.
+// Used when the file's content type is not in the allowed MIME whitelist.
+func UnsupportedMediaType(code, message string) *Error {
+	return &Error{Status: http.StatusUnsupportedMediaType, Code: code, Message: message}
+}
+
 // ──────────────────────────────────────────────────────────────
 // Render
 // ──────────────────────────────────────────────────────────────

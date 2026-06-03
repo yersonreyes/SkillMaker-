@@ -10,6 +10,13 @@
 // C2.2 additions (LB-1/LB-2):
 //   - LB-1: validateVideoURL cross-validates URL host against proveedor.
 //   - LB-2: loadOwnedSection/Video traversal returns ErrNotOwner for non-owner.
+//
+// C2.3 additions (material methods):
+//   - PresignUpload: size/MIME validation, owner gate, estado gate, key prefix.
+//   - ConfirmUpload: re-validation (dual validation), key prefix guard.
+//   - ListMaterials: owner gate.
+//   - PresignDownload: owner gate, material not found.
+//   - DeleteMaterial: best-effort delete (load-bearing), owner gate, repo delete before store.Delete.
 package service
 
 import (
@@ -129,6 +136,93 @@ func (m *MockCoursesRepository) HasContent(ctx context.Context, courseID string)
 	return args.Bool(0), args.Error(1)
 }
 
+func (m *MockCoursesRepository) CreateMaterial(ctx context.Context, mat *domain.Material) error {
+	args := m.Called(ctx, mat)
+	return args.Error(0)
+}
+
+func (m *MockCoursesRepository) GetMaterialByID(ctx context.Context, id string) (*domain.Material, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Material), args.Error(1)
+}
+
+func (m *MockCoursesRepository) ListMaterialsByCourse(ctx context.Context, courseID string) ([]domain.Material, error) {
+	args := m.Called(ctx, courseID)
+	return args.Get(0).([]domain.Material), args.Error(1)
+}
+
+func (m *MockCoursesRepository) DeleteMaterial(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+// ── MockStorageClient ─────────────────────────────────────────────────────────
+
+// mockStorageClient is a minimal mock for storage.Client using func fields.
+// This avoids testify/mock overhead for the storage interface (4 methods).
+type mockStorageClient struct {
+	PresignPutURLFn func(ctx context.Context, key string, ttl time.Duration) (string, error)
+	PresignGetURLFn func(ctx context.Context, key string, ttl time.Duration) (string, error)
+	DeleteFn        func(ctx context.Context, key string) error
+	PingFn          func(ctx context.Context) error
+	// Track calls for assertion.
+	deleteCalls []string
+	putCalls    []string
+	getCalls    []string
+}
+
+func (m *mockStorageClient) PresignPutURL(ctx context.Context, key string, ttl time.Duration) (string, error) {
+	m.putCalls = append(m.putCalls, key)
+	if m.PresignPutURLFn != nil {
+		return m.PresignPutURLFn(ctx, key, ttl)
+	}
+	return "https://minio-presigned-put/" + key, nil
+}
+
+func (m *mockStorageClient) PresignGetURL(ctx context.Context, key string, ttl time.Duration) (string, error) {
+	m.getCalls = append(m.getCalls, key)
+	if m.PresignGetURLFn != nil {
+		return m.PresignGetURLFn(ctx, key, ttl)
+	}
+	return "https://minio-presigned-get/" + key, nil
+}
+
+func (m *mockStorageClient) Delete(ctx context.Context, key string) error {
+	m.deleteCalls = append(m.deleteCalls, key)
+	if m.DeleteFn != nil {
+		return m.DeleteFn(ctx, key)
+	}
+	return nil
+}
+
+func (m *mockStorageClient) Ping(ctx context.Context) error {
+	if m.PingFn != nil {
+		return m.PingFn(ctx)
+	}
+	return nil
+}
+
+// newSvcWithStore creates a serviceImpl with the given storage client.
+func newSvcWithStore(repo *MockCoursesRepository, store *mockStorageClient) *serviceImpl {
+	return New(repo, store, 15*time.Minute, 52_428_800).(*serviceImpl)
+}
+
+// materialWith creates a domain.Material fixture for testing.
+func materialWith(courseID string) *domain.Material {
+	return &domain.Material{
+		ID:          uuid.New().String(),
+		CourseID:    courseID,
+		Titulo:      "test-document.pdf",
+		StorageKey:  "courses/" + courseID + "/materials/uuid-test-document.pdf",
+		MimeType:    "application/pdf",
+		TamanoBytes: 1024,
+		CreatedAt:   time.Now(),
+	}
+}
+
 // ── Fixtures ────────────────────────────────────────────────────────────────────
 
 func courseWith(creadorID string, estado domain.Estado) *domain.Course {
@@ -166,8 +260,10 @@ func videoWith(sectionID string) *domain.Video {
 	}
 }
 
+// newSvc creates a serviceImpl with a nil storage client for tests that do not
+// exercise storage methods. Material-specific tests use newSvcWithStore instead.
 func newSvc(repo repository.Repository) *serviceImpl {
-	return New(repo).(*serviceImpl)
+	return New(repo, nil, 15*time.Minute, 52_428_800).(*serviceImpl)
 }
 
 // ── Create tests ───────────────────────────────────────────────────────────────
@@ -936,4 +1032,439 @@ func TestReorderSections_ValidSet_OK(t *testing.T) {
 	err := svc.ReorderSections(context.Background(), course.ID, ownerID, []string{sec3.ID, sec1.ID, sec2.ID})
 	assert.NoError(t, err)
 	repo.AssertExpectations(t)
+}
+
+// ── PresignUpload tests (C2.3) ────────────────────────────────────────────────
+
+// TestPresignUpload_HappyPath verifies successful presign returns key with correct prefix.
+// Spec: REQ-PRESIGN happy path.
+func TestPresignUpload_HappyPath(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoBorrador)
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+
+	result, err := svc.PresignUpload(context.Background(), course.ID, ownerID, PresignInput{
+		Nombre:      "documento.pdf",
+		ContentType: "application/pdf",
+		TamanoBytes: 1024,
+	})
+
+	require.NoError(t, err)
+	assert.NotEmpty(t, result.UploadURL)
+	assert.Contains(t, result.Key, "courses/"+course.ID+"/materials/",
+		"key must start with courses/{id}/materials/")
+	assert.False(t, result.ExpiresAt.IsZero())
+	repo.AssertExpectations(t)
+}
+
+// TestPresignUpload_FileTooLarge verifies ErrFileTooLarge when size exceeds max.
+// Spec: REQ-PRESIGN "File too large" scenario, AC4.
+func TestPresignUpload_FileTooLarge(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoBorrador)
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+
+	_, err := svc.PresignUpload(context.Background(), course.ID, ownerID, PresignInput{
+		Nombre:      "big.zip",
+		ContentType: "application/zip",
+		TamanoBytes: 52_428_801, // 1 byte over 50 MB
+	})
+
+	assert.ErrorIs(t, err, ErrFileTooLarge,
+		"file size exceeding max must return ErrFileTooLarge")
+	repo.AssertExpectations(t)
+}
+
+// TestPresignUpload_MIMENotAllowed verifies ErrMIMENotAllowed for non-whitelisted type.
+// Spec: REQ-PRESIGN "MIME not in whitelist" scenario, AC5.
+func TestPresignUpload_MIMENotAllowed(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoBorrador)
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+
+	_, err := svc.PresignUpload(context.Background(), course.ID, ownerID, PresignInput{
+		Nombre:      "malware.exe",
+		ContentType: "application/x-msdownload",
+		TamanoBytes: 1024,
+	})
+
+	assert.ErrorIs(t, err, ErrMIMENotAllowed,
+		"non-whitelisted MIME must return ErrMIMENotAllowed")
+	repo.AssertExpectations(t)
+}
+
+// TestPresignUpload_NonOwner verifies ErrNotOwner for non-owner caller.
+// Spec: REQ-PRESIGN "Non-owner creador" scenario, AC2.
+func TestPresignUpload_NonOwner(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	foreignID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoBorrador)
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+
+	_, err := svc.PresignUpload(context.Background(), course.ID, foreignID, PresignInput{
+		Nombre:      "doc.pdf",
+		ContentType: "application/pdf",
+		TamanoBytes: 1024,
+	})
+
+	assert.ErrorIs(t, err, ErrNotOwner,
+		"non-owner must get ErrNotOwner from PresignUpload")
+	repo.AssertExpectations(t)
+}
+
+// TestPresignUpload_EstadoGate verifies ErrInvalidTransition for non-editable course.
+// Spec: REQ-PRESIGN "Course estado gate" scenario.
+func TestPresignUpload_EstadoGate(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoEnRevision) // not editable
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+
+	_, err := svc.PresignUpload(context.Background(), course.ID, ownerID, PresignInput{
+		Nombre:      "doc.pdf",
+		ContentType: "application/pdf",
+		TamanoBytes: 1024,
+	})
+
+	assert.ErrorIs(t, err, ErrInvalidTransition,
+		"non-editable course estado must return ErrInvalidTransition")
+	repo.AssertExpectations(t)
+}
+
+// ── ConfirmUpload tests (C2.3) ────────────────────────────────────────────────
+
+// TestConfirmUpload_HappyPath verifies that a valid confirm persists the material.
+// Spec: REQ-CONFIRM happy path.
+func TestConfirmUpload_HappyPath(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoBorrador)
+	validKey := "courses/" + course.ID + "/materials/uuid-documento.pdf"
+
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+	repo.On("CreateMaterial", mock.Anything, mock.AnythingOfType("*domain.Material")).Return(nil)
+
+	model, err := svc.ConfirmUpload(context.Background(), course.ID, ownerID, ConfirmInput{
+		Key:         validKey,
+		Nombre:      "documento.pdf",
+		ContentType: "application/pdf",
+		TamanoBytes: 1024,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, model)
+	assert.Equal(t, "documento.pdf", model.Titulo,
+		"Titulo must be set from req.Nombre (D1: nombre is the wire label)")
+	repo.AssertExpectations(t)
+}
+
+// TestConfirmUpload_BadKeyPrefix verifies ErrInvalidMaterialKey for wrong key prefix.
+// Spec: REQ-CONFIRM key validation.
+func TestConfirmUpload_BadKeyPrefix(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoBorrador)
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+
+	_, err := svc.ConfirmUpload(context.Background(), course.ID, ownerID, ConfirmInput{
+		Key:         "courses/other-course/materials/uuid-file.pdf", // wrong courseID in prefix
+		Nombre:      "file.pdf",
+		ContentType: "application/pdf",
+		TamanoBytes: 1024,
+	})
+
+	assert.ErrorIs(t, err, ErrInvalidMaterialKey,
+		"key with wrong prefix must return ErrInvalidMaterialKey")
+	repo.AssertExpectations(t)
+}
+
+// TestConfirmUpload_ReValidationSize verifies that a tampered size at confirm is rejected.
+// LOAD-BEARING: dual validation — even if presign would have passed, tampered confirm is rejected.
+// Spec: REQ-CONFIRM "Re-validation — file too large at confirm" scenario.
+func TestConfirmUpload_ReValidationSize(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoBorrador)
+	validKey := "courses/" + course.ID + "/materials/uuid-big.pdf"
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+
+	_, err := svc.ConfirmUpload(context.Background(), course.ID, ownerID, ConfirmInput{
+		Key:         validKey,
+		Nombre:      "big.pdf",
+		ContentType: "application/pdf",
+		TamanoBytes: 52_428_801, // tampered: exceeds max
+	})
+
+	assert.ErrorIs(t, err, ErrFileTooLarge,
+		"[LOAD-BEARING] tampered size at confirm must return ErrFileTooLarge (dual validation)")
+	repo.AssertExpectations(t)
+}
+
+// TestConfirmUpload_ReValidationMIME verifies that a tampered MIME at confirm is rejected.
+// LOAD-BEARING: dual validation — even if presign would have passed, tampered confirm is rejected.
+// Spec: REQ-CONFIRM "Re-validation — MIME not allowed at confirm" scenario.
+func TestConfirmUpload_ReValidationMIME(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoBorrador)
+	validKey := "courses/" + course.ID + "/materials/uuid-file.exe"
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+
+	_, err := svc.ConfirmUpload(context.Background(), course.ID, ownerID, ConfirmInput{
+		Key:         validKey,
+		Nombre:      "file.exe",
+		ContentType: "application/x-msdownload", // tampered: not in whitelist
+		TamanoBytes: 1024,
+	})
+
+	assert.ErrorIs(t, err, ErrMIMENotAllowed,
+		"[LOAD-BEARING] tampered MIME at confirm must return ErrMIMENotAllowed (dual validation)")
+	repo.AssertExpectations(t)
+}
+
+// ── ListMaterials tests (C2.3) ────────────────────────────────────────────────
+
+// TestListMaterials_NonOwner verifies ErrNotOwner for non-owner caller.
+// Spec: REQ-LIST "Non-owner list" scenario.
+func TestListMaterials_NonOwner(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	foreignID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoBorrador)
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+
+	_, err := svc.ListMaterials(context.Background(), course.ID, foreignID)
+
+	assert.ErrorIs(t, err, ErrNotOwner,
+		"non-owner must get ErrNotOwner from ListMaterials (→ 404 via read helper)")
+	repo.AssertExpectations(t)
+}
+
+// ── PresignDownload tests (C2.3) ──────────────────────────────────────────────
+
+// TestPresignDownload_HappyPath verifies that PresignGetURL is called with the stored key.
+// Spec: REQ-DOWNLOAD happy path.
+func TestPresignDownload_HappyPath(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoBorrador)
+	mat := materialWith(course.ID)
+
+	repo.On("GetMaterialByID", mock.Anything, mat.ID).Return(mat, nil)
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+
+	result, err := svc.PresignDownload(context.Background(), course.ID, mat.ID, ownerID)
+
+	require.NoError(t, err)
+	assert.Contains(t, result.URL, mat.StorageKey,
+		"PresignGetURL must be called with the stored key")
+	assert.Equal(t, []string{mat.StorageKey}, store.getCalls,
+		"PresignGetURL must be called exactly once with the stored key")
+	repo.AssertExpectations(t)
+}
+
+// TestPresignDownload_NonOwner verifies ErrNotOwner for non-owner caller.
+// Spec: REQ-DOWNLOAD "Non-owner download" scenario.
+func TestPresignDownload_NonOwner(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	foreignID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoBorrador)
+	mat := materialWith(course.ID)
+
+	repo.On("GetMaterialByID", mock.Anything, mat.ID).Return(mat, nil)
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+
+	_, err := svc.PresignDownload(context.Background(), course.ID, mat.ID, foreignID)
+
+	assert.ErrorIs(t, err, ErrNotOwner,
+		"non-owner must get ErrNotOwner from PresignDownload (→ 404 via read helper)")
+	repo.AssertExpectations(t)
+}
+
+// TestPresignDownload_MaterialNotFound verifies ErrMaterialNotFound when ID does not exist.
+// Spec: REQ-DOWNLOAD "Material not found" scenario.
+func TestPresignDownload_MaterialNotFound(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	materialID := uuid.New().String()
+	repo.On("GetMaterialByID", mock.Anything, materialID).Return(nil, repository.ErrMaterialNotFound)
+
+	_, err := svc.PresignDownload(context.Background(), "any-course", materialID, ownerID)
+
+	assert.ErrorIs(t, err, ErrMaterialNotFound,
+		"missing material must return ErrMaterialNotFound")
+	repo.AssertExpectations(t)
+}
+
+// ── DeleteMaterial tests (C2.3) ───────────────────────────────────────────────
+
+// TestDeleteMaterial_HappyPath verifies that DeleteMaterial calls repo.DeleteMaterial
+// BEFORE store.Delete, and returns nil on success.
+// LOAD-BEARING: repo.DeleteMaterial must precede store.Delete per D5 / spec REQ-DELETE.
+func TestDeleteMaterial_HappyPath(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	var callOrder []string
+	store := &mockStorageClient{
+		DeleteFn: func(_ context.Context, _ string) error {
+			callOrder = append(callOrder, "store.Delete")
+			return nil
+		},
+	}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoBorrador)
+	mat := materialWith(course.ID)
+
+	repo.On("GetMaterialByID", mock.Anything, mat.ID).Return(mat, nil)
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+	repo.On("DeleteMaterial", mock.Anything, mat.ID).
+		Run(func(_ mock.Arguments) {
+			callOrder = append(callOrder, "repo.DeleteMaterial")
+		}).
+		Return(nil)
+
+	err := svc.DeleteMaterial(context.Background(), mat.ID, ownerID)
+
+	require.NoError(t, err)
+	require.Len(t, callOrder, 2)
+	assert.Equal(t, "repo.DeleteMaterial", callOrder[0],
+		"[LOAD-BEARING] repo.DeleteMaterial must be called BEFORE store.Delete")
+	assert.Equal(t, "store.Delete", callOrder[1],
+		"store.Delete must be called after repo.DeleteMaterial")
+	repo.AssertExpectations(t)
+}
+
+// TestDeleteMaterial_StoreDeleteError verifies best-effort delete: store.Delete error
+// MUST NOT fail the request. The method must still return nil.
+// LOAD-BEARING: D5 — never fail the DELETE endpoint on object-delete error.
+// Spec: REQ-DELETE "Object already gone — still succeeds" scenario, AC6.
+func TestDeleteMaterial_StoreDeleteError_StillReturnsNil(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{
+		DeleteFn: func(_ context.Context, _ string) error {
+			return assert.AnError // simulates a transient storage error
+		},
+	}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoBorrador)
+	mat := materialWith(course.ID)
+
+	repo.On("GetMaterialByID", mock.Anything, mat.ID).Return(mat, nil)
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+	repo.On("DeleteMaterial", mock.Anything, mat.ID).Return(nil)
+
+	err := svc.DeleteMaterial(context.Background(), mat.ID, ownerID)
+
+	assert.NoError(t, err,
+		"[LOAD-BEARING] store.Delete error must be swallowed — DeleteMaterial must return nil (D5)")
+	repo.AssertExpectations(t)
+}
+
+// TestDeleteMaterial_NonOwner verifies ErrNotOwner for non-owner caller.
+// Spec: REQ-DELETE "Non-owner delete" scenario.
+func TestDeleteMaterial_NonOwner(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	foreignID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoBorrador)
+	mat := materialWith(course.ID)
+
+	repo.On("GetMaterialByID", mock.Anything, mat.ID).Return(mat, nil)
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+
+	err := svc.DeleteMaterial(context.Background(), mat.ID, foreignID)
+
+	assert.ErrorIs(t, err, ErrNotOwner,
+		"non-owner must get ErrNotOwner from DeleteMaterial (→ 403)")
+	repo.AssertExpectations(t)
+}
+
+// TestDeleteMaterial_MaterialNotFound verifies ErrMaterialNotFound when ID does not exist.
+// Spec: REQ-DELETE "Material not found" scenario.
+func TestDeleteMaterial_MaterialNotFound(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	materialID := uuid.New().String()
+	repo.On("GetMaterialByID", mock.Anything, materialID).Return(nil, repository.ErrMaterialNotFound)
+
+	err := svc.DeleteMaterial(context.Background(), materialID, ownerID)
+
+	assert.ErrorIs(t, err, ErrMaterialNotFound,
+		"missing material must return ErrMaterialNotFound")
+	repo.AssertExpectations(t)
+}
+
+// ── sanitizeFilename tests ─────────────────────────────────────────────────────
+
+// TestSanitizeFilename verifies the filename sanitization function.
+func TestSanitizeFilename(t *testing.T) {
+	cases := []struct {
+		input string
+		want  string
+	}{
+		{"hello world.pdf", "hello_world.pdf"},
+		{"../../../etc/passwd", "passwd"},
+		{"   ", "file"}, // all spaces → underscores → trimmed → empty → "file"
+		// "! @#" becomes "_" (space→_, then !@# dropped, leaving _) → underscore before .pdf
+		{"file with spaces and special chars! @#.pdf", "file_with_spaces_and_special_chars_.pdf"},
+		{"normal.pdf", "normal.pdf"},
+		{"", "file"}, // empty input → filepath.Base returns "." → fallback to "file"
+	}
+	for _, tc := range cases {
+		got := sanitizeFilename(tc.input)
+		assert.Equal(t, tc.want, got, "sanitizeFilename(%q) = %q, want %q", tc.input, got, tc.want)
+	}
 }

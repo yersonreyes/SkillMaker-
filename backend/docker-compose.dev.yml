@@ -23,6 +23,9 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
+      # DEV ONLY: allow browser PUT from Angular dev server (C2.3 presigned upload).
+      # Prod (S3/GCS) configures CORS separately via bucket policy — see deploy runbook.
+      MINIO_API_CORS_ALLOW_ORIGIN: "http://localhost:4200"
     ports:
       - '9000:9000'
       - '9001:9001'
@@ -39,10 +42,13 @@ services:
     depends_on:
       minio-dev:
         condition: service_healthy
+    volumes:
+      - ./minio/cors.json:/config/cors.json:ro
     entrypoint: >
       /bin/sh -c "
       mc alias set local http://minio-dev:9000 minioadmin minioadmin;
       mc mb --ignore-existing local/skillmaker-materials;
+      mc cors set local/skillmaker-materials /config/cors.json || echo 'cors set unsupported on this mc version, rely on MINIO_API_CORS_ALLOW_ORIGIN';
       exit 0;
       "
 

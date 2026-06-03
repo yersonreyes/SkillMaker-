@@ -43,4 +43,23 @@ var (
 	// This is a VALIDATION error (caller sent wrong data), not a state conflict.
 	// → 400 Bad Request  (distinct from ErrInvalidTransition → 409)
 	ErrInvalidReorderSet = errors.New("reorder ids must exactly match the course's section set")
+
+	// ── Material sentinels (C2.3) ────────────────────────────────────────────
+
+	// ErrMaterialNotFound is returned when a material lookup finds no matching row.
+	// → 404 Not Found
+	ErrMaterialNotFound = errors.New("material not found")
+
+	// ErrFileTooLarge is returned when the uploaded file exceeds the maximum allowed size.
+	// → 413 Request Entity Too Large
+	ErrFileTooLarge = errors.New("file exceeds max upload size")
+
+	// ErrMIMENotAllowed is returned when the file's content type is not in the allowed whitelist.
+	// → 415 Unsupported Media Type
+	ErrMIMENotAllowed = errors.New("content type not allowed")
+
+	// ErrInvalidMaterialKey is returned when the key in ConfirmUpload does not start
+	// with the expected "courses/{courseID}/materials/" prefix.
+	// → 400 Bad Request
+	ErrInvalidMaterialKey = errors.New("material key prefix mismatch")
 )

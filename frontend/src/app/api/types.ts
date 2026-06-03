@@ -156,6 +156,96 @@ export interface paths {
       };
     };
   };
+  "/courses/{courseId}/materials": {
+    /** Persiste el material tras un PUT presignado exitoso. Re-valida tamano y MIME. */
+    post: {
+      parameters: {
+        path: {
+          /** UUID del curso */
+          courseId: string;
+        };
+        body: {
+          /** Datos del material confirmado */
+          body: definitions["dto.MaterialConfirmRequest"];
+        };
+      };
+      responses: {
+        /** Created */
+        201: {
+          schema: definitions["dto.MaterialResponse"];
+        };
+        /** clave de objeto invalida o campos faltantes */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** no es propietario del curso */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** curso no encontrado */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** estado no permite edicion */
+        409: {
+          schema: definitions["httperr.Error"];
+        };
+        /** archivo demasiado grande */
+        413: {
+          schema: definitions["httperr.Error"];
+        };
+        /** tipo de contenido no permitido */
+        415: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/courses/{courseId}/materials/presign": {
+    /** Genera una URL PUT presignada para que el browser suba el archivo directamente a MinIO. */
+    post: {
+      parameters: {
+        path: {
+          /** UUID del curso */
+          courseId: string;
+        };
+        body: {
+          /** Datos del archivo a subir */
+          body: definitions["dto.MaterialPresignRequest"];
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.PresignResponse"];
+        };
+        /** body invalido o campos faltantes */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** no es propietario del curso */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** curso no encontrado */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** estado no permite edicion */
+        409: {
+          schema: definitions["httperr.Error"];
+        };
+        /** archivo demasiado grande */
+        413: {
+          schema: definitions["httperr.Error"];
+        };
+        /** tipo de contenido no permitido */
+        415: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
   "/courses/{courseId}/sections": {
     /** Crea una seccion. El curso debe estar en borrador o rechazado y pertenecer al caller. */
     post: {
@@ -269,6 +359,70 @@ export interface paths {
       };
     };
   };
+  "/courses/{id}/materials": {
+    /** Retorna todos los materiales del curso ordenados por fecha de creacion ASC. Solo el propietario. */
+    get: {
+      parameters: {
+        path: {
+          /** UUID del curso */
+          id: string;
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.MaterialResponse"][];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** rol creador requerido */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** curso no encontrado o no pertenece al caller */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Internal Server Error */
+        500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/courses/{id}/materials/{materialId}/download": {
+    /** Retorna una URL GET presignada con TTL = PresignTTL. Solo el propietario del curso. */
+    get: {
+      parameters: {
+        path: {
+          /** UUID del curso */
+          id: string;
+          /** UUID del material */
+          materialId: string;
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.DownloadResponse"];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** material o curso no encontrado */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Internal Server Error */
+        500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
   "/courses/{id}/sections": {
     /** Retorna el arbol de contenido del curso: secciones ordenadas por orden, */
     get: {
@@ -327,6 +481,29 @@ export interface paths {
           schema: definitions["httperr.Error"];
         };
         /** Not Found */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/materials/{id}": {
+    /** Elimina la fila de material y hace un best-effort delete del objeto en storage. */
+    delete: {
+      parameters: {
+        path: {
+          /** UUID del material */
+          id: string;
+        };
+      };
+      responses: {
+        /** No Content */
+        204: never;
+        /** no es propietario del curso */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** material no encontrado */
         404: {
           schema: definitions["httperr.Error"];
         };
@@ -786,6 +963,10 @@ export interface definitions {
     descripcion?: string;
     titulo: string;
   };
+  "dto.DownloadResponse": {
+    expiresAt?: string;
+    url?: string;
+  };
   "dto.GoogleLoginRequest": {
     idToken: string;
   };
@@ -794,6 +975,30 @@ export interface definitions {
     expires_at?: string;
     refresh_token?: string;
     user?: definitions["dto.UserDTO"];
+  };
+  "dto.MaterialConfirmRequest": {
+    contentType: string;
+    key: string;
+    nombre: string;
+    tamanoBytes: number;
+  };
+  "dto.MaterialPresignRequest": {
+    contentType: string;
+    nombre: string;
+    tamanoBytes: number;
+  };
+  "dto.MaterialResponse": {
+    createdAt?: string;
+    id?: string;
+    mimeType?: string;
+    /** @description mapped from MaterialModel.Titulo */
+    nombre?: string;
+    tamanoBytes?: number;
+  };
+  "dto.PresignResponse": {
+    expiresAt?: string;
+    key?: string;
+    uploadUrl?: string;
   };
   "dto.RefreshRequest": {
     refreshToken: string;

@@ -25,6 +25,9 @@ var ErrSectionNotFound = errors.New("section not found")
 // ErrVideoNotFound is returned when a video lookup finds no matching row.
 var ErrVideoNotFound = errors.New("video not found")
 
+// ErrMaterialNotFound is returned when a material lookup finds no matching row.
+var ErrMaterialNotFound = errors.New("material not found")
+
 // Repository defines the data-access contract for the courses module.
 // UpdateEstado is a seam for C2.2/C4.1; it is defined now but not called in C2.1.
 type Repository interface {
@@ -95,6 +98,21 @@ type Repository interface {
 	// HasContent returns true if the course has at least one video (via any section).
 	// Uses an EXISTS subquery joining video → section → course.
 	HasContent(ctx context.Context, courseID string) (bool, error)
+
+	// ── Material methods (C2.3) ────────────────────────────────────────────────
+
+	// CreateMaterial persists a new material. Assigns a UUID if ID is empty.
+	CreateMaterial(ctx context.Context, m *domain.Material) error
+
+	// GetMaterialByID fetches a material by primary key.
+	// Returns ErrMaterialNotFound when no row matches.
+	GetMaterialByID(ctx context.Context, id string) (*domain.Material, error)
+
+	// ListMaterialsByCourse returns all materials for a course ordered by created_at ASC.
+	ListMaterialsByCourse(ctx context.Context, courseID string) ([]domain.Material, error)
+
+	// DeleteMaterial deletes a material by ID.
+	DeleteMaterial(ctx context.Context, id string) error
 }
 
 // ── gormRepository ─────────────────────────────────────────────────────────────
@@ -321,6 +339,43 @@ func (r *gormRepository) HasContent(ctx context.Context, courseID string) (bool,
 		return false, err
 	}
 	return exists, nil
+}
+
+// ── Material implementations (C2.3) ───────────────────────────────────────────
+
+func (r *gormRepository) CreateMaterial(ctx context.Context, m *domain.Material) error {
+	if m.ID == "" {
+		m.ID = uuid.New().String()
+	}
+	return r.db.WithContext(ctx).Create(m).Error
+}
+
+func (r *gormRepository) GetMaterialByID(ctx context.Context, id string) (*domain.Material, error) {
+	var m domain.Material
+	result := r.db.WithContext(ctx).Where("id = ?", id).First(&m)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, ErrMaterialNotFound
+	}
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &m, nil
+}
+
+func (r *gormRepository) ListMaterialsByCourse(ctx context.Context, courseID string) ([]domain.Material, error) {
+	var materials []domain.Material
+	err := r.db.WithContext(ctx).
+		Where("course_id = ?", courseID).
+		Order("created_at ASC").
+		Find(&materials).Error
+	if err != nil {
+		return nil, err
+	}
+	return materials, nil
+}
+
+func (r *gormRepository) DeleteMaterial(ctx context.Context, id string) error {
+	return r.db.WithContext(ctx).Where("id = ?", id).Delete(&domain.Material{}).Error
 }
 
 // isPgUniqueViolation reports whether err is a Postgres UNIQUE violation (23505).

@@ -158,6 +158,34 @@ func (m *mockCourseSvc) HasContent(ctx context.Context, courseID, creadorID stri
 	return args.Bool(0), args.Error(1)
 }
 
+func (m *mockCourseSvc) PresignUpload(ctx context.Context, courseID, creadorID string, req service.PresignInput) (service.PresignResult, error) {
+	args := m.Called(ctx, courseID, creadorID, req)
+	return args.Get(0).(service.PresignResult), args.Error(1)
+}
+
+func (m *mockCourseSvc) ConfirmUpload(ctx context.Context, courseID, creadorID string, req service.ConfirmInput) (*service.MaterialModel, error) {
+	args := m.Called(ctx, courseID, creadorID, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*service.MaterialModel), args.Error(1)
+}
+
+func (m *mockCourseSvc) ListMaterials(ctx context.Context, courseID, creadorID string) ([]service.MaterialModel, error) {
+	args := m.Called(ctx, courseID, creadorID)
+	return args.Get(0).([]service.MaterialModel), args.Error(1)
+}
+
+func (m *mockCourseSvc) PresignDownload(ctx context.Context, courseID, materialID, creadorID string) (service.DownloadResult, error) {
+	args := m.Called(ctx, courseID, materialID, creadorID)
+	return args.Get(0).(service.DownloadResult), args.Error(1)
+}
+
+func (m *mockCourseSvc) DeleteMaterial(ctx context.Context, materialID, creadorID string) error {
+	args := m.Called(ctx, materialID, creadorID)
+	return args.Error(0)
+}
+
 // ── Fixtures ───────────────────────────────────────────────────────────────────
 
 func courseModel(id, creadorID string) *service.CourseModel {
@@ -817,4 +845,230 @@ func TestCreateVideo_HappyPath_Returns201(t *testing.T) {
 	})
 	assert.Equal(t, http.StatusCreated, w.Code)
 	svc.AssertExpectations(t)
+}
+
+// ── Material handler tests (C2.3) ─────────────────────────────────────────────
+
+// TestPresignMaterial_Returns200 verifies presign endpoint returns 200 with uploadUrl + key.
+// Spec: REQ-PRESIGN happy path.
+func TestPresignMaterial_Returns200(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	courseID := "course-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("PresignUpload", mock.Anything, courseID, creadorID, mock.AnythingOfType("service.PresignInput")).
+		Return(service.PresignResult{
+			UploadURL: "https://minio/presigned",
+			Key:       "courses/course-1/materials/uuid-doc.pdf",
+			ExpiresAt: time.Now().Add(15 * time.Minute),
+		}, nil)
+
+	w := do(engine, http.MethodPost, "/courses/"+courseID+"/materials/presign", map[string]any{
+		"nombre":      "doc.pdf",
+		"contentType": "application/pdf",
+		"tamanoBytes": 1024,
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	svc.AssertExpectations(t)
+}
+
+// TestPresignMaterial_FileTooLarge_Returns413 verifies 413 is returned for large files.
+// Spec: REQ-PRESIGN "File too large", AC4. REQ-ERRMAP.
+func TestPresignMaterial_FileTooLarge_Returns413(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	courseID := "course-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("PresignUpload", mock.Anything, courseID, creadorID, mock.AnythingOfType("service.PresignInput")).
+		Return(service.PresignResult{}, service.ErrFileTooLarge)
+
+	w := do(engine, http.MethodPost, "/courses/"+courseID+"/materials/presign", map[string]any{
+		"nombre":      "big.zip",
+		"contentType": "application/zip",
+		"tamanoBytes": 52_428_801,
+	})
+
+	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+	assert.Equal(t, "FILE_TOO_LARGE", respCode(w))
+	svc.AssertExpectations(t)
+}
+
+// TestPresignMaterial_MIMENotAllowed_Returns415 verifies 415 for non-whitelisted MIME.
+// Spec: REQ-PRESIGN "MIME not in whitelist", AC5. REQ-ERRMAP.
+func TestPresignMaterial_MIMENotAllowed_Returns415(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	courseID := "course-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("PresignUpload", mock.Anything, courseID, creadorID, mock.AnythingOfType("service.PresignInput")).
+		Return(service.PresignResult{}, service.ErrMIMENotAllowed)
+
+	w := do(engine, http.MethodPost, "/courses/"+courseID+"/materials/presign", map[string]any{
+		"nombre":      "malware.exe",
+		"contentType": "application/x-msdownload",
+		"tamanoBytes": 1024,
+	})
+
+	assert.Equal(t, http.StatusUnsupportedMediaType, w.Code)
+	assert.Equal(t, "MIME_NOT_ALLOWED", respCode(w))
+	svc.AssertExpectations(t)
+}
+
+// TestConfirmMaterial_Returns201 verifies confirm endpoint returns 201 with MaterialResponse.
+// Spec: REQ-CONFIRM happy path.
+func TestConfirmMaterial_Returns201(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	courseID := "course-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	mat := &service.MaterialModel{
+		ID:          "mat-1",
+		CourseID:    courseID,
+		Titulo:      "documento.pdf",
+		StorageKey:  "courses/course-1/materials/uuid-documento.pdf",
+		MimeType:    "application/pdf",
+		TamanoBytes: 1024,
+		CreatedAt:   time.Now(),
+	}
+	svc.On("ConfirmUpload", mock.Anything, courseID, creadorID, mock.AnythingOfType("service.ConfirmInput")).
+		Return(mat, nil)
+
+	w := do(engine, http.MethodPost, "/courses/"+courseID+"/materials", map[string]any{
+		"key":         "courses/course-1/materials/uuid-documento.pdf",
+		"nombre":      "documento.pdf",
+		"contentType": "application/pdf",
+		"tamanoBytes": 1024,
+	})
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	svc.AssertExpectations(t)
+}
+
+// TestConfirmMaterial_MissingFields_Returns400 verifies 400 when required fields are absent.
+// Spec: REQ-CONFIRM "Missing fields at confirm".
+func TestConfirmMaterial_MissingFields_Returns400(t *testing.T) {
+	svc := &mockCourseSvc{}
+	engine := setupEngine(svc, "creador-1", []string{"creador"})
+
+	// Missing "key" field — binding:"required" must reject this.
+	w := do(engine, http.MethodPost, "/courses/course-1/materials", map[string]any{
+		"nombre":      "doc.pdf",
+		"contentType": "application/pdf",
+		"tamanoBytes": 1024,
+		// "key" is omitted
+	})
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// TestListMaterials_Returns200 verifies list endpoint returns 200 with array.
+// Spec: REQ-LIST "Owner lists materials" scenario.
+func TestListMaterials_Returns200(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	courseID := "course-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	mats := []service.MaterialModel{
+		{ID: "m1", CourseID: courseID, Titulo: "doc1.pdf", MimeType: "application/pdf", TamanoBytes: 512, CreatedAt: time.Now()},
+		{ID: "m2", CourseID: courseID, Titulo: "doc2.pdf", MimeType: "application/pdf", TamanoBytes: 1024, CreatedAt: time.Now()},
+	}
+	svc.On("ListMaterials", mock.Anything, courseID, creadorID).Return(mats, nil)
+
+	w := do(engine, http.MethodGet, "/courses/"+courseID+"/materials", nil)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	svc.AssertExpectations(t)
+}
+
+// TestDownloadMaterial_Returns200 verifies download endpoint returns 200 with url + expiresAt.
+// Spec: REQ-DOWNLOAD "Owner downloads material" scenario.
+func TestDownloadMaterial_Returns200(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	courseID := "course-1"
+	materialID := "mat-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("PresignDownload", mock.Anything, courseID, materialID, creadorID).
+		Return(service.DownloadResult{
+			URL:       "https://minio/presigned-get/key",
+			ExpiresAt: time.Now().Add(15 * time.Minute),
+		}, nil)
+
+	w := do(engine, http.MethodGet, "/courses/"+courseID+"/materials/"+materialID+"/download", nil)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	svc.AssertExpectations(t)
+}
+
+// TestDeleteMaterial_Returns204 verifies DELETE returns 204 on success.
+// Spec: REQ-DELETE "Owner deletes material" scenario.
+func TestDeleteMaterial_Returns204(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	materialID := "mat-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("DeleteMaterial", mock.Anything, materialID, creadorID).Return(nil)
+
+	w := do(engine, http.MethodDelete, "/materials/"+materialID, nil)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	svc.AssertExpectations(t)
+}
+
+// TestDeleteMaterial_NotFound_Returns404 verifies DELETE returns 404 when material not found.
+// Spec: REQ-DELETE "Material not found" scenario. REQ-ERRMAP.
+func TestDeleteMaterial_NotFound_Returns404(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	materialID := "mat-nonexistent"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("DeleteMaterial", mock.Anything, materialID, creadorID).Return(service.ErrMaterialNotFound)
+
+	w := do(engine, http.MethodDelete, "/materials/"+materialID, nil)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Equal(t, "MATERIAL_NOT_FOUND", respCode(w))
+	svc.AssertExpectations(t)
+}
+
+// TestDeleteMaterial_NonOwner_Returns403 verifies DELETE returns 403 for non-owner.
+// Spec: REQ-DELETE "Non-owner delete" scenario. REQ-ERRMAP.
+func TestDeleteMaterial_NonOwner_Returns403(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "foreign-creador"
+	materialID := "mat-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("DeleteMaterial", mock.Anything, materialID, creadorID).Return(service.ErrNotOwner)
+
+	w := do(engine, http.MethodDelete, "/materials/"+materialID, nil)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, "NOT_OWNER", respCode(w))
+	svc.AssertExpectations(t)
+}
+
+// ── LOAD-BEARING: Gin router boot (route collision safety net) ────────────────
+
+// TestRouteSet_NoGinPanic is the LOAD-BEARING test that registers the FULL course+section+video+material
+// route set on a real gin.Engine and asserts no Gin wildcard-conflict panic occurs at registration time.
+// If Gin panics on param name conflict (e.g. :id vs :courseId under /courses/), this test catches it.
+// Spec: task 4.5, ROUTE-COLLISION NOTE.
+func TestRouteSet_NoGinPanic(t *testing.T) {
+	assert.NotPanics(t, func() {
+		r := gin.New()
+		svc := &mockCourseSvc{}
+		identity := injectIdentity("test-user", []string{"creador"})
+		grp := r.Group("", identity, middleware.RequireRole("creador"))
+		handler.Register(grp, svc)
+	}, "[LOAD-BEARING] registering all course+section+video+material routes on a real gin.Engine must not panic (no Gin param-name conflict)")
 }

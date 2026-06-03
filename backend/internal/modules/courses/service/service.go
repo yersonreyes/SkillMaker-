@@ -16,6 +16,7 @@ import (
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses/domain"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses/repository"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/platform/pagination"
+	"github.com/yersonreyes/SkillMaker-/backend/internal/platform/storage"
 )
 
 // ── Read models ────────────────────────────────────────────────────────────────
@@ -111,6 +112,47 @@ type ReorderRequest struct {
 	IDs      []string
 }
 
+// ── Material types (C2.3) ──────────────────────────────────────────────────────
+
+// MaterialModel is the service-layer read model for a material attachment.
+type MaterialModel struct {
+	ID          string
+	CourseID    string
+	Titulo      string
+	StorageKey  string
+	MimeType    string
+	TamanoBytes int64
+	CreatedAt   time.Time
+}
+
+// PresignInput carries data for requesting a presigned upload URL.
+type PresignInput struct {
+	Nombre      string
+	ContentType string
+	TamanoBytes int64
+}
+
+// PresignResult is returned by PresignUpload containing the upload URL and object key.
+type PresignResult struct {
+	UploadURL string
+	Key       string
+	ExpiresAt time.Time
+}
+
+// ConfirmInput carries data for confirming a completed upload.
+type ConfirmInput struct {
+	Key         string
+	Nombre      string
+	ContentType string
+	TamanoBytes int64
+}
+
+// DownloadResult is returned by PresignDownload containing the download URL.
+type DownloadResult struct {
+	URL       string
+	ExpiresAt time.Time
+}
+
 // ── Service interface ──────────────────────────────────────────────────────────
 
 // Service is the public interface of the courses domain.
@@ -178,17 +220,51 @@ type Service interface {
 	// HasContent returns true if the course has at least one video.
 	// Owner-gated: returns ErrNotOwner if creadorID does not own the course.
 	HasContent(ctx context.Context, courseID, creadorID string) (bool, error)
+
+	// ── Material methods (C2.3) ──────────────────────────────────────────────
+
+	// PresignUpload generates a presigned PUT URL for uploading a material file.
+	// Owner-gated (write): returns ErrNotOwner (403) for non-owners.
+	// Estado-gated: returns ErrInvalidTransition (409) for non-editable courses.
+	// Validates file size and MIME type — returns ErrFileTooLarge (413) or ErrMIMENotAllowed (415).
+	PresignUpload(ctx context.Context, courseID, creadorID string, req PresignInput) (PresignResult, error)
+
+	// ConfirmUpload persists a material row after a successful presigned PUT.
+	// Re-validates size and MIME as defense in depth.
+	// Returns ErrInvalidMaterialKey (400) if the key prefix is invalid.
+	ConfirmUpload(ctx context.Context, courseID, creadorID string, req ConfirmInput) (*MaterialModel, error)
+
+	// ListMaterials returns all materials for a course ordered by created_at ASC.
+	// Owner-gated (read): returns ErrNotOwner (→ 404 via read helper) for non-owners.
+	ListMaterials(ctx context.Context, courseID, creadorID string) ([]MaterialModel, error)
+
+	// PresignDownload generates a presigned GET URL for downloading a material.
+	// Owner-gated (read): returns ErrNotOwner (→ 404 via read helper) for non-owners.
+	PresignDownload(ctx context.Context, courseID, materialID, creadorID string) (DownloadResult, error)
+
+	// DeleteMaterial deletes a material row and attempts best-effort object deletion.
+	// Owner-gated (write): returns ErrNotOwner (→ 403) for non-owners.
+	// If the storage delete fails, the error is logged and swallowed (D5).
+	DeleteMaterial(ctx context.Context, materialID, creadorID string) error
 }
 
 // ── concrete implementation ────────────────────────────────────────────────────
 
 type serviceImpl struct {
-	repo repository.Repository
+	repo           repository.Repository
+	store          storage.Client
+	presignTTL     time.Duration
+	maxUploadBytes int64
 }
 
-// New creates a Service backed by the given Repository.
-func New(repo repository.Repository) Service {
-	return &serviceImpl{repo: repo}
+// New creates a Service backed by the given Repository and storage Client.
+func New(repo repository.Repository, store storage.Client, presignTTL time.Duration, maxUploadBytes int64) Service {
+	return &serviceImpl{
+		repo:           repo,
+		store:          store,
+		presignTTL:     presignTTL,
+		maxUploadBytes: maxUploadBytes,
+	}
 }
 
 // ── Course methods ─────────────────────────────────────────────────────────────
