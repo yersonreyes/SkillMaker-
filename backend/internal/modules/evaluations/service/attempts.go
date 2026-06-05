@@ -19,8 +19,11 @@ import (
 
 // ── StartAttempt ───────────────────────────────────────────────────────────────
 
-// StartAttempt creates a new attempt for the student on the given evaluation.
-// Spec: REQ-START.
+// StartAttempt starts (or resumes) a student attempt on the given evaluation.
+// If an open (unsubmitted) attempt already exists for this (user, evaluation) pair,
+// it is RETURNED immediately — resume-on-start — without creating a new one.
+// Only when no open attempt exists does the intentos_max guard apply and a new
+// attempt is created.  Spec: REQ-START.
 func (s *serviceImpl) StartAttempt(ctx context.Context, evaluationID, userID string) (*AttemptModel, error) {
 	// Load evaluation (returns ErrEvaluationNotFound if missing).
 	eval, err := s.repo.GetEvaluationByID(ctx, evaluationID)
@@ -28,18 +31,20 @@ func (s *serviceImpl) StartAttempt(ctx context.Context, evaluationID, userID str
 		return nil, wrapEvalNotFound(err)
 	}
 
-	// Block if an open (unsubmitted) attempt already exists.
-	_, err = s.repo.GetOpenAttempt(ctx, userID, evaluationID)
+	// Resume-on-start: if the student has an open (unsubmitted) attempt, return it.
+	// This avoids the dead-end where navigating away mid-exam locked the student out.
+	// Resuming does NOT count against intentos_max — it is not a new attempt.
+	existing, err := s.repo.GetOpenAttempt(ctx, userID, evaluationID)
 	if err == nil {
-		// An open attempt was found.
-		return nil, ErrAttemptOpen
+		// An open attempt exists — resume it.
+		return toAttemptModel(existing), nil
 	}
 	if err != repository.ErrAttemptNotFound {
 		// Unexpected DB error.
 		return nil, err
 	}
 
-	// Count existing attempts and enforce intentos_max.
+	// No open attempt: apply intentos_max guard and create a new attempt.
 	count, err := s.repo.CountAttemptsByUserEval(ctx, userID, evaluationID)
 	if err != nil {
 		return nil, err

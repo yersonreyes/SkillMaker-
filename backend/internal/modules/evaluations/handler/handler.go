@@ -469,8 +469,6 @@ func (h *Handler) renderAttemptError(c *gin.Context, err error) {
 		httperr.Render(c, httperr.Conflict("MAX_ATTEMPTS_REACHED", "max attempts reached"))
 	case errors.Is(err, service.ErrAttemptAlreadySubmitted):
 		httperr.Render(c, httperr.Conflict("ATTEMPT_ALREADY_SUBMITTED", "attempt already submitted"))
-	case errors.Is(err, service.ErrAttemptOpen):
-		httperr.Render(c, httperr.Conflict("ATTEMPT_OPEN", "an open attempt already exists"))
 	case errors.Is(err, service.ErrInvalidAnswer):
 		httperr.Render(c, httperr.BadRequest("INVALID_ANSWER", "invalid answer"))
 	default:

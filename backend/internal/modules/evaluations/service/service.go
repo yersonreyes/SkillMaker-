@@ -231,10 +231,12 @@ type Service interface {
 	// Implemented and tested here per Decision 5.
 	ValidateEvaluationComplete(ctx context.Context, evalID string) error
 
-	// StartAttempt creates a new attempt for the given student on the evaluation.
+	// StartAttempt starts or resumes a student attempt on the evaluation.
+	// If an open (unsubmitted) attempt already exists for (user, evaluation), it is
+	// returned immediately (resume-on-start) — no new attempt is created.
 	// Returns ErrEvaluationNotFound if the evaluation does not exist.
-	// Returns ErrAttemptOpen if the student has an unsubmitted attempt.
-	// Returns ErrMaxAttemptsReached if intentos_max > 0 and count >= intentos_max.
+	// Returns ErrMaxAttemptsReached if intentos_max > 0 and count >= intentos_max
+	// (only checked when NO open attempt exists, i.e. on new-attempt path).
 	StartAttempt(ctx context.Context, evaluationID, userID string) (*AttemptModel, error)
 
 	// GetAttempt returns the full attempt state including questions (no correcta) and

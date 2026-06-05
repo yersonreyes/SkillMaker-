@@ -189,19 +189,6 @@ func TestStartAttempt_MaxAttemptsReached_Returns409(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, w.Code)
 }
 
-// TestStartAttempt_AttemptOpen_Returns409 verifies ErrAttemptOpen → 409.
-func TestStartAttempt_AttemptOpen_Returns409(t *testing.T) {
-	svc := &mockEvalSvc{}
-	userID := uuid.New().String()
-	engine := setupStudentEngine(svc, userID)
-
-	evalID := uuid.New().String()
-	svc.On("StartAttempt", mock.Anything, evalID, userID).Return(nil, service.ErrAttemptOpen)
-
-	w := do(engine, http.MethodPost, "/evaluations/"+evalID+"/attempts", nil)
-	assert.Equal(t, http.StatusConflict, w.Code)
-}
-
 // TestGetAttempt_NotFound_Returns404 verifies ErrAttemptNotFound → 404.
 func TestGetAttempt_NotFound_Returns404(t *testing.T) {
 	svc := &mockEvalSvc{}

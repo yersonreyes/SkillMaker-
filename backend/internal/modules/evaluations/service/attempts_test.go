@@ -9,7 +9,7 @@
 //	(d) attempt ownership: different user → ErrAttemptNotFound
 //	(e) scoring: earned/total*100; total==0 guard; pass boundary
 //	(f) answer upsert: UpsertAnswer called on re-answer
-//	(g) open-attempt block: existing open attempt → ErrAttemptOpen
+//	(g) open-attempt resume: existing open attempt → RETURNED as resume (no new attempt created)
 package service
 
 import (
@@ -551,26 +551,37 @@ func TestSaveAnswer_UpsertCalled(t *testing.T) {
 	repo.AssertExpectations(t)
 }
 
-// ── [LOAD-BEARING (g)] open-attempt block ─────────────────────────────────────
+// ── [LOAD-BEARING (g)] open-attempt resume ────────────────────────────────────
 
-// TestStartAttempt_OpenAttemptExists_ReturnsErrAttemptOpen verifies the block.
-// Spec: REQ-START (g).
-func TestStartAttempt_OpenAttemptExists_ReturnsErrAttemptOpen(t *testing.T) {
+// TestStartAttempt_OpenAttemptExists_ResumesIt verifies that StartAttempt RESUMES
+// an existing open attempt instead of blocking with ErrAttemptOpen.
+// The open attempt is returned as-is; no new attempt is created (CreateAttempt NOT called).
+// The intentos_max guard is NOT applied on a resume path.
+// Spec: REQ-START resume-on-start (UX fix).
+func TestStartAttempt_OpenAttemptExists_ResumesIt(t *testing.T) {
 	repo := &mockEvalRepo{}
 	checker := &testutil.MockCoursesChecker{}
 	svc := newSvc(repo, checker)
 
 	userID := uuid.New().String()
 	eval := evalFixture(uuid.New().String())
+	eval.IntentosMax = 1 // would block a NEW attempt, but resume bypasses this
 	existingOpen := openAttempt(eval.ID, userID)
 
 	repo.On("GetEvaluationByID", mock.Anything, eval.ID).Return(eval, nil)
-	// GetOpenAttempt returns an existing open attempt.
+	// GetOpenAttempt returns the existing open attempt.
 	repo.On("GetOpenAttempt", mock.Anything, userID, eval.ID).Return(existingOpen, nil)
+	// CRITICAL: CreateAttempt must NOT be called — we are resuming, not creating.
 
-	_, err := svc.StartAttempt(context.Background(), eval.ID, userID)
-	assert.ErrorIs(t, err, ErrAttemptOpen,
-		"[LOAD-BEARING (g)] existing open attempt must return ErrAttemptOpen")
+	result, err := svc.StartAttempt(context.Background(), eval.ID, userID)
+
+	require.NoError(t, err, "[LOAD-BEARING (g)] open attempt must be resumed, not blocked")
+	require.NotNil(t, result)
+	assert.Equal(t, existingOpen.ID, result.ID,
+		"[LOAD-BEARING (g)] resumed attempt must have the SAME id as the existing open one")
+	assert.Equal(t, existingOpen.Numero, result.Numero,
+		"[LOAD-BEARING (g)] resumed attempt must have the SAME numero as the existing open one")
+	// AssertExpectations verifies CreateAttempt was NOT called (it was never set up).
 	repo.AssertExpectations(t)
 }
 

@@ -61,11 +61,6 @@ var (
 	// Maps to 409 Conflict.
 	ErrAttemptAlreadySubmitted = errors.New("attempt already submitted")
 
-	// ErrAttemptOpen is returned when StartAttempt is called but the user already
-	// has an open (unsubmitted) attempt for the same evaluation.
-	// Maps to 409 Conflict.
-	ErrAttemptOpen = errors.New("an open attempt already exists")
-
 	// ErrInvalidAnswer is returned when the supplied (questionID, optionID) pair
 	// is not valid for the attempt's evaluation (option does not belong to the
 	// question, or question does not belong to the evaluation).

@@ -8,6 +8,7 @@
  *  - FE-4-D LOAD-BEARING: rendered options contain NO correctness indicator (no leak in UI)
  *  - FE-4-E: 409 on start → friendly blocked state
  *  - FE-4-F LOAD-BEARING: navigate uses absolute /platform-prefixed path (C2.2 bug class)
+ *  - FE-4-G LOAD-BEARING: resumed attempt pre-selects previously saved answers from state.answers
  */
 import { TestBed } from '@angular/core/testing';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -284,6 +285,51 @@ describe('EvaluacionTomarComponent', () => {
         expect((opt as Record<string, unknown>)['correcta']).toBeUndefined();
       }
     }
+  });
+
+  // ── FE-4-G LOAD-BEARING: resumed attempt pre-selects existing answers ─────────
+
+  it('FE-4-G LOAD-BEARING: resumed attempt pre-populates selectedAnswer() from state.answers', async () => {
+    // This fixture represents a state returned by the backend for a RESUMED attempt:
+    // the student already answered q-1 with opt-paris in a previous session.
+    const RESUMED_STATE: AttemptState = {
+      attemptId: 'att-1',
+      numero: 1,
+      submitted: false,
+      puntaje: 0,
+      aprobado: false,
+      questions: MOCK_STATE.questions,
+      answers: [
+        { questionId: 'q-1', optionId: 'opt-paris' }, // previously saved answer
+      ],
+    };
+    attemptSpy.getAttempt = vi.fn().mockResolvedValue(RESUMED_STATE);
+
+    const fixture = await createComponent(attemptSpy, uiSpy);
+    const comp = fixture.componentInstance;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (comp as any)['evaluationId'] = 'eval-1';
+    await comp.startAttempt();
+
+    // The component must have mapped state.answers into the answers map so
+    // the student's prior selection is visible without re-selecting.
+    expect(comp.selectedAnswer('q-1')).toBe('opt-paris');
+    // Questions without a saved answer should still return null.
+    expect(comp.selectedAnswer('q-2')).toBeNull();
+  });
+
+  it('FE-4-G: fresh attempt (empty answers array) leaves all selections null', async () => {
+    // MOCK_STATE has answers: [] — the default fixture used in most tests.
+    const fixture = await createComponent(attemptSpy, uiSpy);
+    const comp = fixture.componentInstance;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (comp as any)['evaluationId'] = 'eval-1';
+    await comp.startAttempt();
+
+    expect(comp.selectedAnswer('q-1')).toBeNull();
+    expect(comp.selectedAnswer('q-2')).toBeNull();
   });
 
   // ── FE-4-E: 409 on start — blocked state ─────────────────────────────────────
