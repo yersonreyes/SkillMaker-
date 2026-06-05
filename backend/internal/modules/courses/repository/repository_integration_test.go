@@ -230,10 +230,11 @@ func TestMigration0004Down_ReversesSchema(t *testing.T) {
 	db, m, teardown := testutil.SetupPostgresWithMigrate(t)
 	defer teardown()
 
-	// All migrations up (0001–0008) are applied by SetupPostgresWithMigrate.
-	// Roll back 5 steps: first 0008, then 0007, then 0006, then 0005, then 0004.
-	err := m.Steps(-5)
-	require.NoError(t, err, "m.Steps(-5) must roll back 0008+0007+0006+0005+0004 without error (SCH-1-B)")
+	// All migrations up (0001–0009) are applied by SetupPostgresWithMigrate.
+	// Roll back 6 steps: first 0009, then 0008, then 0007, then 0006, then 0005, then 0004.
+	// NOTE (C2.4): migration 0009 was added; -5 now rolls back 0009+0008+0007+0006+0005, so we need -6 to also roll back 0004.
+	err := m.Steps(-6)
+	require.NoError(t, err, "m.Steps(-6) must roll back 0009+0008+0007+0006+0005+0004 without error (SCH-1-B)")
 
 	// Step 2: Assert storage_key is restored.
 	var storageKeyCount int64
@@ -678,13 +679,14 @@ func TestMigration0005RoundTrip(t *testing.T) {
 	assert.Equal(t, int64(1), tamanoCount,
 		"material.tamano_bytes must exist after 0005 up (AC8)")
 
-	// Apply DOWN four steps — rolls back 0008 then 0007 then 0006 then 0005 (all migrations 0001–0008 applied).
+	// Apply DOWN five steps — rolls back 0009 then 0008 then 0007 then 0006 then 0005 (all migrations 0001–0009 applied).
 	// NOTE (C3.1): migration 0006 was added; -1 now rolls back 0006 only, so we need -2.
 	// NOTE (C3.2): migration 0007 was added; -2 now rolls back 0007+0006, so we need -3.
-	// NOTE (C4.1): migration 0008 was added; -3 now rolls back 0008+0007+0006, so we need -4 to reach
+	// NOTE (C4.1): migration 0008 was added; -3 now rolls back 0008+0007+0006, so we need -4.
+	// NOTE (C2.4): migration 0009 was added; -4 now rolls back 0009+0008+0007+0006, so we need -5 to reach
 	// the post-0005-down state where mime_type and tamano_bytes are removed.
-	err = m.Steps(-4)
-	require.NoError(t, err, "m.Steps(-4) must roll back 0008+0007+0006+0005 without error (AC8)")
+	err = m.Steps(-5)
+	require.NoError(t, err, "m.Steps(-5) must roll back 0009+0008+0007+0006+0005 without error (AC8)")
 
 	// Verify mime_type is gone after 0005 down.
 	err = db.Raw(
@@ -877,4 +879,301 @@ func TestListByEstado_OrderedByCreatedAtASC(t *testing.T) {
 	require.Len(t, rows, 2)
 	assert.True(t, rows[0].CreatedAt.Before(rows[1].CreatedAt) || rows[0].CreatedAt.Equal(rows[1].CreatedAt),
 		"rows must be ordered by created_at ASC")
+}
+
+// ── TestMigration0009RoundTrip (C2.4 / REQ-SCH / AC-13) ─────────────────────
+
+// TestMigration0009RoundTrip verifies migration 0009 up/down round-trip:
+//   - up adds completado boolean NOT NULL DEFAULT false to enrollment.
+//   - m.Steps(-1) drops it cleanly.
+//   - existing enrollment rows receive completado=false after up.
+//
+// Spec: REQ-SCH / AC-13.
+func TestMigration0009RoundTrip(t *testing.T) {
+	db, m, teardown := testutil.SetupPostgresWithMigrate(t)
+	defer teardown()
+
+	// After SetupPostgresWithMigrate, all migrations (0001–0009) are applied.
+
+	// Verify completado column exists after 0009 up.
+	var completadoCount int64
+	err := db.Raw(
+		`SELECT COUNT(*) FROM information_schema.columns
+		 WHERE table_name = 'enrollment' AND column_name = 'completado'`,
+	).Scan(&completadoCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), completadoCount,
+		"enrollment.completado must exist after 0009 up (AC-13)")
+
+	// Verify the column is NOT NULL with DEFAULT false.
+	var columnDefault string
+	err = db.Raw(
+		`SELECT column_default FROM information_schema.columns
+		 WHERE table_name = 'enrollment' AND column_name = 'completado'`,
+	).Scan(&columnDefault).Error
+	require.NoError(t, err)
+	assert.Contains(t, columnDefault, "false",
+		"enrollment.completado must have DEFAULT false after 0009 up (AC-13)")
+
+	// Roll back 1 step — drops 0009 (completado column).
+	err = m.Steps(-1)
+	require.NoError(t, err,
+		"m.Steps(-1) must roll back 0009 (completado column) without error (AC-13)")
+
+	// Verify completado is gone after 0009 down.
+	err = db.Raw(
+		`SELECT COUNT(*) FROM information_schema.columns
+		 WHERE table_name = 'enrollment' AND column_name = 'completado'`,
+	).Scan(&completadoCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), completadoCount,
+		"enrollment.completado must be dropped after 0009 down (AC-13)")
+}
+
+// ── Catalog repository tests (C2.4 / REQ-CATALOG / REQ-ENROLL / REQ-MYCOURSES) ──
+
+// TestListApproved_FiltersAndPaginates verifies:
+//   - only aprobado courses appear (borrador/en_revision/rechazado excluded)
+//   - ?q ILIKE filtering on titulo
+//   - paginated results: page/size/total/totalPages
+//   - creadorNombre is the joined user.nombre, not UUID
+//
+// Spec: REQ-CATALOG / AC-1,2,3,4.
+func TestListApproved_FiltersAndPaginates(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+
+	// Seed 1 borrador (must NOT appear), 1 en_revision (must NOT), 1 aprobado (MUST appear).
+	borradorCourse := seedCourse(t, repo, creadorID, "Borrador Angular")
+	_ = borradorCourse // borrador by default
+	enRevisionCourse := seedCourse(t, repo, creadorID, "En Revision React")
+	require.NoError(t, repo.UpdateEstado(context.Background(), enRevisionCourse.ID, domain.EstadoEnRevision))
+	aprobadoCourse := seedCourse(t, repo, creadorID, "Aprobado Go Course")
+	require.NoError(t, repo.UpdateEstado(context.Background(), aprobadoCourse.ID, domain.EstadoAprobado))
+
+	// ListApproved with no filter — only 1 aprobado should appear.
+	page, err := repo.ListApproved(context.Background(), pagination.Params{Page: 1, Size: 20}, "")
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), page.Total, "total must be 1 (only aprobado courses)")
+	assert.Len(t, page.Items, 1, "items must contain only the aprobado course")
+	assert.Equal(t, aprobadoCourse.ID, page.Items[0].ID, "item must be the aprobado course")
+	// creadorNombre must be the joined user.nombre, not UUID.
+	assert.Equal(t, "Test User", page.Items[0].CreadorNombre,
+		"creadorNombre must be user.nombre (not UUID)")
+
+	// Add another aprobado course for ILIKE / pagination tests.
+	angularCourse := seedCourse(t, repo, creadorID, "Angular Avanzado")
+	require.NoError(t, repo.UpdateEstado(context.Background(), angularCourse.ID, domain.EstadoAprobado))
+
+	// Test ILIKE search: ?q=angular — must return only "Angular Avanzado".
+	filtered, err := repo.ListApproved(context.Background(), pagination.Params{Page: 1, Size: 20}, "angular")
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), filtered.Total, "ILIKE filter must return only matching course")
+	assert.Equal(t, angularCourse.ID, filtered.Items[0].ID,
+		"ILIKE must find 'Angular Avanzado' via case-insensitive match on 'angular'")
+
+	// Pagination: 2 aprobado courses, size=1 → page 1 returns 1 item, totalPages=2.
+	paged, err := repo.ListApproved(context.Background(), pagination.Params{Page: 1, Size: 1}, "")
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), paged.Total, "total must be 2 (two aprobado courses)")
+	assert.Equal(t, 2, paged.TotalPages, "totalPages must be ceil(2/1)=2")
+	assert.Len(t, paged.Items, 1, "page 1 with size=1 must return 1 item")
+}
+
+// TestCreateEnrollment_Idempotent verifies:
+//   - CreateEnrollment creates a row on first call
+//   - Second call (same user+course) is a no-op (ON CONFLICT DO NOTHING) — no error, one DB row
+//
+// Spec: REQ-ENROLL / AC-5.
+func TestCreateEnrollment_Idempotent(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+	userID := seedUser(t, db)
+	course := seedCourse(t, repo, creadorID, "Enrollment Test Course")
+	require.NoError(t, repo.UpdateEstado(context.Background(), course.ID, domain.EstadoAprobado))
+
+	// First enrollment — must succeed.
+	err := repo.CreateEnrollment(context.Background(), userID, course.ID)
+	require.NoError(t, err, "first enrollment must succeed")
+
+	// Verify row exists via IsEnrolled.
+	enrolled, err := repo.IsEnrolled(context.Background(), userID, course.ID)
+	require.NoError(t, err)
+	assert.True(t, enrolled, "IsEnrolled must return true after first enrollment")
+
+	// Second enrollment (idempotent) — must also succeed (ON CONFLICT DO NOTHING).
+	err = repo.CreateEnrollment(context.Background(), userID, course.ID)
+	require.NoError(t, err, "second enrollment must be a no-op (idempotent)")
+
+	// Verify still exactly one DB row (not two).
+	var rowCount int64
+	require.NoError(t, db.Raw(
+		`SELECT COUNT(*) FROM enrollment WHERE user_id = ? AND course_id = ?`,
+		userID, course.ID,
+	).Scan(&rowCount).Error)
+	assert.Equal(t, int64(1), rowCount,
+		"second enrollment must not create a duplicate row (UNIQUE ON CONFLICT DO NOTHING)")
+}
+
+// TestIsEnrolled_ScopedPerUserAndCourse verifies IsEnrolled scoping.
+//
+// Spec: REQ-ENROLL / AC-5.
+func TestIsEnrolled_ScopedPerUserAndCourse(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+	userA := seedUser(t, db)
+	userB := seedUser(t, db)
+	course := seedCourse(t, repo, creadorID, "Scoping Test")
+	require.NoError(t, repo.UpdateEstado(context.Background(), course.ID, domain.EstadoAprobado))
+
+	// Enroll only userA.
+	require.NoError(t, repo.CreateEnrollment(context.Background(), userA, course.ID))
+
+	enrolled, err := repo.IsEnrolled(context.Background(), userA, course.ID)
+	require.NoError(t, err)
+	assert.True(t, enrolled, "IsEnrolled must be true for enrolled user")
+
+	notEnrolled, err := repo.IsEnrolled(context.Background(), userB, course.ID)
+	require.NoError(t, err)
+	assert.False(t, notEnrolled, "IsEnrolled must be false for user who never enrolled")
+}
+
+// TestMarkCompleted_FlipsAndNoOp verifies:
+//   - MarkCompleted sets completado=true for an existing enrollment
+//   - MarkCompleted with no enrollment row → nil (no-op, no error)
+//
+// Spec: REQ-SEAM / AC-10.
+func TestMarkCompleted_FlipsAndNoOp(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+	userID := seedUser(t, db)
+	course := seedCourse(t, repo, creadorID, "MarkCompleted Test")
+	require.NoError(t, repo.UpdateEstado(context.Background(), course.ID, domain.EstadoAprobado))
+
+	// Enroll user.
+	require.NoError(t, repo.CreateEnrollment(context.Background(), userID, course.ID))
+
+	// Verify completado=false initially.
+	var completado bool
+	require.NoError(t, db.Raw(
+		`SELECT completado FROM enrollment WHERE user_id = ? AND course_id = ?`,
+		userID, course.ID,
+	).Scan(&completado).Error)
+	assert.False(t, completado, "completado must be false initially")
+
+	// MarkCompleted → completado=true.
+	err := repo.MarkCompleted(context.Background(), userID, course.ID)
+	require.NoError(t, err, "MarkCompleted must succeed")
+
+	require.NoError(t, db.Raw(
+		`SELECT completado FROM enrollment WHERE user_id = ? AND course_id = ?`,
+		userID, course.ID,
+	).Scan(&completado).Error)
+	assert.True(t, completado, "completado must be true after MarkCompleted")
+
+	// No-op path: MarkCompleted when no enrollment row → nil, no row created.
+	randomUser := seedUser(t, db)
+	err = repo.MarkCompleted(context.Background(), randomUser, course.ID)
+	assert.NoError(t, err, "MarkCompleted on missing enrollment must be a no-op (nil error)")
+}
+
+// TestListEnrollmentsByUser_OrderedAndScoped verifies:
+//   - returns only THIS user's enrollment rows
+//   - carries titulo, creadorNombre, completado, inscritoEn
+//   - ordered by inscrito_en DESC
+//
+// Spec: REQ-MYCOURSES / AC-7.
+func TestListEnrollmentsByUser_OrderedAndScoped(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+	userA := seedUser(t, db)
+	userB := seedUser(t, db)
+
+	courseA := seedCourse(t, repo, creadorID, "Go Course")
+	require.NoError(t, repo.UpdateEstado(context.Background(), courseA.ID, domain.EstadoAprobado))
+	courseB := seedCourse(t, repo, creadorID, "Angular Course")
+	require.NoError(t, repo.UpdateEstado(context.Background(), courseB.ID, domain.EstadoAprobado))
+
+	// Enroll userA in both courses.
+	require.NoError(t, repo.CreateEnrollment(context.Background(), userA, courseA.ID))
+	require.NoError(t, repo.CreateEnrollment(context.Background(), userA, courseB.ID))
+	// Enroll userB in courseA only (must NOT appear in userA's result).
+	require.NoError(t, repo.CreateEnrollment(context.Background(), userB, courseA.ID))
+
+	rows, err := repo.ListEnrollmentsByUser(context.Background(), userA)
+	require.NoError(t, err)
+	assert.Len(t, rows, 2, "userA must have exactly 2 enrollments")
+
+	// All rows must belong to userA's courses only.
+	for _, r := range rows {
+		assert.NotEmpty(t, r.CourseID, "CourseID must not be empty")
+		assert.NotEmpty(t, r.Titulo, "Titulo must not be empty")
+		assert.NotEmpty(t, r.CreadorNombre, "CreadorNombre must be the joined user.nombre")
+		assert.Equal(t, "Test User", r.CreadorNombre,
+			"CreadorNombre must be the user.nombre (not UUID)")
+	}
+
+	// userB's enrollment must NOT appear.
+	courseIDs := make([]string, 0, len(rows))
+	for _, r := range rows {
+		courseIDs = append(courseIDs, r.CourseID)
+	}
+	// Both rows should be userA's courses.
+	assert.Contains(t, courseIDs, courseA.ID)
+	assert.Contains(t, courseIDs, courseB.ID)
+
+	// Verify userB's list has only 1 row.
+	bRows, err := repo.ListEnrollmentsByUser(context.Background(), userB)
+	require.NoError(t, err)
+	assert.Len(t, bRows, 1, "userB must have exactly 1 enrollment (isolation)")
+}
+
+// TestGetApprovedDetail_ReturnsOnlyAprobado verifies GetApprovedDetail:
+//   - returns detail for aprobado courses
+//   - returns ErrCourseNotFound for borrador (draft invisibility)
+//   - returns ErrCourseNotFound for non-existent id
+//
+// Spec: REQ-DETAIL / AC-1,9.
+func TestGetApprovedDetail_ReturnsOnlyAprobado(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+
+	aprobado := seedCourse(t, repo, creadorID, "Public Go Course")
+	require.NoError(t, repo.UpdateEstado(context.Background(), aprobado.ID, domain.EstadoAprobado))
+	borrador := seedCourse(t, repo, creadorID, "Private Draft Course")
+
+	// Aprobado course must be found.
+	detail, err := repo.GetApprovedDetail(context.Background(), aprobado.ID)
+	require.NoError(t, err, "GetApprovedDetail must succeed for aprobado course")
+	assert.Equal(t, aprobado.ID, detail.ID)
+	assert.Equal(t, "Test User", detail.CreadorNombre,
+		"CreadorNombre must be the joined user.nombre")
+
+	// Borrador must return ErrCourseNotFound (draft-invisibility).
+	_, err = repo.GetApprovedDetail(context.Background(), borrador.ID)
+	assert.ErrorIs(t, err, repository.ErrCourseNotFound,
+		"GetApprovedDetail on borrador must return ErrCourseNotFound (draft-invisibility)")
+
+	// Non-existent ID.
+	_, err = repo.GetApprovedDetail(context.Background(), uuid.New().String())
+	assert.ErrorIs(t, err, repository.ErrCourseNotFound,
+		"GetApprovedDetail on missing id must return ErrCourseNotFound")
 }

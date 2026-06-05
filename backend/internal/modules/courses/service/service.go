@@ -61,6 +61,41 @@ type VideoModel struct {
 	CreatedAt time.Time
 }
 
+// ── C2.4 catalog read models ───────────────────────────────────────────────────
+
+// CatalogCourseModel is the service-layer read model for an approved-course card.
+// Mirrors repository.CatalogCourseModel so handlers/DTOs never import repository.
+type CatalogCourseModel struct {
+	ID            string
+	Titulo        string
+	Descripcion   string
+	CreadorNombre string
+	CreatedAt     time.Time
+}
+
+// MyCourseModel is the service-layer read model for GET /users/me/courses.
+type MyCourseModel struct {
+	CourseID      string
+	Titulo        string
+	CreadorNombre string
+	Completado    bool
+	InscritoEn    time.Time
+}
+
+// CatalogDetailModel is a discriminated union for GET /catalog/:id.
+// When Enrolled=false, Sections and Materiales are nil (preview — structural no-leak).
+// When Enrolled=true, Sections and Materiales are populated.
+// The handler maps this to TWO distinct DTOs (CoursePreviewResponse vs CourseDetailAlumnoResponse).
+type CatalogDetailModel struct {
+	ID            string
+	Titulo        string
+	Descripcion   string
+	CreadorNombre string
+	Enrolled      bool
+	Sections      []SectionWithVideosModel // nil when !Enrolled
+	Materiales    []MaterialModel          // nil when !Enrolled
+}
+
 // CourseSummary is the cross-module read model returned by ListByEstado.
 // It is the canonical type for the approvals seam — approvals' CourseStateManager
 // declares ListByEstado returning []CourseSummary (matching evaluations' precedent of
@@ -260,6 +295,29 @@ type Service interface {
 	// Owner-gated (write): returns ErrNotOwner (→ 403) for non-owners.
 	// If the storage delete fails, the error is logged and swallowed (D5).
 	DeleteMaterial(ctx context.Context, materialID, creadorID string) error
+
+	// ── Catalog + enrollment methods (C2.4) ─────────────────────────────────────
+
+	// ListCatalog returns a paginated page of aprobado courses, optionally filtered
+	// by titulo ILIKE (q). Delegates to repo.ListApproved and maps to CatalogCourseModel.
+	ListCatalog(ctx context.Context, p pagination.Params, q string) (pagination.Page[CatalogCourseModel], error)
+
+	// GetCatalogDetail returns the detail for an aprobado course.
+	// Branches on enrollment: non-enrolled → preview (Enrolled=false, nil Sections);
+	// enrolled → full tree (Enrolled=true, Sections+Materiales populated).
+	// Returns ErrCourseNotFound if the course is missing or not aprobado.
+	GetCatalogDetail(ctx context.Context, userID, courseID string) (*CatalogDetailModel, error)
+
+	// Enroll enrolls userID in courseID. The course must have estado='aprobado';
+	// otherwise returns ErrCourseNotFound (draft-invisibility). Idempotent.
+	Enroll(ctx context.Context, userID, courseID string) error
+
+	// ListMyCourses returns all enrollments for userID, ordered by inscritoEn DESC.
+	ListMyCourses(ctx context.Context, userID string) ([]MyCourseModel, error)
+
+	// MarkEnrollmentCompleted satisfies the evaluations.EnrollmentCompleter seam.
+	// Sets completado=true for (userID, courseID). No-op if no enrollment row exists.
+	MarkEnrollmentCompleted(ctx context.Context, userID, courseID string) error
 
 	// ── Cross-module seam (C3.1) ─────────────────────────────────────────────────
 
@@ -652,6 +710,148 @@ func (s *serviceImpl) HasContent(ctx context.Context, courseID, creadorID string
 		return false, ErrNotOwner
 	}
 	return s.repo.HasContent(ctx, courseID)
+}
+
+// ── C2.4 catalog + enrollment implementations ─────────────────────────────────
+
+// ListCatalog delegates to repo.ListApproved and maps repository.CatalogCourseModel
+// → service.CatalogCourseModel. Handlers never import repository types.
+func (s *serviceImpl) ListCatalog(ctx context.Context, p pagination.Params, q string) (pagination.Page[CatalogCourseModel], error) {
+	rp, err := s.repo.ListApproved(ctx, p, q)
+	if err != nil {
+		return pagination.Page[CatalogCourseModel]{}, err
+	}
+
+	items := make([]CatalogCourseModel, 0, len(rp.Items))
+	for _, r := range rp.Items {
+		items = append(items, CatalogCourseModel{
+			ID:            r.ID,
+			Titulo:        r.Titulo,
+			Descripcion:   r.Descripcion,
+			CreadorNombre: r.CreadorNombre,
+			CreatedAt:     r.CreatedAt,
+		})
+	}
+	return pagination.Page[CatalogCourseModel]{
+		Items:      items,
+		Page:       rp.Page,
+		Size:       rp.Size,
+		Total:      rp.Total,
+		TotalPages: rp.TotalPages,
+	}, nil
+}
+
+// GetCatalogDetail returns the course detail for an alumno:
+//   - ErrCourseNotFound if missing or not aprobado (draft-invisibility).
+//   - Non-enrolled → CatalogDetailModel{Enrolled:false, Sections:nil, Materiales:nil}.
+//   - Enrolled → CatalogDetailModel{Enrolled:true} with full content tree.
+//
+// IMPORTANT: does NOT reuse ListContent (owner-gated). Uses buildContentTree instead.
+func (s *serviceImpl) GetCatalogDetail(ctx context.Context, userID, courseID string) (*CatalogDetailModel, error) {
+	d, err := s.repo.GetApprovedDetail(ctx, courseID)
+	if err != nil {
+		return nil, wrapNotFound(err)
+	}
+
+	enrolled, err := s.repo.IsEnrolled(ctx, userID, courseID)
+	if err != nil {
+		return nil, err
+	}
+
+	out := &CatalogDetailModel{
+		ID:            d.ID,
+		Titulo:        d.Titulo,
+		Descripcion:   d.Descripcion,
+		CreadorNombre: d.CreadorNombre,
+		Enrolled:      enrolled,
+	}
+
+	if enrolled {
+		sections, mats, err := s.buildContentTree(ctx, courseID)
+		if err != nil {
+			return nil, err
+		}
+		out.Sections = sections
+		out.Materiales = mats
+	}
+
+	return out, nil
+}
+
+// buildContentTree fetches sections+videos+materials for a course WITHOUT an ownership check.
+// Called only from GetCatalogDetail (alumno enrolled → already verified).
+// GOTCHA: do NOT reuse ListContent — it is owner-gated and returns ErrNotOwner.
+func (s *serviceImpl) buildContentTree(ctx context.Context, courseID string) ([]SectionWithVideosModel, []MaterialModel, error) {
+	sections, err := s.repo.ListSectionsByCourse(ctx, courseID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	sectionModels := make([]SectionWithVideosModel, 0, len(sections))
+	for i := range sections {
+		videos, err := s.repo.ListVideosBySection(ctx, sections[i].ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		videoModels := make([]VideoModel, 0, len(videos))
+		for j := range videos {
+			videoModels = append(videoModels, *toVideoModel(&videos[j]))
+		}
+		sectionModels = append(sectionModels, SectionWithVideosModel{
+			Section: *toSectionModel(&sections[i]),
+			Videos:  videoModels,
+		})
+	}
+
+	rawMats, err := s.repo.ListMaterialsByCourse(ctx, courseID)
+	if err != nil {
+		return nil, nil, err
+	}
+	matModels := make([]MaterialModel, 0, len(rawMats))
+	for i := range rawMats {
+		matModels = append(matModels, *toMaterialModel(&rawMats[i]))
+	}
+
+	return sectionModels, matModels, nil
+}
+
+// Enroll enrolls userID in courseID.
+// The course must have estado='aprobado'; otherwise returns ErrCourseNotFound (D5).
+// CreateEnrollment is idempotent (ON CONFLICT DO NOTHING).
+func (s *serviceImpl) Enroll(ctx context.Context, userID, courseID string) error {
+	c, err := s.repo.GetByID(ctx, courseID)
+	if err != nil {
+		return wrapNotFound(err)
+	}
+	if c.Estado != domain.EstadoAprobado {
+		return ErrCourseNotFound // 404 — draft-invisibility (D5)
+	}
+	return s.repo.CreateEnrollment(ctx, userID, courseID)
+}
+
+// ListMyCourses returns all enrollments for userID, ordered by inscritoEn DESC.
+func (s *serviceImpl) ListMyCourses(ctx context.Context, userID string) ([]MyCourseModel, error) {
+	rows, err := s.repo.ListEnrollmentsByUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]MyCourseModel, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, MyCourseModel{
+			CourseID:      r.CourseID,
+			Titulo:        r.Titulo,
+			CreadorNombre: r.CreadorNombre,
+			Completado:    r.Completado,
+			InscritoEn:    r.InscritoEn,
+		})
+	}
+	return out, nil
+}
+
+// MarkEnrollmentCompleted satisfies evaluations.EnrollmentCompleter.
+// Delegates to repo.MarkCompleted which is no-op when no enrollment row exists (D4).
+func (s *serviceImpl) MarkEnrollmentCompleted(ctx context.Context, userID, courseID string) error {
+	return s.repo.MarkCompleted(ctx, userID, courseID)
 }
 
 // ── Cross-module seam (C3.1) ───────────────────────────────────────────────────

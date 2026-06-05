@@ -209,6 +209,39 @@ func (m *mockCourseSvc) ListByEstado(ctx context.Context, estado string) ([]serv
 	return args.Get(0).([]service.CourseSummary), args.Error(1)
 }
 
+// ── C2.4 catalog + enrollment additions ──────────────────────────────────────
+
+func (m *mockCourseSvc) ListCatalog(ctx context.Context, p pagination.Params, q string) (pagination.Page[service.CatalogCourseModel], error) {
+	args := m.Called(ctx, p, q)
+	return args.Get(0).(pagination.Page[service.CatalogCourseModel]), args.Error(1)
+}
+
+func (m *mockCourseSvc) GetCatalogDetail(ctx context.Context, userID, courseID string) (*service.CatalogDetailModel, error) {
+	args := m.Called(ctx, userID, courseID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*service.CatalogDetailModel), args.Error(1)
+}
+
+func (m *mockCourseSvc) Enroll(ctx context.Context, userID, courseID string) error {
+	args := m.Called(ctx, userID, courseID)
+	return args.Error(0)
+}
+
+func (m *mockCourseSvc) ListMyCourses(ctx context.Context, userID string) ([]service.MyCourseModel, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]service.MyCourseModel), args.Error(1)
+}
+
+func (m *mockCourseSvc) MarkEnrollmentCompleted(ctx context.Context, userID, courseID string) error {
+	args := m.Called(ctx, userID, courseID)
+	return args.Error(0)
+}
+
 // ── Fixtures ───────────────────────────────────────────────────────────────────
 
 func courseModel(id, creadorID string) *service.CourseModel {

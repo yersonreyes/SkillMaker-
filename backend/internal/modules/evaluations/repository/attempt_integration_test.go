@@ -57,10 +57,10 @@ func TestMigration0007RoundTrip(t *testing.T) {
 	assert.Equal(t, int64(1), constraintCount,
 		"uq_answer_attempt_question UNIQUE constraint must exist after 0007 up")
 
-	// Roll back migration 0008 + 0007 (2 steps: 0008 first, then 0007).
-	// NOTE (C4.1): migration 0008 was added; -1 now rolls back 0008 only,
-	// so we need -2 to reach the state where 0007 has been reversed.
-	require.NoError(t, m.Steps(-2), "migration 0008+0007 down must succeed")
+	// Roll back migration 0009 + 0008 + 0007 (3 steps: 0009 first, then 0008, then 0007).
+	// NOTE (C4.1): migration 0008 was added; -1 now rolls back 0008 only, so we need -2.
+	// NOTE (C2.4): migration 0009 was added; -2 now rolls back 0009+0008, so we need -3 to reach the state where 0007 has been reversed.
+	require.NoError(t, m.Steps(-3), "migration 0009+0008+0007 down must succeed")
 
 	// Verify the constraint is gone (0007 was rolled back).
 	err = db.WithContext(ctx).Raw(

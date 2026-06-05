@@ -53,3 +53,10 @@ func NewService(r Repository, store storage.Client, presignTTL time.Duration, ma
 func RegisterRoutes(creatorGrp *gin.RouterGroup, svc Service) {
 	handler.Register(creatorGrp, svc)
 }
+
+// RegisterCatalogRoutes mounts the alumno-facing catalog + enrollment routes.
+// The group must already carry JWT middleware (protected) — NO RequireRole.
+// Routes: GET /catalog, GET /catalog/:id, POST /catalog/:id/enroll, GET /users/me/courses.
+func RegisterCatalogRoutes(protectedGrp *gin.RouterGroup, svc Service) {
+	handler.RegisterCatalog(protectedGrp, svc)
+}

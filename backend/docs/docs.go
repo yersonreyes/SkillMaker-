@@ -324,6 +324,167 @@ const docTemplate = `{
                 }
             }
         },
+        "/catalog": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retorna una página de cursos con estado='aprobado'. Soporta ?page, ?size, ?q (ILIKE titulo).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalog"
+                ],
+                "summary": "Lista cursos aprobados (catálogo público para alumnos)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Página (default 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Tamaño de página (max 100, default 20)",
+                        "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filtro ILIKE en titulo",
+                        "name": "q",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Página de CatalogCourseCard (items, page, size, total, totalPages)",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/catalog/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retorna preview (enrolled=false) o árbol completo (enrolled=true) según inscripción.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalog"
+                ],
+                "summary": "Detalle de un curso aprobado (alumno)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID del curso",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "enrolled — árbol completo",
+                        "schema": {
+                            "$ref": "#/definitions/dto.CourseDetailAlumnoResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "curso no encontrado o no aprobado",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/catalog/{id}/enroll": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Crea una fila de enrollment. Idempotente: segunda llamada devuelve 200 sin duplicar.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalog"
+                ],
+                "summary": "Inscribe al alumno en un curso aprobado (idempotente)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID del curso",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.EnrollmentResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "JWT requerido",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "curso no encontrado o no aprobado",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/courses": {
             "get": {
                 "security": [
@@ -2318,6 +2479,46 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/me/courses": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retorna los enrollments del caller con titulo, creadorNombre, completado, inscritoEn.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalog"
+                ],
+                "summary": "Lista los cursos en los que está inscrito el alumno autenticado",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dto.MyCourseItem"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "JWT requerido",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{id}": {
             "get": {
                 "security": [
@@ -2824,6 +3025,60 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.CourseDetailAlumnoResponse": {
+            "type": "object",
+            "properties": {
+                "creadorNombre": {
+                    "type": "string"
+                },
+                "descripcion": {
+                    "type": "string"
+                },
+                "enrolled": {
+                    "description": "always true",
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "materiales": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.MaterialResponse"
+                    }
+                },
+                "secciones": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.SectionWithVideosResponse"
+                    }
+                },
+                "titulo": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.CoursePreviewResponse": {
+            "type": "object",
+            "properties": {
+                "creadorNombre": {
+                    "type": "string"
+                },
+                "descripcion": {
+                    "type": "string"
+                },
+                "enrolled": {
+                    "description": "always false",
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "titulo": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.CreateCourseRequest": {
             "type": "object",
             "required": [
@@ -2849,6 +3104,18 @@ const docTemplate = `{
                 },
                 "url": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.EnrollmentResponse": {
+            "type": "object",
+            "properties": {
+                "courseId": {
+                    "type": "string"
+                },
+                "enrolled": {
+                    "description": "always true on 200",
+                    "type": "boolean"
                 }
             }
         },
@@ -3017,6 +3284,26 @@ const docTemplate = `{
                 },
                 "tamanoBytes": {
                     "type": "integer"
+                }
+            }
+        },
+        "dto.MyCourseItem": {
+            "type": "object",
+            "properties": {
+                "completado": {
+                    "type": "boolean"
+                },
+                "courseId": {
+                    "type": "string"
+                },
+                "creadorNombre": {
+                    "type": "string"
+                },
+                "inscritoEn": {
+                    "type": "string"
+                },
+                "titulo": {
+                    "type": "string"
                 }
             }
         },

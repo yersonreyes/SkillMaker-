@@ -99,11 +99,14 @@ func main() {
 	// Courses module — creador-only routes.
 	creatorGrp := protected.Group("", middleware.RequireRole("creador"))
 	courses.RegisterRoutes(creatorGrp, coursesSvc)
+	// Catalog + enrollment (C2.4) — alumno-facing, JWT-only (no RequireRole).
+	courses.RegisterCatalogRoutes(protected, coursesSvc)
 
-	// Evaluations module (C3.1 + C3.2) — coursesSvc satisfies evaluations.CoursesChecker structurally.
-	// Seams (EnrollmentCompleter, CertificateIssuer) stay nil in C3.2; wired in C2.4 / C5.1.
+	// Evaluations module (C3.1 + C3.2 + C2.4) — coursesSvc satisfies evaluations.CoursesChecker structurally.
+	// C2.4: WithEnrollmentCompleter wired — coursesSvc satisfies evaluations.EnrollmentCompleter structurally
+	// (MarkEnrollmentCompleted on the public courses.Service interface).
 	evaluationsRepo := evaluations.NewRepository(db)
-	evaluationsSvc := evaluations.NewService(evaluationsRepo, coursesSvc)
+	evaluationsSvc := evaluations.NewService(evaluationsRepo, coursesSvc, evaluations.WithEnrollmentCompleter(coursesSvc))
 	evaluations.RegisterRoutes(creatorGrp, evaluationsSvc)
 	// C3.2: student attempt lifecycle on the JWT-only protected group (no RequireRole restriction).
 	evaluations.RegisterStudentRoutes(protected, evaluationsSvc)

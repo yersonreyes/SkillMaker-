@@ -19,6 +19,28 @@ import (
 // ErrCourseNotFound is returned when a course lookup finds no matching row.
 var ErrCourseNotFound = errors.New("course not found")
 
+// ── Catalog read models (C2.4) ─────────────────────────────────────────────────
+
+// CatalogCourseModel is the read model for an approved-course catalog card,
+// carrying the creator's DISPLAY NAME (joined from "user") — not the UUID.
+type CatalogCourseModel struct {
+	ID            string
+	Titulo        string
+	Descripcion   string
+	CreadorNombre string
+	CreatedAt     time.Time
+}
+
+// EnrollmentWithCourseModel is the read model for GET /users/me/courses.
+// It joins enrollment + course + "user" to get all fields needed by the alumno.
+type EnrollmentWithCourseModel struct {
+	CourseID      string
+	Titulo        string
+	CreadorNombre string
+	Completado    bool
+	InscritoEn    time.Time
+}
+
 // ErrSectionNotFound is returned when a section lookup finds no matching row.
 var ErrSectionNotFound = errors.New("section not found")
 
@@ -109,6 +131,34 @@ type Repository interface {
 	// ListByEstado returns all courses with the given estado, ordered by created_at ASC.
 	// Used by the approvals module to list pending courses (en_revision).
 	ListByEstado(ctx context.Context, estado domain.Estado) ([]domain.Course, error)
+
+	// ── Catalog + enrollment methods (C2.4) ─────────────────────────────────────
+
+	// ListApproved returns a paginated page of courses with estado='aprobado',
+	// optionally filtered by titulo ILIKE (case-insensitive). The CatalogCourseModel
+	// carries the creator's nombre (joined from "user"), not the UUID.
+	// Count runs BEFORE the Select chain to avoid the GORM Count+Select gotcha.
+	ListApproved(ctx context.Context, p pagination.Params, q string) (pagination.Page[CatalogCourseModel], error)
+
+	// GetApprovedDetail fetches one aprobado course + creator name.
+	// Returns ErrCourseNotFound when the course is missing OR not aprobado (draft-invisibility).
+	GetApprovedDetail(ctx context.Context, courseID string) (*CatalogCourseModel, error)
+
+	// CreateEnrollment creates an enrollment row for (userID, courseID).
+	// Idempotent: ON CONFLICT (user_id, course_id) DO NOTHING — no error on duplicate.
+	CreateEnrollment(ctx context.Context, userID, courseID string) error
+
+	// IsEnrolled returns true when an enrollment row for (userID, courseID) exists.
+	IsEnrolled(ctx context.Context, userID, courseID string) (bool, error)
+
+	// ListEnrollmentsByUser returns all enrollment rows for the given userID,
+	// joining course + "user" for titulo, creadorNombre, completado, inscritoEn.
+	// Ordered by inscrito_en DESC. Scoped strictly to userID.
+	ListEnrollmentsByUser(ctx context.Context, userID string) ([]EnrollmentWithCourseModel, error)
+
+	// MarkCompleted sets completado=true for the (userID, courseID) enrollment row.
+	// No-op (nil, no error) when no matching row exists (0 rows affected).
+	MarkCompleted(ctx context.Context, userID, courseID string) error
 
 	// ── Material methods (C2.3) ────────────────────────────────────────────────
 
@@ -421,6 +471,107 @@ func (r *gormRepository) ListByEstado(ctx context.Context, estado domain.Estado)
 		Order("created_at ASC").
 		Find(&courses).Error
 	return courses, err
+}
+
+// ── Catalog + enrollment implementations (C2.4) ────────────────────────────────
+
+// ListApproved returns a paginated page of aprobado courses.
+// GOTCHA: Count must run on a base WITHOUT Select to avoid GORM "column ambiguous" errors.
+// Only AFTER Count does the chain apply Select + Order + Offset + Limit.
+func (r *gormRepository) ListApproved(ctx context.Context, p pagination.Params, q string) (pagination.Page[CatalogCourseModel], error) {
+	base := r.db.WithContext(ctx).
+		Table("course").
+		Joins(`JOIN "user" ON "user".id = course.creador_id`).
+		Where("course.estado = ?", "aprobado")
+	if q != "" {
+		base = base.Where("course.titulo ILIKE ?", "%"+q+"%")
+	}
+
+	// COUNT first (no Select) — avoids the GORM Count+Select gotcha (§3).
+	var total int64
+	if err := base.Count(&total).Error; err != nil {
+		return pagination.Page[CatalogCourseModel]{}, err
+	}
+
+	var rows []CatalogCourseModel
+	err := base.
+		Select(`course.id AS id, course.titulo AS titulo, course.descripcion AS descripcion,
+		         "user".nombre AS creador_nombre, course.created_at AS created_at`).
+		Order("course.created_at DESC").
+		Offset(p.Offset()).Limit(p.Limit()).
+		Scan(&rows).Error
+	if err != nil {
+		return pagination.Page[CatalogCourseModel]{}, err
+	}
+	return pagination.NewPage(rows, total, p), nil
+}
+
+// GetApprovedDetail fetches one aprobado course by ID + creator name.
+// Returns ErrCourseNotFound when missing OR not aprobado (hides drafts from alumno).
+// NOTE: .Scan on a struct with no matching row sets RowsAffected==0, not gorm.ErrRecordNotFound.
+func (r *gormRepository) GetApprovedDetail(ctx context.Context, courseID string) (*CatalogCourseModel, error) {
+	var row CatalogCourseModel
+	result := r.db.WithContext(ctx).
+		Table("course").
+		Joins(`JOIN "user" ON "user".id = course.creador_id`).
+		Where("course.id = ? AND course.estado = ?", courseID, "aprobado").
+		Select(`course.id AS id, course.titulo AS titulo, course.descripcion AS descripcion,
+		         "user".nombre AS creador_nombre, course.created_at AS created_at`).
+		Scan(&row)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, ErrCourseNotFound
+	}
+	return &row, nil
+}
+
+// CreateEnrollment inserts an enrollment row. Idempotent via ON CONFLICT DO NOTHING
+// on the existing uq_enrollment_user_course UNIQUE constraint (migration 0003).
+func (r *gormRepository) CreateEnrollment(ctx context.Context, userID, courseID string) error {
+	return r.db.WithContext(ctx).Exec(
+		`INSERT INTO enrollment (id, user_id, course_id, inscrito_en, completado)
+		 VALUES (gen_random_uuid(), ?, ?, now(), false)
+		 ON CONFLICT (user_id, course_id) DO NOTHING`,
+		userID, courseID,
+	).Error
+}
+
+// IsEnrolled returns true when a (userID, courseID) enrollment row exists.
+func (r *gormRepository) IsEnrolled(ctx context.Context, userID, courseID string) (bool, error) {
+	var exists bool
+	err := r.db.WithContext(ctx).Raw(
+		`SELECT EXISTS(SELECT 1 FROM enrollment WHERE user_id = ? AND course_id = ?)`,
+		userID, courseID,
+	).Scan(&exists).Error
+	return exists, err
+}
+
+// ListEnrollmentsByUser returns all enrollment rows for userID, joining course + "user".
+// "user" is quoted — it is a reserved word in Postgres (users-repo precedent).
+// Ordered by inscrito_en DESC.
+func (r *gormRepository) ListEnrollmentsByUser(ctx context.Context, userID string) ([]EnrollmentWithCourseModel, error) {
+	var rows []EnrollmentWithCourseModel
+	err := r.db.WithContext(ctx).
+		Table("enrollment e").
+		Joins("JOIN course c ON c.id = e.course_id").
+		Joins(`JOIN "user" u ON u.id = c.creador_id`).
+		Where("e.user_id = ?", userID).
+		Select(`e.course_id AS course_id, c.titulo AS titulo, u.nombre AS creador_nombre,
+		         e.completado AS completado, e.inscrito_en AS inscrito_en`).
+		Order("e.inscrito_en DESC").
+		Scan(&rows).Error
+	return rows, err
+}
+
+// MarkCompleted sets completado=true for the (userID, courseID) enrollment.
+// No-op (nil, no error) when no matching row — RowsAffected==0 is not an error (D4).
+func (r *gormRepository) MarkCompleted(ctx context.Context, userID, courseID string) error {
+	return r.db.WithContext(ctx).
+		Model(&domain.Enrollment{}).
+		Where("user_id = ? AND course_id = ?", userID, courseID).
+		Update("completado", true).Error
 }
 
 // isPgUniqueViolation reports whether err is a Postgres UNIQUE violation (23505).

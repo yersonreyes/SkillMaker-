@@ -180,6 +180,93 @@ export interface paths {
       };
     };
   };
+  "/catalog": {
+    /** Retorna una página de cursos con estado='aprobado'. Soporta ?page, ?size, ?q (ILIKE titulo). */
+    get: {
+      parameters: {
+        query: {
+          /** Página (default 1) */
+          page?: number;
+          /** Tamaño de página (max 100, default 20) */
+          size?: number;
+          /** Filtro ILIKE en titulo */
+          q?: string;
+        };
+      };
+      responses: {
+        /** Página de CatalogCourseCard (items, page, size, total, totalPages) */
+        200: {
+          schema: { [key: string]: unknown };
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Internal Server Error */
+        500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/catalog/{id}": {
+    /** Retorna preview (enrolled=false) o árbol completo (enrolled=true) según inscripción. */
+    get: {
+      parameters: {
+        path: {
+          /** UUID del curso */
+          id: string;
+        };
+      };
+      responses: {
+        /** enrolled — árbol completo */
+        200: {
+          schema: definitions["dto.CourseDetailAlumnoResponse"];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** curso no encontrado o no aprobado */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Internal Server Error */
+        500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/catalog/{id}/enroll": {
+    /** Crea una fila de enrollment. Idempotente: segunda llamada devuelve 200 sin duplicar. */
+    post: {
+      parameters: {
+        path: {
+          /** UUID del curso */
+          id: string;
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.EnrollmentResponse"];
+        };
+        /** JWT requerido */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** curso no encontrado o no aprobado */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Internal Server Error */
+        500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
   "/courses": {
     /** Retorna una pagina de cursos del caller. ?creator=me es obligatorio. */
     get: {
@@ -1231,6 +1318,25 @@ export interface paths {
       };
     };
   };
+  "/users/me/courses": {
+    /** Retorna los enrollments del caller con titulo, creadorNombre, completado, inscritoEn. */
+    get: {
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.MyCourseItem"][];
+        };
+        /** JWT requerido */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Internal Server Error */
+        500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
   "/users/{id}": {
     /** Retorna el detalle de un usuario. Solo administradores. */
     get: {
@@ -1471,6 +1577,24 @@ export interface definitions {
     titulo?: string;
     updatedAt?: string;
   };
+  "dto.CourseDetailAlumnoResponse": {
+    creadorNombre?: string;
+    descripcion?: string;
+    /** @description always true */
+    enrolled?: boolean;
+    id?: string;
+    materiales?: definitions["dto.MaterialResponse"][];
+    secciones?: definitions["dto.SectionWithVideosResponse"][];
+    titulo?: string;
+  };
+  "dto.CoursePreviewResponse": {
+    creadorNombre?: string;
+    descripcion?: string;
+    /** @description always false */
+    enrolled?: boolean;
+    id?: string;
+    titulo?: string;
+  };
   "dto.CreateCourseRequest": {
     descripcion?: string;
     titulo: string;
@@ -1478,6 +1602,11 @@ export interface definitions {
   "dto.DownloadResponse": {
     expiresAt?: string;
     url?: string;
+  };
+  "dto.EnrollmentResponse": {
+    courseId?: string;
+    /** @description always true on 200 */
+    enrolled?: boolean;
   };
   "dto.EvaluationCreateRequest": {
     intentosMax?: number;
@@ -1528,6 +1657,13 @@ export interface definitions {
     /** @description mapped from MaterialModel.Titulo */
     nombre?: string;
     tamanoBytes?: number;
+  };
+  "dto.MyCourseItem": {
+    completado?: boolean;
+    courseId?: string;
+    creadorNombre?: string;
+    inscritoEn?: string;
+    titulo?: string;
   };
   "dto.OptionCreateRequest": {
     correcta?: boolean;

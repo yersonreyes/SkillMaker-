@@ -273,3 +273,125 @@ func ToMaterial(m *service.MaterialModel) MaterialResponse {
 		CreatedAt:   m.CreatedAt,
 	}
 }
+
+// ── C2.4 catalog + enrollment DTOs (structural no-leak — design §6) ───────────
+
+// CatalogCourseCard — one approved-course card (list item). NO content fields.
+// Used in GET /catalog pagination envelope.
+type CatalogCourseCard struct {
+	ID            string    `json:"id"`
+	Titulo        string    `json:"titulo"`
+	Descripcion   string    `json:"descripcion"`
+	CreadorNombre string    `json:"creadorNombre"`
+	CreatedAt     time.Time `json:"createdAt"`
+}
+
+// CoursePreviewResponse — non-enrolled detail. NO tree field AT THE STRUCT LEVEL (D6).
+// The structural absence (not omitempty) is the compile-time guarantee for AC-9.
+type CoursePreviewResponse struct {
+	Enrolled      bool   `json:"enrolled"` // always false
+	ID            string `json:"id"`
+	Titulo        string `json:"titulo"`
+	Descripcion   string `json:"descripcion"`
+	CreadorNombre string `json:"creadorNombre"`
+}
+
+// CourseDetailAlumnoResponse — enrolled detail WITH the full content tree.
+// Reuses existing SectionWithVideosResponse and MaterialResponse shapes.
+type CourseDetailAlumnoResponse struct {
+	Enrolled      bool                        `json:"enrolled"` // always true
+	ID            string                      `json:"id"`
+	Titulo        string                      `json:"titulo"`
+	Descripcion   string                      `json:"descripcion"`
+	CreadorNombre string                      `json:"creadorNombre"`
+	Secciones     []SectionWithVideosResponse `json:"secciones"`
+	Materiales    []MaterialResponse          `json:"materiales"`
+}
+
+// EnrollmentResponse — POST /catalog/:id/enroll result.
+type EnrollmentResponse struct {
+	CourseID string `json:"courseId"`
+	Enrolled bool   `json:"enrolled"` // always true on 200
+}
+
+// MyCourseItem — one row in GET /users/me/courses.
+type MyCourseItem struct {
+	CourseID      string    `json:"courseId"`
+	Titulo        string    `json:"titulo"`
+	CreadorNombre string    `json:"creadorNombre"`
+	Completado    bool      `json:"completado"`
+	InscritoEn    time.Time `json:"inscritoEn"`
+}
+
+// ── C2.4 catalog mapping functions ────────────────────────────────────────────
+
+// ToCatalogCardPage maps a pagination.Page[service.CatalogCourseModel] to
+// pagination.Page[CatalogCourseCard] for the wire envelope.
+func ToCatalogCardPage(p pagination.Page[service.CatalogCourseModel]) pagination.Page[CatalogCourseCard] {
+	items := make([]CatalogCourseCard, 0, len(p.Items))
+	for i := range p.Items {
+		items = append(items, CatalogCourseCard{
+			ID:            p.Items[i].ID,
+			Titulo:        p.Items[i].Titulo,
+			Descripcion:   p.Items[i].Descripcion,
+			CreadorNombre: p.Items[i].CreadorNombre,
+			CreatedAt:     p.Items[i].CreatedAt,
+		})
+	}
+	return pagination.Page[CatalogCourseCard]{
+		Items:      items,
+		Page:       p.Page,
+		Size:       p.Size,
+		Total:      p.Total,
+		TotalPages: p.TotalPages,
+	}
+}
+
+// ToCoursePreview converts a non-enrolled CatalogDetailModel to the preview wire shape.
+// The preview struct has NO tree fields — structural absence (not omitempty).
+func ToCoursePreview(d *service.CatalogDetailModel) CoursePreviewResponse {
+	return CoursePreviewResponse{
+		Enrolled:      false,
+		ID:            d.ID,
+		Titulo:        d.Titulo,
+		Descripcion:   d.Descripcion,
+		CreadorNombre: d.CreadorNombre,
+	}
+}
+
+// ToCourseDetailAlumno converts an enrolled CatalogDetailModel to the full wire shape.
+// Reuses ToSectionWithVideos and ToMaterial to build the nested tree.
+func ToCourseDetailAlumno(d *service.CatalogDetailModel) CourseDetailAlumnoResponse {
+	secciones := make([]SectionWithVideosResponse, 0, len(d.Sections))
+	for i := range d.Sections {
+		secciones = append(secciones, ToSectionWithVideos(&d.Sections[i]))
+	}
+	materiales := make([]MaterialResponse, 0, len(d.Materiales))
+	for i := range d.Materiales {
+		materiales = append(materiales, ToMaterial(&d.Materiales[i]))
+	}
+	return CourseDetailAlumnoResponse{
+		Enrolled:      true,
+		ID:            d.ID,
+		Titulo:        d.Titulo,
+		Descripcion:   d.Descripcion,
+		CreadorNombre: d.CreadorNombre,
+		Secciones:     secciones,
+		Materiales:    materiales,
+	}
+}
+
+// ToMyCourseItems converts a slice of service.MyCourseModel to the wire shape.
+func ToMyCourseItems(rows []service.MyCourseModel) []MyCourseItem {
+	items := make([]MyCourseItem, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, MyCourseItem{
+			CourseID:      r.CourseID,
+			Titulo:        r.Titulo,
+			CreadorNombre: r.CreadorNombre,
+			Completado:    r.Completado,
+			InscritoEn:    r.InscritoEn,
+		})
+	}
+	return items
+}

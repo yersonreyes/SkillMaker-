@@ -113,6 +113,42 @@ definitions:
       updatedAt:
         type: string
     type: object
+  dto.CourseDetailAlumnoResponse:
+    properties:
+      creadorNombre:
+        type: string
+      descripcion:
+        type: string
+      enrolled:
+        description: always true
+        type: boolean
+      id:
+        type: string
+      materiales:
+        items:
+          $ref: '#/definitions/dto.MaterialResponse'
+        type: array
+      secciones:
+        items:
+          $ref: '#/definitions/dto.SectionWithVideosResponse'
+        type: array
+      titulo:
+        type: string
+    type: object
+  dto.CoursePreviewResponse:
+    properties:
+      creadorNombre:
+        type: string
+      descripcion:
+        type: string
+      enrolled:
+        description: always false
+        type: boolean
+      id:
+        type: string
+      titulo:
+        type: string
+    type: object
   dto.CreateCourseRequest:
     properties:
       descripcion:
@@ -131,6 +167,14 @@ definitions:
         type: string
       url:
         type: string
+    type: object
+  dto.EnrollmentResponse:
+    properties:
+      courseId:
+        type: string
+      enrolled:
+        description: always true on 200
+        type: boolean
     type: object
   dto.EvaluationCreateRequest:
     properties:
@@ -246,6 +290,19 @@ definitions:
         type: string
       tamanoBytes:
         type: integer
+    type: object
+  dto.MyCourseItem:
+    properties:
+      completado:
+        type: boolean
+      courseId:
+        type: string
+      creadorNombre:
+        type: string
+      inscritoEn:
+        type: string
+      titulo:
+        type: string
     type: object
   dto.OptionCreateRequest:
     properties:
@@ -810,6 +867,111 @@ paths:
       summary: Renueva el access token rotando el refresh token
       tags:
       - auth
+  /catalog:
+    get:
+      description: Retorna una página de cursos con estado='aprobado'. Soporta ?page,
+        ?size, ?q (ILIKE titulo).
+      parameters:
+      - description: Página (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: Tamaño de página (max 100, default 20)
+        in: query
+        name: size
+        type: integer
+      - description: Filtro ILIKE en titulo
+        in: query
+        name: q
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Página de CatalogCourseCard (items, page, size, total, totalPages)
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Lista cursos aprobados (catálogo público para alumnos)
+      tags:
+      - catalog
+  /catalog/{id}:
+    get:
+      description: Retorna preview (enrolled=false) o árbol completo (enrolled=true)
+        según inscripción.
+      parameters:
+      - description: UUID del curso
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: enrolled — árbol completo
+          schema:
+            $ref: '#/definitions/dto.CourseDetailAlumnoResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: curso no encontrado o no aprobado
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Detalle de un curso aprobado (alumno)
+      tags:
+      - catalog
+  /catalog/{id}/enroll:
+    post:
+      description: 'Crea una fila de enrollment. Idempotente: segunda llamada devuelve
+        200 sin duplicar.'
+      parameters:
+      - description: UUID del curso
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.EnrollmentResponse'
+        "401":
+          description: JWT requerido
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: curso no encontrado o no aprobado
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Inscribe al alumno en un curso aprobado (idempotente)
+      tags:
+      - catalog
   /courses:
     get:
       description: Retorna una pagina de cursos del caller. ?creator=me es obligatorio.
@@ -2244,6 +2406,32 @@ paths:
       summary: Perfil del usuario autenticado
       tags:
       - users
+  /users/me/courses:
+    get:
+      description: Retorna los enrollments del caller con titulo, creadorNombre, completado,
+        inscritoEn.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.MyCourseItem'
+            type: array
+        "401":
+          description: JWT requerido
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Lista los cursos en los que está inscrito el alumno autenticado
+      tags:
+      - catalog
   /videos/{id}:
     delete:
       description: Elimina un video. Requiere ser propietario del curso.

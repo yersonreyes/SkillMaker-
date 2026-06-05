@@ -174,6 +174,44 @@ func (m *MockCoursesRepository) ListByEstado(ctx context.Context, estado domain.
 	return args.Get(0).([]domain.Course), args.Error(1)
 }
 
+// ── C2.4 additions: catalog + enrollment methods ─────────────────────────────
+
+func (m *MockCoursesRepository) ListApproved(ctx context.Context, p pagination.Params, q string) (pagination.Page[repository.CatalogCourseModel], error) {
+	args := m.Called(ctx, p, q)
+	return args.Get(0).(pagination.Page[repository.CatalogCourseModel]), args.Error(1)
+}
+
+func (m *MockCoursesRepository) GetApprovedDetail(ctx context.Context, courseID string) (*repository.CatalogCourseModel, error) {
+	args := m.Called(ctx, courseID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*repository.CatalogCourseModel), args.Error(1)
+}
+
+func (m *MockCoursesRepository) CreateEnrollment(ctx context.Context, userID, courseID string) error {
+	args := m.Called(ctx, userID, courseID)
+	return args.Error(0)
+}
+
+func (m *MockCoursesRepository) IsEnrolled(ctx context.Context, userID, courseID string) (bool, error) {
+	args := m.Called(ctx, userID, courseID)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockCoursesRepository) ListEnrollmentsByUser(ctx context.Context, userID string) ([]repository.EnrollmentWithCourseModel, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]repository.EnrollmentWithCourseModel), args.Error(1)
+}
+
+func (m *MockCoursesRepository) MarkCompleted(ctx context.Context, userID, courseID string) error {
+	args := m.Called(ctx, userID, courseID)
+	return args.Error(0)
+}
+
 // ── MockStorageClient ─────────────────────────────────────────────────────────
 
 // mockStorageClient is a minimal mock for storage.Client using func fields.
@@ -1622,5 +1660,196 @@ func TestListByEstado_EmptyList(t *testing.T) {
 	result, err := svc.ListByEstado(context.Background(), "en_revision")
 	require.NoError(t, err)
 	assert.Empty(t, result, "must return empty slice when repo returns no courses")
+	repo.AssertExpectations(t)
+}
+
+// ── C2.4 catalog + enrollment service unit tests ──────────────────────────────
+
+// TestListCatalog_DelegatesAndMapsPage verifies ListCatalog maps page+q to repo.
+func TestListCatalog_DelegatesAndMapsPage(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	p := pagination.Params{Page: 1, Size: 20}
+	repoPage := pagination.Page[repository.CatalogCourseModel]{
+		Items: []repository.CatalogCourseModel{
+			{ID: "c1", Titulo: "Go", Descripcion: "Desc", CreadorNombre: "Alice", CreatedAt: time.Now()},
+		},
+		Page: 1, Size: 20, Total: 1, TotalPages: 1,
+	}
+	repo.On("ListApproved", mock.Anything, p, "go").Return(repoPage, nil)
+
+	page, err := svc.ListCatalog(context.Background(), p, "go")
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), page.Total)
+	assert.Len(t, page.Items, 1)
+	assert.Equal(t, "c1", page.Items[0].ID)
+	assert.Equal(t, "Alice", page.Items[0].CreadorNombre)
+	repo.AssertExpectations(t)
+}
+
+// TestGetCatalogDetail_NotAprobado_Returns404 verifies non-approved → ErrCourseNotFound.
+func TestGetCatalogDetail_NotAprobado_Returns404(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	repo.On("GetApprovedDetail", mock.Anything, "missing-id").
+		Return(nil, repository.ErrCourseNotFound)
+
+	_, err := svc.GetCatalogDetail(context.Background(), "userA", "missing-id")
+	assert.ErrorIs(t, err, ErrCourseNotFound,
+		"non-aprobado or missing course must return service.ErrCourseNotFound")
+	repo.AssertExpectations(t)
+}
+
+// TestGetCatalogDetail_NotEnrolled_ReturnsPreview verifies preview when not enrolled.
+func TestGetCatalogDetail_NotEnrolled_ReturnsPreview(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	courseID := uuid.New().String()
+	userID := uuid.New().String()
+	detail := &repository.CatalogCourseModel{
+		ID:            courseID,
+		Titulo:        "Go Course",
+		Descripcion:   "Desc",
+		CreadorNombre: "Alice",
+		CreatedAt:     time.Now(),
+	}
+
+	repo.On("GetApprovedDetail", mock.Anything, courseID).Return(detail, nil)
+	repo.On("IsEnrolled", mock.Anything, userID, courseID).Return(false, nil)
+
+	result, err := svc.GetCatalogDetail(context.Background(), userID, courseID)
+	require.NoError(t, err)
+	assert.False(t, result.Enrolled, "non-enrolled user must get Enrolled=false")
+	assert.Nil(t, result.Sections, "non-enrolled user must get nil Sections (preview)")
+	assert.Equal(t, courseID, result.ID)
+	repo.AssertExpectations(t)
+}
+
+// TestGetCatalogDetail_Enrolled_ReturnsTree verifies full tree when enrolled.
+func TestGetCatalogDetail_Enrolled_ReturnsTree(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	courseID := uuid.New().String()
+	userID := uuid.New().String()
+	sectionID := uuid.New().String()
+	detail := &repository.CatalogCourseModel{
+		ID:            courseID,
+		Titulo:        "Go Course",
+		Descripcion:   "Desc",
+		CreadorNombre: "Alice",
+		CreatedAt:     time.Now(),
+	}
+	sections := []domain.Section{
+		{ID: sectionID, CourseID: courseID, Titulo: "Cap 1", Orden: 0},
+	}
+	videos := []domain.Video{
+		{ID: uuid.New().String(), SectionID: sectionID, Titulo: "Video 1", URL: "https://youtube.com/v", Proveedor: "youtube"},
+	}
+	materials := []domain.Material{
+		{ID: uuid.New().String(), CourseID: courseID, Titulo: "doc.pdf", StorageKey: "k", MimeType: "application/pdf", TamanoBytes: 100},
+	}
+
+	repo.On("GetApprovedDetail", mock.Anything, courseID).Return(detail, nil)
+	repo.On("IsEnrolled", mock.Anything, userID, courseID).Return(true, nil)
+	repo.On("ListSectionsByCourse", mock.Anything, courseID).Return(sections, nil)
+	repo.On("ListVideosBySection", mock.Anything, sectionID).Return(videos, nil)
+	repo.On("ListMaterialsByCourse", mock.Anything, courseID).Return(materials, nil)
+
+	result, err := svc.GetCatalogDetail(context.Background(), userID, courseID)
+	require.NoError(t, err)
+	assert.True(t, result.Enrolled, "enrolled user must get Enrolled=true")
+	require.Len(t, result.Sections, 1, "enrolled user must see 1 section")
+	assert.Equal(t, sectionID, result.Sections[0].Section.ID)
+	require.Len(t, result.Sections[0].Videos, 1)
+	assert.NotNil(t, result.Materiales, "enrolled user must see materiales")
+	repo.AssertExpectations(t)
+}
+
+// TestEnroll_NonAprobado_Returns404 verifies enroll on non-approved → ErrCourseNotFound.
+func TestEnroll_NonAprobado_Returns404(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	courseID := uuid.New().String()
+	userID := uuid.New().String()
+
+	// GetByID returns a borrador course.
+	repo.On("GetByID", mock.Anything, courseID).Return(courseWith(userID, domain.EstadoBorrador), nil)
+
+	err := svc.Enroll(context.Background(), userID, courseID)
+	assert.ErrorIs(t, err, ErrCourseNotFound,
+		"enroll on borrador must return ErrCourseNotFound (draft-invisibility)")
+	repo.AssertExpectations(t)
+}
+
+// TestEnroll_Aprobado_CallsCreateEnrollment verifies enroll on aprobado calls repo.
+func TestEnroll_Aprobado_CallsCreateEnrollment(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	courseID := uuid.New().String()
+	userID := uuid.New().String()
+	aprobado := courseWith("creator-id", domain.EstadoAprobado)
+	aprobado.ID = courseID
+
+	repo.On("GetByID", mock.Anything, courseID).Return(aprobado, nil)
+	repo.On("CreateEnrollment", mock.Anything, userID, courseID).Return(nil)
+
+	err := svc.Enroll(context.Background(), userID, courseID)
+	require.NoError(t, err, "enroll on aprobado must succeed")
+	repo.AssertExpectations(t)
+}
+
+// TestMarkEnrollmentCompleted_DelegatesToRepo verifies seam delegates to MarkCompleted.
+func TestMarkEnrollmentCompleted_DelegatesToRepo(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	userID := uuid.New().String()
+	courseID := uuid.New().String()
+
+	repo.On("MarkCompleted", mock.Anything, userID, courseID).Return(nil)
+
+	err := svc.MarkEnrollmentCompleted(context.Background(), userID, courseID)
+	require.NoError(t, err, "MarkEnrollmentCompleted must delegate to repo.MarkCompleted")
+	repo.AssertExpectations(t)
+}
+
+// TestMarkEnrollmentCompleted_NoOp verifies nil returned when no enrollment row.
+func TestMarkEnrollmentCompleted_NoOp(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	userID := uuid.New().String()
+	courseID := uuid.New().String()
+
+	// MarkCompleted with 0 rows affected → nil (no-op, no error).
+	repo.On("MarkCompleted", mock.Anything, userID, courseID).Return(nil)
+
+	err := svc.MarkEnrollmentCompleted(context.Background(), userID, courseID)
+	assert.NoError(t, err, "MarkEnrollmentCompleted no-op path must return nil")
+	repo.AssertExpectations(t)
+}
+
+// TestListMyCourses_DelegatesAndMaps verifies ListMyCourses maps repo model.
+func TestListMyCourses_DelegatesAndMaps(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	userID := uuid.New().String()
+	rows := []repository.EnrollmentWithCourseModel{
+		{CourseID: "c1", Titulo: "Go", CreadorNombre: "Alice", Completado: false, InscritoEn: time.Now()},
+	}
+	repo.On("ListEnrollmentsByUser", mock.Anything, userID).Return(rows, nil)
+
+	result, err := svc.ListMyCourses(context.Background(), userID)
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, "c1", result[0].CourseID)
+	assert.Equal(t, "Alice", result[0].CreadorNombre)
 	repo.AssertExpectations(t)
 }

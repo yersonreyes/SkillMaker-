@@ -101,9 +101,11 @@ func TestMigration0008RoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), idxCount, "idx_approval_course index must exist after 0008 up")
 
-	// Roll back 1 step (0008 only).
-	err = m.Steps(-1)
-	require.NoError(t, err, "m.Steps(-1) must roll back 0008 without error")
+	// Roll back 2 steps (0009 first, then 0008).
+	// NOTE (C2.4): migration 0009 was added; -1 now rolls back 0009 only,
+	// so we need -2 to reach the state where 0008 has been reversed.
+	err = m.Steps(-2)
+	require.NoError(t, err, "m.Steps(-2) must roll back 0009+0008 without error")
 
 	// Verify publicado_en is gone after 0008 down.
 	err = db.Raw(

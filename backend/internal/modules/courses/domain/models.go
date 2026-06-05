@@ -82,13 +82,15 @@ type Material struct {
 
 func (Material) TableName() string { return "material" }
 
-// Enrollment is schema-only in C2.1.
+// Enrollment maps to the enrollment table (migration 0003 schema, completado added in 0009).
 // The composite UNIQUE(user_id, course_id) is enforced by migration 0003.
+// Completado is set to true when the student passes an evaluation (EnrollmentCompleter seam, C2.4).
 type Enrollment struct {
 	ID         string    `gorm:"type:uuid;primaryKey"`
 	UserID     string    `gorm:"type:uuid;not null"`
 	CourseID   string    `gorm:"type:uuid;not null"`
 	InscritoEn time.Time `gorm:"column:inscrito_en;type:timestamptz;default:now()"`
+	Completado bool      `gorm:"column:completado;not null;default:false" json:"completado"`
 }
 
 func (Enrollment) TableName() string { return "enrollment" }

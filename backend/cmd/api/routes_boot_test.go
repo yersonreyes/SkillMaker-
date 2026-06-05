@@ -100,6 +100,19 @@ func (n *nilCourseSvc) ListByEstado(_ context.Context, _ string) ([]coursesServi
 	return nil, nil
 }
 
+// ── C2.4 catalog + enrollment additions ──────────────────────────────────────
+func (n *nilCourseSvc) ListCatalog(_ context.Context, _ pagination.Params, _ string) (pagination.Page[coursesService.CatalogCourseModel], error) {
+	return pagination.Page[coursesService.CatalogCourseModel]{}, nil
+}
+func (n *nilCourseSvc) GetCatalogDetail(_ context.Context, _, _ string) (*coursesService.CatalogDetailModel, error) {
+	return nil, nil
+}
+func (n *nilCourseSvc) Enroll(_ context.Context, _, _ string) error { return nil }
+func (n *nilCourseSvc) ListMyCourses(_ context.Context, _ string) ([]coursesService.MyCourseModel, error) {
+	return nil, nil
+}
+func (n *nilCourseSvc) MarkEnrollmentCompleted(_ context.Context, _, _ string) error { return nil }
+
 // nilEvalSvc is a nil-safe stub for evaluations.Service.
 type nilEvalSvc struct{}
 
@@ -154,11 +167,11 @@ func (n *nilApprovalSvc) ListHistory(_ context.Context, _, _ string, _ bool) ([]
 
 // ── Boot test ─────────────────────────────────────────────────────────────────
 
-// TestRouteBoot_AllModules_NoPanic registers ALL module routes (courses + evaluations + approvals)
+// TestRouteBoot_AllModules_NoPanic registers ALL module routes (courses + evaluations + approvals + catalog)
 // on a single gin.Engine and asserts no panic occurs.
 //
 // This test catches :courseId vs :id Gin param-tree conflicts at registration time.
-// Spec: AC-15; Design §0 grounding delta (no existing boot test).
+// Spec: AC-11 (C2.4 catalog routes must not panic); Design §0.
 func TestRouteBoot_AllModules_NoPanic(t *testing.T) {
 	courseSvc := &nilCourseSvc{}
 	evalSvc := &nilEvalSvc{}
@@ -174,6 +187,8 @@ func TestRouteBoot_AllModules_NoPanic(t *testing.T) {
 
 		// Register all module routes (same order as main.go).
 		courses.RegisterRoutes(creatorGrp, courseSvc)
+		// C2.4: catalog + enrollment routes (JWT-only, no RequireRole).
+		courses.RegisterCatalogRoutes(protected, courseSvc)
 		evaluations.RegisterRoutes(creatorGrp, evalSvc)
 		evaluations.RegisterStudentRoutes(protected, evalSvc)
 
@@ -182,13 +197,14 @@ func TestRouteBoot_AllModules_NoPanic(t *testing.T) {
 		approvals.RegisterAdminRoutes(adminGrp, approvalSvc)
 		approvals.RegisterHistoryRoutes(protected, approvalSvc)
 
-		// Verify all 5 approvals routes are registered.
+		// Verify all routes are registered.
 		routes := r.Routes()
 		routeMap := make(map[string]bool, len(routes))
 		for _, ri := range routes {
 			routeMap[ri.Method+" "+ri.Path] = true
 		}
 
+		// Approvals routes.
 		assert.True(t, routeMap["POST /api/courses/:courseId/submit"],
 			"submit route must be registered")
 		assert.True(t, routeMap["GET /api/approvals/pending"],
@@ -199,6 +215,16 @@ func TestRouteBoot_AllModules_NoPanic(t *testing.T) {
 			"reject route must be registered")
 		assert.True(t, routeMap["GET /api/courses/:id/approvals"],
 			"list history route must be registered")
+
+		// C2.4 catalog routes (AC-11).
+		assert.True(t, routeMap["GET /api/catalog"],
+			"[AC-11] GET /api/catalog must be registered without panic")
+		assert.True(t, routeMap["GET /api/catalog/:id"],
+			"[AC-11] GET /api/catalog/:id must be registered without panic")
+		assert.True(t, routeMap["POST /api/catalog/:id/enroll"],
+			"[AC-11] POST /api/catalog/:id/enroll must be registered without panic")
+		assert.True(t, routeMap["GET /api/users/me/courses"],
+			"[AC-11] GET /api/users/me/courses must be registered without panic")
 	}, "registering all module routes must not panic (no Gin param-tree conflict)")
 
 	_ = time.Now() // suppress unused import
