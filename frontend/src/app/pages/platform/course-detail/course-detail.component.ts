@@ -8,6 +8,7 @@
  *
  * "Inscribirme" calls enroll(id) → on success re-fetches getDetail(id) to flip to enrolled view.
  * "Mi certificado" (C5.1) appears when a certificate matching this courseId exists.
+ * "Rendir evaluación" (student-eval-discovery) appears when enrolled and the course has an evaluation.
  * Navigation uses ABSOLUTE /platform/... paths (C2.2 relative-nav bug prevention).
  */
 import {
@@ -17,11 +18,12 @@ import {
   computed,
   OnInit,
 } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { SkeletonModule } from 'primeng/skeleton';
 
 import { CourseCatalogService } from '@core/services/courseCatalogService/course-catalog.service';
 import { CertificateService } from '@core/services/certificateService/certificate.service';
+import { EvaluationService } from '@core/services/evaluationService/evaluation.service';
 import { VideoEmbedComponent } from '@shared/components/video-embed/video-embed.component';
 import type {
   CourseDetailResponse,
@@ -29,6 +31,7 @@ import type {
   CoursePreviewResponse,
 } from '@core/services/courseCatalogService/course-catalog.dto';
 import type { CertificateListItem } from '@core/services/certificateService/certificate.dto';
+import type { EvaluationSummary } from '@core/services/evaluationService/evaluation.dto';
 
 @Component({
   selector: 'app-course-detail-alumno',
@@ -40,6 +43,8 @@ import type { CertificateListItem } from '@core/services/certificateService/cert
 export class CourseDetailAlumnoComponent implements OnInit {
   private readonly catalogService = inject(CourseCatalogService);
   private readonly certService = inject(CertificateService);
+  private readonly evalService = inject(EvaluationService);
+  private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
   // ── State ──────────────────────────────────────────────────────────────────
@@ -49,6 +54,9 @@ export class CourseDetailAlumnoComponent implements OnInit {
 
   /** All user certificates — populated after loadDetail. */
   private readonly myCerts = signal<CertificateListItem[]>([]);
+
+  /** Evaluation summary for the enrolled student — null means no evaluation available. */
+  readonly evalSummary = signal<EvaluationSummary | null>(null);
 
   /**
    * courseId as a signal so `myCertificate` computed stays reactive when it updates.
@@ -98,6 +106,16 @@ export class CourseDetailAlumnoComponent implements OnInit {
       ]);
       this.detail.set(result);
       this.myCerts.set(certs);
+
+      // Fetch eval summary when enrolled — catch 404 silently (no evaluation = null).
+      if (result?.enrolled) {
+        const summary = await this.evalService
+          .getCourseEvaluationSummary(this.courseId)
+          .catch(() => null);
+        this.evalSummary.set(summary);
+      } else {
+        this.evalSummary.set(null);
+      }
     } catch {
       // Error toast shown by HttpPromiseBuilderService
     } finally {
@@ -118,6 +136,11 @@ export class CourseDetailAlumnoComponent implements OnInit {
     } finally {
       this.enrolling.set(false);
     }
+  }
+
+  /** Navigate to the evaluation attempt page. */
+  goToEvaluation(evaluationId: string): void {
+    void this.router.navigate(['/platform/evaluations', evaluationId]);
   }
 
   /** Fetch presigned download URL and open in new tab. */

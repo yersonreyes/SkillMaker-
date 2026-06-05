@@ -276,6 +276,15 @@ definitions:
       notaMinima:
         type: integer
     type: object
+  dto.EvaluationSummaryResponse:
+    properties:
+      evaluationId:
+        type: string
+      intentosMax:
+        type: integer
+      notaMinima:
+        type: integer
+    type: object
   dto.EvaluationUpdateRequest:
     properties:
       intentosMax:
@@ -1737,6 +1746,36 @@ paths:
       security:
       - BearerAuth: []
       summary: Obtiene la evaluacion de un curso (arbol anidado)
+      tags:
+      - evaluations
+  /courses/{id}/evaluation/summary:
+    get:
+      description: Retorna el id, notaMinima e intentosMax de la evaluacion para un
+        curso aprobado.
+      parameters:
+      - description: UUID del curso
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.EvaluationSummaryResponse'
+        "401":
+          description: sin autenticacion
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: curso o evaluacion no encontrada / curso no aprobado
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Obtiene el resumen de la evaluacion de un curso (vista estudiante)
       tags:
       - evaluations
   /courses/{id}/materials:

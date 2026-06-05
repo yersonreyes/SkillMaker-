@@ -346,12 +346,43 @@ func (h *Handler) DeleteOption(c *gin.Context) {
 //   - POST /evaluations/:id/attempts shares the :id wildcard segment with the creator
 //     POST /evaluations/:id/questions (same param name, no Gin conflict).
 //   - /attempts/:id is a brand-new top-level tree.
+//   - GET /courses/:id/evaluation/summary is distinct from GET /courses/:id/evaluation
+//     (the creator GET) because it uses the same :id param name and adds a /summary suffix —
+//     no Gin conflict because the paths differ.
 func RegisterStudent(protectedGrp *gin.RouterGroup, svc service.Service) {
 	h := &Handler{svc: svc}
+	protectedGrp.GET("/courses/:id/evaluation/summary", h.GetEvaluationSummary)
 	protectedGrp.POST("/evaluations/:id/attempts", h.StartAttempt)
 	protectedGrp.GET("/attempts/:id", h.GetAttempt)
 	protectedGrp.POST("/attempts/:id/answers", h.SaveAnswer)
 	protectedGrp.POST("/attempts/:id/submit", h.SubmitAttempt)
+}
+
+// GetEvaluationSummary godoc
+// @Summary     Obtiene el resumen de la evaluacion de un curso (vista estudiante)
+// @Description Retorna el id, notaMinima e intentosMax de la evaluacion para un curso aprobado.
+//
+//	Solo visible para cursos en estado "aprobado" — otros estados retornan 404
+//	para no filtrar información de cursos no publicados.
+//
+// @Tags        evaluations
+// @Produce     json
+// @Security    BearerAuth
+// @Param       id path string true "UUID del curso"
+// @Success     200 {object} dto.EvaluationSummaryResponse
+// @Failure     401 {object} httperr.Error "sin autenticacion"
+// @Failure     404 {object} httperr.Error "curso o evaluacion no encontrada / curso no aprobado"
+// @Router      /courses/{id}/evaluation/summary [get]
+func (h *Handler) GetEvaluationSummary(c *gin.Context) {
+	courseID := c.Param("id")
+
+	summary, err := h.svc.GetEvaluationSummaryForStudent(c.Request.Context(), courseID)
+	if err != nil {
+		h.renderReadError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.ToEvaluationSummary(summary))
 }
 
 // StartAttempt godoc

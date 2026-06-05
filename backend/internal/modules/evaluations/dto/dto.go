@@ -277,3 +277,22 @@ func ToSubmit(m *service.AttemptResultModel) SubmitResponse {
 		Aprobado: m.Aprobado,
 	}
 }
+
+// ── Student evaluation summary DTO (student-eval-discovery) ───────────────────
+
+// EvaluationSummaryResponse is the response body for GET /api/courses/:id/evaluation/summary.
+// Provides the minimal data a student needs to navigate to the attempt page.
+type EvaluationSummaryResponse struct {
+	EvaluationID string `json:"evaluationId"`
+	NotaMinima   int    `json:"notaMinima"`
+	IntentosMax  int    `json:"intentosMax"`
+}
+
+// ToEvaluationSummary converts a service EvaluationSummaryModel to a response DTO.
+func ToEvaluationSummary(m *service.EvaluationSummaryModel) EvaluationSummaryResponse {
+	return EvaluationSummaryResponse{
+		EvaluationID: m.EvaluationID,
+		NotaMinima:   m.NotaMinima,
+		IntentosMax:  m.IntentosMax,
+	}
+}

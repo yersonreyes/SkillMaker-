@@ -7,6 +7,7 @@ import type {
   EvaluationUpdateRequest,
   EvaluationResponse,
   EvaluationDetail,
+  EvaluationSummary,
 } from './evaluation.dto';
 
 @Injectable({ providedIn: 'root' })
@@ -54,5 +55,26 @@ export class EvaluationService {
       .url(`${this.evaluationsBase}/${evalId}`)
       .body(body)
       .send();
+  }
+
+  /**
+   * GET /api/courses/:courseId/evaluation/summary
+   * Returns the slim evaluation summary for a student, or null when the course has
+   * no evaluation or is not in "aprobado" estado (404 mapped to null).
+   */
+  async getCourseEvaluationSummary(courseId: string): Promise<EvaluationSummary | null> {
+    try {
+      return await this.http
+        .request<EvaluationSummary>()
+        .get()
+        .url(`${this.coursesBase}/${courseId}/evaluation/summary`)
+        .silent()
+        .send();
+    } catch (err) {
+      if (err instanceof HttpErrorResponse && err.status === 404) {
+        return null;
+      }
+      throw err;
+    }
   }
 }

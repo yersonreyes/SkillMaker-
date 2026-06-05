@@ -150,6 +150,15 @@ func (m *mockEvalSvc) ValidateSubmitReady(ctx context.Context, courseID string) 
 	return args.Error(0)
 }
 
+// GetEvaluationSummaryForStudent satisfies the student-eval-discovery addition.
+func (m *mockEvalSvc) GetEvaluationSummaryForStudent(ctx context.Context, courseID string) (*service.EvaluationSummaryModel, error) {
+	args := m.Called(ctx, courseID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*service.EvaluationSummaryModel), args.Error(1)
+}
+
 // ── Mock courses service (minimal — satisfies full interface) ──────────────────
 
 type mockCourseSvc struct {

@@ -815,6 +815,31 @@ export interface paths {
       };
     };
   };
+  "/courses/{id}/evaluation/summary": {
+    /** Retorna el id, notaMinima e intentosMax de la evaluacion para un curso aprobado. */
+    get: {
+      parameters: {
+        path: {
+          /** UUID del curso */
+          id: string;
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.EvaluationSummaryResponse"];
+        };
+        /** sin autenticacion */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** curso o evaluacion no encontrada / curso no aprobado */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
   "/courses/{id}/materials": {
     /** Retorna todos los materiales del curso ordenados por fecha de creacion ASC. Solo el propietario. */
     get: {
@@ -1758,6 +1783,11 @@ export interface definitions {
     courseId?: string;
     createdAt?: string;
     id?: string;
+    intentosMax?: number;
+    notaMinima?: number;
+  };
+  "dto.EvaluationSummaryResponse": {
+    evaluationId?: string;
     intentosMax?: number;
     notaMinima?: number;
   };

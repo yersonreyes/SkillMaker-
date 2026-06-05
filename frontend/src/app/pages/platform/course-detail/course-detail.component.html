@@ -62,6 +62,17 @@
           Mi certificado
         </button>
       }
+
+      <!-- Rendir evaluación — visible when course has an evaluation (student-eval-discovery) -->
+      @if (evalSummary()) {
+        <button
+          type="button"
+          class="btn btn--cyan course-detail__eval-btn"
+          (click)="goToEvaluation(evalSummary()!.evaluationId)"
+        >
+          Rendir evaluación
+        </button>
+      }
     </header>
 
     <!-- Secciones con videos -->

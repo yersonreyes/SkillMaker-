@@ -258,6 +258,13 @@ type Service interface {
 	// Returns ErrAttemptNotFound for non-owners, ErrAttemptAlreadySubmitted if already done.
 	// Calls EnrollmentCompleter + CertificateIssuer seams if aprobado (non-fatal on error).
 	SubmitAttempt(ctx context.Context, attemptID, userID string) (*AttemptResultModel, error)
+
+	// GetEvaluationSummaryForStudent returns the slim evaluation summary for a student.
+	// Only "aprobado" courses are visible — non-aprobado returns ErrEvaluationNotFound
+	// so unpublished courses are not leaked to students.
+	// Returns ErrCourseNotFound if the course does not exist.
+	// Returns ErrEvaluationNotFound if no evaluation exists for the course.
+	GetEvaluationSummaryForStudent(ctx context.Context, courseID string) (*EvaluationSummaryModel, error)
 }
 
 // ── concrete implementation ────────────────────────────────────────────────────

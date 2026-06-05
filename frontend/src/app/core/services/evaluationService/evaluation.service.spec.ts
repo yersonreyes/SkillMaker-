@@ -1,7 +1,7 @@
 /**
  * evaluation.service.spec.ts — EvaluationService unit tests (Vitest + Angular TestBed).
  * Verifies correct URLs, HTTP verbs, and request bodies.
- * Covers: getByCourse (200 + 404→null), create, update.
+ * Covers: getByCourse (200 + 404→null), create, update, getCourseEvaluationSummary.
  */
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
@@ -9,7 +9,7 @@ import { provideHttpClientTesting, HttpTestingController } from '@angular/common
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { EvaluationService } from './evaluation.service';
-import type { EvaluationDetail, EvaluationResponse } from './evaluation.dto';
+import type { EvaluationDetail, EvaluationResponse, EvaluationSummary } from './evaluation.dto';
 
 const COURSES_BASE = 'http://localhost:3000/api/courses';
 const EVALUATIONS_BASE = 'http://localhost:3000/api/evaluations';
@@ -131,5 +131,39 @@ describe('EvaluationService', () => {
 
     const result = await promise;
     expect(result.intentosMax).toBe(5);
+  });
+
+  // ── getCourseEvaluationSummary ─────────────────────────────────────────────────
+
+  it('getCourseEvaluationSummary() sends GET /api/courses/:courseId/evaluation/summary', async () => {
+    const mockSummary: EvaluationSummary = {
+      evaluationId: 'eval-1',
+      notaMinima: 75,
+      intentosMax: 2,
+    };
+    const promise = service.getCourseEvaluationSummary('course-1');
+
+    const req = httpMock.expectOne(`${COURSES_BASE}/course-1/evaluation/summary`);
+    expect(req.request.method).toBe('GET');
+    req.flush(mockSummary);
+
+    const result = await promise;
+    expect(result).not.toBeNull();
+    expect(result!.evaluationId).toBe('eval-1');
+    expect(result!.notaMinima).toBe(75);
+    expect(result!.intentosMax).toBe(2);
+  });
+
+  it('getCourseEvaluationSummary() returns null when server returns 404', async () => {
+    const promise = service.getCourseEvaluationSummary('course-1');
+
+    const req = httpMock.expectOne(`${COURSES_BASE}/course-1/evaluation/summary`);
+    req.flush({ code: 'not_found', message: 'evaluation not found' }, {
+      status: 404,
+      statusText: 'Not Found',
+    });
+
+    const result = await promise;
+    expect(result).toBeNull();
   });
 });

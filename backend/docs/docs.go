@@ -1517,6 +1517,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/courses/{id}/evaluation/summary": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retorna el id, notaMinima e intentosMax de la evaluacion para un curso aprobado.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "evaluations"
+                ],
+                "summary": "Obtiene el resumen de la evaluacion de un curso (vista estudiante)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID del curso",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.EvaluationSummaryResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "sin autenticacion",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "curso o evaluacion no encontrada / curso no aprobado",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/courses/{id}/materials": {
             "get": {
                 "security": [
@@ -3435,6 +3481,20 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
+                    "type": "string"
+                },
+                "intentosMax": {
+                    "type": "integer"
+                },
+                "notaMinima": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.EvaluationSummaryResponse": {
+            "type": "object",
+            "properties": {
+                "evaluationId": {
                     "type": "string"
                 },
                 "intentosMax": {

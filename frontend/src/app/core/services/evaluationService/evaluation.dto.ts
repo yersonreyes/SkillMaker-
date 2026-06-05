@@ -46,3 +46,12 @@ export interface EvaluationDetail {
   intentosMax: number;
   questions: QuestionItem[];
 }
+
+// ── Student evaluation summary (student-eval-discovery) ──────────────────────
+
+/** Slim summary returned by GET /api/courses/:id/evaluation/summary. */
+export interface EvaluationSummary {
+  evaluationId: string;
+  notaMinima: number;
+  intentosMax: number;
+}

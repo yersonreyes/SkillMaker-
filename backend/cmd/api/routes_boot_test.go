@@ -155,6 +155,9 @@ func (n *nilEvalSvc) SaveAnswer(_ context.Context, _, _, _, _ string) error { re
 func (n *nilEvalSvc) SubmitAttempt(_ context.Context, _, _ string) (*evalService.AttemptResultModel, error) {
 	return nil, nil
 }
+func (n *nilEvalSvc) GetEvaluationSummaryForStudent(_ context.Context, _ string) (*evalService.EvaluationSummaryModel, error) {
+	return nil, nil
+}
 
 // nilCertSvc is a nil-safe stub for certificates.Service (C5.1).
 type nilCertSvc struct{}
@@ -254,6 +257,10 @@ func TestRouteBoot_AllModules_NoPanic(t *testing.T) {
 			"[AC-11] POST /api/catalog/:id/enroll must be registered without panic")
 		assert.True(t, routeMap["GET /api/users/me/courses"],
 			"[AC-11] GET /api/users/me/courses must be registered without panic")
+
+		// student-eval-discovery: evaluation summary route.
+		assert.True(t, routeMap["GET /api/courses/:id/evaluation/summary"],
+			"[student-eval-discovery] GET /api/courses/:id/evaluation/summary must be registered without panic")
 
 		// C5.1 certificates + badges routes.
 		assert.True(t, routeMap["GET /api/certificates/me"],
