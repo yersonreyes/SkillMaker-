@@ -35,9 +35,9 @@
 > Esta seccion es el "punto de partida". Cualquier change posterior parte de este estado.
 > Actualizar cuando se archive un change importante.
 
-**Fecha del snapshot:** 2026-06-03 (actualizado tras C2.3 archive)
-**Commits totales del scaffold:** 16 (+ 3 chained PRs para C1.1) (+ 2 PRs para C2.1) (+ 2 PRs para C2.2) (+ 2 PRs para C2.3) (+ post-merge fixes)
-**LOC totales (Go + TS + SQL):** ~2700 (+ ~900 LOC en C1.1) (+ ~1100 LOC en C2.1) (+ ~900 LOC en C2.2) (+ ~900 LOC en C2.3)
+**Fecha del snapshot:** 2026-06-04 (actualizado tras C3.1 archive)
+**Commits totales del scaffold:** 16 (+ 3 chained PRs para C1.1) (+ 2 PRs para C2.1) (+ 2 PRs para C2.2) (+ 2 PRs para C2.3) (+ 3 PRs para C3.1 incl. UI polish) (+ post-merge fixes)
+**LOC totales (Go + TS + SQL):** ~2700 (+ ~900 LOC en C1.1) (+ ~1100 LOC en C2.1) (+ ~900 LOC en C2.2) (+ ~900 LOC en C2.3) (+ ~1200 LOC en C3.1)
 
 ### Modulos del dominio (los 7 declarados en RT)
 
@@ -46,7 +46,7 @@
 | `auth` | ✅ Completo | `refresh_token` |
 | `users` | ✅ Completo (C1.1: list, roles, supervision, soft-delete, last-admin guard) | `user`, `role`, `user_role`, `supervision` |
 | `courses` | 🟡 En progreso (C2.1: dominio + CRUD; C2.2: secciones/videos embebidos; C2.3: material adjunto) | `course`, `section`, `video`, `material`, `enrollment` (schema + C2.2 + C2.3 columns) |
-| `evaluations` | ❌ No existe | ninguna |
+| `evaluations` | 🟡 En progreso (C3.1: diseño de examen — evaluacion/preguntas/opciones; schema + endpoints + editor frontend; C3.2 pendiente) | `evaluation`, `question`, `question_option`, `attempt`, `answer` (schema + C3.1 columns) |
 | `approvals` | ❌ No existe | ninguna |
 | `certificates` | ❌ No existe | ninguna |
 | `reporting` | ❌ No existe | — (read-only) |
@@ -62,7 +62,8 @@
 | `pages/platform/profile` | ✅ Funcional (read-only desde JWT) |
 | `pages/platform/{certificates,badges,courses/:id,evaluations/:id}` | 🟡 Routes → `PendingViewComponent` |
 | `pages/platform/creator/mi-contenido` | ✅ Funcional (C2.1: lazy Table paginated + estado badge + create dialog) |
-| `pages/platform/creator/curso-editar/:id` | ✅ Funcional (C2.1: form titulo/descripcion, Save, disabled "Enviar a revisión"; C2.2: secciones + videos + reorder; C2.3: material adjunto con uploader + tabla; Cyanotype Workshop design) |
+| `pages/platform/creator/curso-editar/:id` | ✅ Funcional (C2.1: form titulo/descripcion, Save, disabled "Enviar a revisión"; C2.2: secciones + videos + reorder; C2.3: material adjunto con uploader + tabla; Cyanotype Workshop design; C3.1: "Definir evaluación" nav button) |
+| `pages/platform/creator/evaluacion-editar/:courseId` | ✅ Funcional (C3.1: evaluation form, question list + modal, opcion_multiple dynamic options, verdadero_falso radio selector, client validation) |
 | `pages/platform/admin/user-management` | ✅ Funcional (C1.1: lazy Table, role/active filters, edit dialog) |
 | `pages/platform/admin/supervision` | ✅ Funcional (C1.1: list, assign supervisor-employee, remove) |
 | `pages/platform/admin/{approvals,reports}` | 🟡 Routes → `PendingViewComponent` |
@@ -435,47 +436,51 @@ Frontend:
 
 ### Capa 3 — Evaluations
 
-#### C3.1 — `module-evaluations-design`
+#### C3.1 — `module-evaluations-design` ✅ ARCHIVED (2026-06-04)
 
-**Por que:** sin evaluacion no hay puntaje. Este change le da al creador la capacidad de definir el examen.
+**Estado:** COMPLETE — 2 chained PRs + UI polish merged to dev. Manual smoke test PASSED. Cross-module seam pattern established.
 
-**Scope IN:**
+**Delivered:**
 
-Backend:
-- Migration `0003_add_evaluations.up.sql`:
-  - `evaluation` (id, course_id UQ, nota_minima, intentos_max)
-  - `question` (id, evaluation_id, enunciado, tipo, puntaje, orden) — `tipo IN ('opcion_multiple','verdadero_falso')`
-  - `option` (id, question_id, texto, correcta)
-  - `attempt` (id, user_id, evaluation_id, numero, puntaje, aprobado, iniciado_en, finalizado_en)
-  - `answer` (id, attempt_id, question_id, option_id, correcta) — schema solo, endpoints en C3.2
-- Modulo `evaluations/`:
-  - Repo + service + handlers
-  - Endpoints (todos `RequireRole("creador")` con ownership check del course):
-    - `POST /api/courses/:courseId/evaluation` — crea evaluacion (1-1 con course, UQ)
-    - `PATCH /api/evaluations/:id` — actualiza `nota_minima`, `intentos_max`
-    - `POST /api/evaluations/:id/questions` — agrega pregunta
-    - `PATCH /api/questions/:id`
-    - `DELETE /api/questions/:id`
-    - Para verdadero_falso, el backend auto-crea las 2 opciones (V y F) al crear la pregunta
-    - Para opcion_multiple, endpoints `/api/questions/:id/options` para CRUD de opciones
-  - Validacion: minimo 1 opcion `correcta=true` por pregunta opcion_multiple
+Backend (PR-A: 88a4a8f):
+- Migration `0006_add_evaluations.up.sql` (5 tables: evaluation, question, question_option, attempt, answer; CHECK constraints, FK cascade, indexes).
+- Modulo `evaluations/` (domain, repo, service, handler, dto, facade) con 13 repo methods, 9 service methods, 75% coverage.
+- **Cross-module seam**: `courses.Service.GetCourseOwnership(ctx, courseID) (creadorID, estado string, error)` interface + implementation. Narrow seam (CoursesChecker) keeps evaluations isolated.
+- Endpoints (all RequireRole creador, ownership gated via seam):
+  - `POST /api/courses/:courseId/evaluation` (create 1-1 per course)
+  - `GET /api/courses/:id/evaluation` (nested tree: eval→questions→options)
+  - `PATCH /api/evaluations/:id` (update nota_minima, intentos_max)
+  - CRUD question: `POST /api/evaluations/:id/questions`, `PATCH /DELETE /api/questions/:id`
+  - CRUD option (opcion_multiple): `POST /api/questions/:id/options`, `PATCH /DELETE /api/options/:id`
+  - V/F auto-creates 2 options; mutual-exclusion enforced on PATCH (sibling auto-cleared)
+- `validateQuestionComplete` helper implemented but ungated (wired in C4.1).
+- Tests: 49 integration tests + 50+ unit tests; all LOAD-BEARING scenarios covered. Defects caught: (1) migration step-drift in courses tests, (2) V/F mutual-exclusion not implemented — FIXED.
 
-Frontend:
-- Service `EvaluationService` + `QuestionService`
-- Page `creator/evaluation-edit/:courseId`:
-  - Form de la evaluacion (nota minima, intentos maximos)
-  - Lista de preguntas con tipo + puntaje
-  - Modal de pregunta: enunciado, tipo (select), opciones dinamicas con radio "correcta"
-  - Validacion client-side: minimo 1 correcta
+Frontend (PR-B: 2e91a48) + UI polish (859bc81):
+- `EvaluationService` (getByCourse 404→null, create, update).
+- `QuestionService` (CRUD question + options folded in).
+- Page `evaluacion-editar/:courseId`: empty state on 404, full editor on found. Form (notaMinima, intentosMax), question list + modal, opcion_multiple dynamic options (correcta checkboxes), verdadero_falso fixed 2-option radio (exactly 1 correct). Client ≥1-correct validation. Nav "Definir evaluación" button in curso-editar with absolute `/platform/creator/evaluacion-editar/:courseId` path.
+- Shared form/button/empty primitives promoted to global styles (reusable, budget relief).
+- Tests: 6 + 10 + 14 tests (EvaluationService, QuestionService, component); 2 LOAD-BEARING probes confirm non-vacuous (navigator path, client validation).
 
-**Scope OUT:**
-- Pregunta de respuesta abierta o multiple-choice (varias correctas) — el modelo de datos limita a una sola
-- Banco de preguntas reutilizables
-
-**Acceptance:**
-- Creador define evaluacion con nota minima 70
+**Aceptacion:** ✅
+- Creador define evaluacion con nota minima 70, intentos_max 2
 - Creador agrega 5 preguntas: 3 opcion_multiple + 2 verdadero_falso
-- La evaluacion esta lista para ser rendida (la rendicion viene en C3.2)
+- Cada pregunta tiene ≥1 correcta; GET devuelve nested tree completo
+- Non-owner edit → 403; curso no editable → 409
+- Mutual-exclusion: marcar una opcion V/F correct → la otra auto-clears
+- Smoke test manual: migration, ownership, editor, reload persistence — PASSED
+
+**Scope realizado:**
+- ✅ Schema 5 tablas + indices + checks + FK cascade
+- ✅ Cross-module seam (courses.GetCourseOwnership)
+- ✅ All CRUD endpoints, nested tree, validation
+- ✅ Full frontend editor con client-side validation
+- ✅ Service coverage 75% ≥ 70% threshold
+
+**Scope OUT (C3.2):**
+- Attempts, answers rendering, taking, scoring (C3.2)
+- Open-ended questions, question bank, multi-evaluation per course
 
 ---
 
