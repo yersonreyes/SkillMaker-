@@ -20,9 +20,11 @@ import { SectionService } from '@core/services/sectionService/section.service';
 import { VideoService } from '@core/services/videoService/video.service';
 import { MaterialService } from '@core/services/materialService/material.service';
 import { UiDialogService } from '@core/services/ui-dialog.service';
+import { ApprovalService } from '@core/services/approvalService/approval.service';
 import { VideoEmbedComponent } from '@shared/components/video-embed/video-embed.component';
 import { MaterialUploaderComponent, humanizeBytes } from '@shared/components/material-uploader/material-uploader.component';
 import type { CourseDetail, CourseEstado } from '@core/services/courseService/course.res.dto';
+import type { ApprovalHistoryItem } from '@core/services/approvalService/approval.dto';
 import type { SectionItem } from '@core/services/sectionService/section.res.dto';
 import type { VideoItem } from '@core/services/videoService/video.res.dto';
 import type { VideoProveedor } from '@core/services/videoService/video.req.dto';
@@ -65,6 +67,7 @@ export class CursoEditarComponent implements OnInit {
   private readonly videoService = inject(VideoService);
   private readonly materialService = inject(MaterialService);
   private readonly ui = inject(UiDialogService);
+  private readonly approvalService = inject(ApprovalService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -73,14 +76,24 @@ export class CursoEditarComponent implements OnInit {
   readonly descripcion = signal<string>('');
   readonly loading = signal<boolean>(false);
   readonly saving = signal<boolean>(false);
+  readonly submitting = signal<boolean>(false);
   readonly course = signal<CourseDetail | null>(null);
   readonly hasContent = signal<boolean>(false);
 
   /**
-   * D6: "Enviar a revisión" stays disabled in C2.2. The seam is wired as
-   * !hasContent || true so C4.1 only needs to drop the `|| true` part.
+   * C4.1: "Enviar a revisión" is enabled ONLY when:
+   *   - course has content (hasContent=true)
+   *   - estado ∈ {borrador, rechazado} (can submit / re-submit after rejection)
+   * Disabled for en_revision (already pending) and aprobado (already published).
    */
-  readonly submitDisabled = computed(() => !this.hasContent() || true);
+  readonly submitDisabled = computed(() => {
+    const c = this.course();
+    if (!this.hasContent() || !c) return true;
+    return c.estado !== 'borrador' && c.estado !== 'rechazado';
+  });
+
+  /** Latest rejection comment from approval history (shown when estado=rechazado). */
+  readonly rejectionComentario = signal<string | null>(null);
 
   // ── Sections state ───────────────────────────────────────────────────────────
   readonly sections = signal<SectionWithVideos[]>([]);
@@ -131,6 +144,14 @@ export class CursoEditarComponent implements OnInit {
       this.titulo.set(detail.titulo);
       this.descripcion.set(detail.descripcion);
       this.hasContent.set(detail.hasContent ?? false);
+
+      // FE-4: when rechazado, load the latest rejection comment so the creator
+      // knows WHY the course was rejected without needing an email.
+      if (detail.estado === 'rechazado') {
+        void this.loadRejectionComment();
+      } else {
+        this.rejectionComentario.set(null);
+      }
     } catch {
       // Error toast already shown by HttpPromiseBuilderService
     } finally {
@@ -139,6 +160,41 @@ export class CursoEditarComponent implements OnInit {
 
     // Load sections and materials in parallel (independent of course form data)
     await Promise.all([this.loadSections(), this.loadMaterials()]);
+  }
+
+  /** Fetch approval history and surface the latest rejection comment (FE-4). */
+  async loadRejectionComment(): Promise<void> {
+    if (!this.courseId) return;
+    try {
+      const history = await this.approvalService.history(this.courseId);
+      const rejections = history.filter((h: ApprovalHistoryItem) => h.resultado === 'rechazado');
+      if (rejections.length > 0) {
+        // History returned most-recent-first per spec (resueltoEn DESC).
+        this.rejectionComentario.set(rejections[0].comentario);
+      }
+    } catch {
+      // Non-critical: rejection comment is informational only
+    }
+  }
+
+  /**
+   * FE-2 (C4.1): Submit course for admin review.
+   * On success, reloads the course so estado → en_revision is reflected
+   * and the button becomes disabled.
+   */
+  async onSubmitToReview(): Promise<void> {
+    if (!this.courseId) return;
+    this.submitting.set(true);
+    try {
+      await this.approvalService.submitToReview(this.courseId);
+      this.ui.showSuccess('Curso enviado a revision');
+      // Reload so estado signal reflects en_revision and button disables.
+      await this.loadCourse();
+    } catch {
+      // Error toast already shown by HttpPromiseBuilderService
+    } finally {
+      this.submitting.set(false);
+    }
   }
 
   async loadSections(): Promise<void> {

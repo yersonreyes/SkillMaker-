@@ -4,11 +4,16 @@
  * Covers:
  *  - Component load → getById called → form populated (existing C2.1 tests preserved)
  *  - Save → update called with form values (C2.1)
- *  - "Enviar a revisión" button is disabled (C2.2: wired to !hasContent || true per D6)
  *  - FE-1-A: addSection() calls SectionService.create
  *  - FE-1-B: addVideo() calls VideoService.create
  *  - FE-1-D: deleteSection() shows confirm dialog then calls SectionService.delete
- *  - FE-2-A/B: submitDisabled is always true regardless of hasContent (D6)
+ *  - FE-2 (C4.1): submitDisabled reflects estado + hasContent:
+ *      borrador+hasContent=true  → enabled (false)
+ *      rechazado+hasContent=true → enabled (false)
+ *      en_revision               → disabled (true)
+ *      aprobado                  → disabled (true)
+ *      any estado + hasContent=false → disabled (true)
+ *  - FE-2-submit: onSubmitToReview() calls ApprovalService.submitToReview then reloads course
  *  - CRITICAL (load-existing-content): loadSections() populates sections with nested videos
  *  - WARNING-2 (FE-1-C): onSectionsReorder() calls SectionService.reorder with courseId + ids
  */
@@ -25,6 +30,7 @@ import { SectionService } from '@core/services/sectionService/section.service';
 import { VideoService } from '@core/services/videoService/video.service';
 import { MaterialService } from '@core/services/materialService/material.service';
 import { UiDialogService } from '@core/services/ui-dialog.service';
+import { ApprovalService } from '@core/services/approvalService/approval.service';
 import type { CourseDetail } from '@core/services/courseService/course.res.dto';
 import type { SectionItem, SectionWithVideos } from '@core/services/sectionService/section.res.dto';
 import type { VideoItem } from '@core/services/videoService/video.res.dto';
@@ -78,11 +84,17 @@ describe('CursoEditarComponent', () => {
   let videoServiceSpy: Partial<VideoService>;
   let materialServiceSpy: Partial<MaterialService>;
   let uiDialogSpy: Partial<UiDialogService>;
+  let approvalServiceSpy: Partial<ApprovalService>;
 
   beforeEach(async () => {
     courseServiceSpy = {
       getById: vi.fn().mockResolvedValue(MOCK_COURSE_DETAIL),
       update: vi.fn().mockResolvedValue({ ...MOCK_COURSE_DETAIL, titulo: 'Actualizado' }),
+    };
+
+    approvalServiceSpy = {
+      submitToReview: vi.fn().mockResolvedValue({ courseId: 'c-1', estado: 'en_revision' }),
+      history: vi.fn().mockResolvedValue([]),
     };
 
     sectionServiceSpy = {
@@ -123,6 +135,7 @@ describe('CursoEditarComponent', () => {
         { provide: VideoService, useValue: videoServiceSpy },
         { provide: MaterialService, useValue: materialServiceSpy },
         { provide: UiDialogService, useValue: uiDialogSpy },
+        { provide: ApprovalService, useValue: approvalServiceSpy },
         {
           provide: ActivatedRoute,
           useValue: {
@@ -295,9 +308,13 @@ describe('CursoEditarComponent', () => {
     expect(sectionServiceSpy.delete).not.toHaveBeenCalled();
   });
 
-  // ── FE-2-A/B: submitDisabled always true (D6) ─────────────────────────────
+  // ── FE-2 (C4.1): submitDisabled reflects estado + hasContent ─────────────────
+  // These tests REPLACE the old D6 "always-true" stubs. The || true is removed.
+  // submitDisabled is false (enabled) ONLY when estado ∈ {borrador, rechazado}
+  // AND hasContent() is true. All other combinations → true (disabled).
 
-  it('FE-2-A: submitDisabled is true when hasContent is false', async () => {
+  it('FE-2-A: submitDisabled is true when hasContent is false (no content)', async () => {
+    // MOCK_COURSE_DETAIL has estado=borrador, hasContent=false
     const fixture = TestBed.createComponent(CursoEditarComponent);
     const comp = fixture.componentInstance;
 
@@ -306,12 +323,14 @@ describe('CursoEditarComponent', () => {
     await comp.loadCourse();
 
     expect(comp.hasContent()).toBe(false);
+    // no content → disabled even when estado=borrador
     expect(comp.submitDisabled()).toBe(true);
   });
 
-  it('FE-2-B: submitDisabled remains true even when hasContent is true (C4.1 pending)', async () => {
+  it('FE-2-B: submitDisabled is false (enabled) when estado=borrador AND hasContent=true', async () => {
     courseServiceSpy.getById = vi.fn().mockResolvedValue({
       ...MOCK_COURSE_DETAIL,
+      estado: 'borrador',
       hasContent: true,
     });
 
@@ -323,17 +342,96 @@ describe('CursoEditarComponent', () => {
     await comp.loadCourse();
 
     expect(comp.hasContent()).toBe(true);
-    // D6: always disabled until C4.1
+    // borrador + hasContent → enabled
+    expect(comp.submitDisabled()).toBe(false);
+  });
+
+  it('FE-2-C: submitDisabled is false (enabled) when estado=rechazado AND hasContent=true', async () => {
+    courseServiceSpy.getById = vi.fn().mockResolvedValue({
+      ...MOCK_COURSE_DETAIL,
+      estado: 'rechazado',
+      hasContent: true,
+    });
+
+    const fixture = TestBed.createComponent(CursoEditarComponent);
+    const comp = fixture.componentInstance;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (comp as any)['courseId'] = 'c-1';
+    await comp.loadCourse();
+
+    expect(comp.hasContent()).toBe(true);
+    // rechazado + hasContent → enabled (can re-submit after rejection)
+    expect(comp.submitDisabled()).toBe(false);
+  });
+
+  it('FE-2-D: submitDisabled is true when estado=en_revision (already in review)', async () => {
+    courseServiceSpy.getById = vi.fn().mockResolvedValue({
+      ...MOCK_COURSE_DETAIL,
+      estado: 'en_revision',
+      hasContent: true,
+    });
+
+    const fixture = TestBed.createComponent(CursoEditarComponent);
+    const comp = fixture.componentInstance;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (comp as any)['courseId'] = 'c-1';
+    await comp.loadCourse();
+
+    // already in review → button disabled
     expect(comp.submitDisabled()).toBe(true);
   });
 
-  // ── F3-enviar-disabled: legacy test name preserved ────────────────────────
+  it('FE-2-E: submitDisabled is true when estado=aprobado', async () => {
+    courseServiceSpy.getById = vi.fn().mockResolvedValue({
+      ...MOCK_COURSE_DETAIL,
+      estado: 'aprobado',
+      hasContent: true,
+    });
 
-  it('submitDisabled is always true (C2.2 — wired as !hasContent || true per D6)', async () => {
     const fixture = TestBed.createComponent(CursoEditarComponent);
     const comp = fixture.componentInstance;
-    fixture.detectChanges();
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (comp as any)['courseId'] = 'c-1';
+    await comp.loadCourse();
+
+    // already approved → button disabled
+    expect(comp.submitDisabled()).toBe(true);
+  });
+
+  // ── FE-2-submit: onSubmitToReview wiring ──────────────────────────────────
+
+  it('FE-2-submit: onSubmitToReview() calls ApprovalService.submitToReview with courseId', async () => {
+    const fixture = TestBed.createComponent(CursoEditarComponent);
+    const comp = fixture.componentInstance;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (comp as any)['courseId'] = 'c-1';
+    await comp.onSubmitToReview();
+
+    expect(approvalServiceSpy.submitToReview).toHaveBeenCalledWith('c-1');
+  });
+
+  it('FE-2-submit: onSubmitToReview() reloads the course on success (resets estado)', async () => {
+    // After submit, loadCourse is called so estado → en_revision is reflected
+    courseServiceSpy.getById = vi.fn().mockResolvedValue({
+      ...MOCK_COURSE_DETAIL,
+      estado: 'en_revision',
+      hasContent: true,
+    });
+
+    const fixture = TestBed.createComponent(CursoEditarComponent);
+    const comp = fixture.componentInstance;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (comp as any)['courseId'] = 'c-1';
+    await comp.onSubmitToReview();
+
+    // getById called at least once (for reload)
+    expect(courseServiceSpy.getById).toHaveBeenCalledWith('c-1');
+    // After reload, estado=en_revision so submitDisabled must be true
     expect(comp.submitDisabled()).toBe(true);
   });
 

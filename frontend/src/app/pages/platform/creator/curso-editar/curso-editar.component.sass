@@ -627,3 +627,41 @@ $foot-clear: 76px
       display: flex
       justify-content: flex-end
       gap: 10px
+
+// ── Rejection banner (FE-4: shows latest rejection comment when estado=rechazado) ──
+.rejection-banner
+  display: flex
+  align-items: flex-start
+  gap: 12px
+  padding: 14px 18px
+  margin-bottom: 20px
+  background: rgba(179, 64, 47, 0.06)
+  border: 1px solid rgba(179, 64, 47, 0.24)
+  border-radius: 2px
+
+.rejection-banner__icon
+  font-size: 16px
+  color: #b3402f
+  flex: 0 0 auto
+  margin-top: 1px
+
+.rejection-banner__body
+  display: flex
+  flex-direction: column
+  gap: 4px
+  flex: 1 1 auto
+  min-width: 0
+
+.rejection-banner__label
+  font-family: var(--font-mono)
+  font-size: 10px
+  font-weight: 600
+  letter-spacing: 0.18em
+  text-transform: uppercase
+  color: #b3402f
+
+.rejection-banner__text
+  font-size: 13.5px
+  line-height: 1.5
+  color: var(--page-ink)
+  margin: 0

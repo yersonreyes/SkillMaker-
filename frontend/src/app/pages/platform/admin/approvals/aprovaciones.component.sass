@@ -1,0 +1,92 @@
+// aprovaciones.component.sass — Admin approval queue (C4.1)
+// Uses global Cyanotype Workshop primitives from styles.sass.
+// Only defines layout-specific overrides for the approval queue UI.
+
+:host
+  display: block
+
+// Panel body variant for table-like list
+.panel__body--table
+  padding: 0
+
+// ── Loading state ─────────────────────────────────────────────────────────────
+.approvals-loading
+  display: flex
+  align-items: center
+  gap: 10px
+  padding: 32px 28px
+  font-family: var(--font-mono)
+  font-size: 11px
+  letter-spacing: 0.14em
+  text-transform: uppercase
+  color: var(--page-ink-dim)
+
+// ── Approval rows ─────────────────────────────────────────────────────────────
+.approvals-list
+  list-style: none
+  margin: 0
+  padding: 0
+
+.approvals-row
+  display: flex
+  align-items: center
+  gap: 16px
+  padding: 16px 28px
+  border-bottom: 1px solid var(--page-ink-hairline)
+
+  &:last-child
+    border-bottom: none
+
+  @media (max-width: 640px)
+    flex-direction: column
+    align-items: flex-start
+
+.approvals-row__info
+  display: flex
+  flex-direction: column
+  gap: 6px
+  flex: 1 1 auto
+  min-width: 0
+
+.approvals-row__titulo
+  font-size: 14.5px
+  font-weight: 500
+  color: var(--page-ink)
+  overflow: hidden
+  text-overflow: ellipsis
+  white-space: nowrap
+
+.approvals-row__meta
+  display: flex
+  align-items: center
+  gap: 12px
+  flex-wrap: wrap
+
+.approvals-row__date
+  font-family: var(--font-mono)
+  font-size: 11px
+  color: var(--page-ink-dim)
+
+.approvals-row__actions
+  display: flex
+  align-items: center
+  gap: 8px
+  flex: 0 0 auto
+
+// Reject button uses danger color accent on hover
+.approvals-row__reject-btn
+  &:hover:not(:disabled)
+    border-color: rgba(179, 64, 47, 0.4)
+    color: #b3402f
+
+// ── Eyebrow separator ─────────────────────────────────────────────────────────
+.page__eyebrow-sep
+  color: var(--page-ink-faint)
+  margin: 0 2px
+
+// ── Reject dialog hint ────────────────────────────────────────────────────────
+.reject-dialog__hint
+  font-size: 13.5px
+  line-height: 1.5
+  color: var(--page-ink-soft)
+  margin: 0 0 18px

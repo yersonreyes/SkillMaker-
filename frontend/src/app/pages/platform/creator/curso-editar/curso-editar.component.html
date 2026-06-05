@@ -182,11 +182,29 @@
 
     <!-- ── Sticky actions ───────────────────────────────────────────────────── -->
     <footer class="editor__foot">
+      <!-- FE-4: rejection feedback banner (shown when estado=rechazado) -->
+      @if (course()?.estado === 'rechazado' && rejectionComentario()) {
+        <div class="rejection-banner">
+          <i class="pi pi-times-circle rejection-banner__icon"></i>
+          <div class="rejection-banner__body">
+            <span class="rejection-banner__label">Motivo de rechazo</span>
+            <p class="rejection-banner__text">{{ rejectionComentario() }}</p>
+          </div>
+        </div>
+      }
       <p class="editor__foot-note">
-        @if (hasContent()) {
-          <i class="pi pi-check-circle"></i> El curso tiene contenido. El envio a revision se habilita con el flujo de aprobacion.
-        } @else {
-          <i class="pi pi-info-circle"></i> Agrega al menos un video para poder enviarlo a revision.
+        @if (course(); as c) {
+          @if (c.estado === 'en_revision') {
+            <i class="pi pi-clock"></i> Curso en revision — esperando decision del administrador.
+          } @else if (c.estado === 'aprobado') {
+            <i class="pi pi-check-circle"></i> Curso aprobado y publicado.
+          } @else if (c.estado === 'rechazado') {
+            <i class="pi pi-exclamation-circle"></i> Curso rechazado. Corrige el contenido y vuelve a enviarlo a revision.
+          } @else if (hasContent()) {
+            <i class="pi pi-check-circle"></i> El curso tiene contenido. Puedes enviarlo a revision.
+          } @else {
+            <i class="pi pi-info-circle"></i> Agrega al menos un video para poder enviarlo a revision.
+          }
         }
       </p>
       <div class="editor__foot-actions">
@@ -199,10 +217,12 @@
           tooltipPosition="top">
           <i class="pi pi-file-edit"></i> Definir evaluacion
         </button>
-        <button class="btn btn--outline" type="button" [disabled]="submitDisabled()"
-          pTooltip="Disponible en el flujo de aprobacion (C4.1) — requiere contenido y revision de supervisor"
-          tooltipPosition="top">
-          <i class="pi pi-send"></i> Enviar a revision
+        <button class="btn btn--outline" type="button" [disabled]="submitDisabled() || submitting()"
+          pTooltip="Envia el curso para revision del administrador. Requiere contenido y evaluacion completa."
+          tooltipPosition="top"
+          (click)="onSubmitToReview()">
+          <i class="pi" [class.pi-spin]="submitting()" [class.pi-spinner]="submitting()" [class.pi-send]="!submitting()"></i>
+          Enviar a revision
         </button>
       </div>
     </footer>

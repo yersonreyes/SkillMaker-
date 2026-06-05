@@ -1,0 +1,119 @@
+<!-- aprovaciones.component.html — Admin approval queue (C4.1) -->
+<div class="page">
+
+  <header class="page__head">
+    <p class="page__eyebrow">Admin<span class="page__eyebrow-sep"> / </span>Aprobaciones</p>
+    <h1 class="page__title">Cola de revision<span class="tk-dot">.</span></h1>
+    <p class="page__lede">Cursos pendientes de aprobacion. Revisa el contenido antes de aprobar o rechazar.</p>
+  </header>
+
+  <!-- ── Pending list ──────────────────────────────────────────────────────── -->
+  <section class="panel">
+    <div class="panel__head">
+      <i class="pi pi-list-check"></i>
+      <span>En revision</span>
+      <span class="panel__count">{{ pending().length }} {{ pending().length === 1 ? 'curso' : 'cursos' }}</span>
+    </div>
+
+    <div class="panel__body panel__body--table">
+
+      @if (loading()) {
+        <div class="approvals-loading">
+          <i class="pi pi-spin pi-spinner"></i>
+          <span>Cargando...</span>
+        </div>
+      } @else if (pending().length === 0) {
+        <div class="empty">
+          <span class="empty__mark"><i class="pi pi-check-circle"></i></span>
+          <p class="empty__title">Todo al dia</p>
+          <p class="empty__lede">No hay cursos pendientes de revision en este momento.</p>
+        </div>
+      } @else {
+        <ul class="approvals-list">
+          @for (item of pending(); track item.id) {
+            <li class="approvals-row">
+              <div class="approvals-row__info">
+                <span class="approvals-row__titulo">{{ item.titulo }}</span>
+                <span class="approvals-row__meta">
+                  <span class="tag">{{ item.estado }}</span>
+                  <span class="approvals-row__date">{{ item.fechaEnvio | date: 'dd/MM/yyyy HH:mm' }}</span>
+                </span>
+              </div>
+              <div class="approvals-row__actions">
+                <button
+                  class="btn btn--cyan"
+                  type="button"
+                  [disabled]="approvingId() === item.id"
+                  pTooltip="Aprobar y publicar el curso"
+                  tooltipPosition="top"
+                  (click)="approve(item.id)">
+                  <i class="pi"
+                    [class.pi-spin]="approvingId() === item.id"
+                    [class.pi-spinner]="approvingId() === item.id"
+                    [class.pi-check]="approvingId() !== item.id"></i>
+                  Aprobar
+                </button>
+                <button
+                  class="btn btn--outline approvals-row__reject-btn"
+                  type="button"
+                  pTooltip="Rechazar con comentario obligatorio"
+                  tooltipPosition="top"
+                  (click)="openRejectDialog(item.id)">
+                  <i class="pi pi-times"></i>
+                  Rechazar
+                </button>
+              </div>
+            </li>
+          }
+        </ul>
+      }
+
+    </div>
+  </section>
+
+</div>
+
+<!-- ── Reject Dialog ─────────────────────────────────────────────────────────── -->
+<p-dialog
+  header="Rechazar curso"
+  [modal]="true"
+  [visible]="rejectDialogVisible()"
+  (visibleChange)="rejectDialogVisible.set($event)"
+  styleClass="dlg"
+  [style]="{ width: '32rem' }">
+
+  <p class="reject-dialog__hint">
+    El creador recibira este comentario. Explica claramente por que se rechaza el curso.
+  </p>
+
+  <div class="field">
+    <label class="field__label" for="reject-comentario">
+      Motivo del rechazo <span class="req">*</span>
+    </label>
+    <textarea
+      id="reject-comentario"
+      class="field__input field__input--area"
+      rows="4"
+      [ngModel]="rejectComentario()"
+      (ngModelChange)="rejectComentario.set($event)"
+      placeholder="Describe que debe corregir el creador..."></textarea>
+    <span class="field__hint">Requerido — el creador vera este mensaje.</span>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <button class="btn btn--ghost" type="button" (click)="rejectDialogVisible.set(false)">
+      Cancelar
+    </button>
+    <button
+      class="btn btn--outline approvals-row__reject-btn"
+      type="button"
+      [disabled]="rejectConfirmDisabled() || rejecting()"
+      (click)="confirmReject()">
+      <i class="pi"
+        [class.pi-spin]="rejecting()"
+        [class.pi-spinner]="rejecting()"
+        [class.pi-times]="!rejecting()"></i>
+      Confirmar rechazo
+    </button>
+  </ng-template>
+</p-dialog>

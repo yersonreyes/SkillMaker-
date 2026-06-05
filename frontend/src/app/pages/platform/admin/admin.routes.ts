@@ -1,12 +1,15 @@
 import { Routes } from '@angular/router';
-import { PendingViewComponent } from '@shared/components/pending-view/pending-view.component';
 import { roleGuard } from '@core/guards/role.guard';
 
 export const ADMIN_ROUTES: Routes = [
   {
     path: 'approvals',
-    component: PendingViewComponent,
-    data: { title: 'Aprobaciones' },
+    loadComponent: () =>
+      import('./approvals/aprovaciones.component').then(
+        m => m.AprovacionesComponent,
+      ),
+    canActivate: [roleGuard],
+    data: { title: 'Aprobaciones', roles: ['administrador'] },
   },
   {
     path: 'user-management',
@@ -28,7 +31,10 @@ export const ADMIN_ROUTES: Routes = [
   },
   {
     path: 'reports',
-    component: PendingViewComponent,
+    loadComponent: () =>
+      import('@shared/components/pending-view/pending-view.component').then(
+        m => m.PendingViewComponent,
+      ),
     data: { title: 'Reportes globales' },
   },
   { path: '', redirectTo: 'approvals', pathMatch: 'full' },
