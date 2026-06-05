@@ -194,6 +194,11 @@
           <i class="pi" [class.pi-spin]="saving()" [class.pi-spinner]="saving()" [class.pi-save]="!saving()"></i>
           Guardar
         </button>
+        <button class="btn btn--outline" type="button" (click)="navigateToEvaluation()"
+          pTooltip="Crear o editar la evaluacion de este curso"
+          tooltipPosition="top">
+          <i class="pi pi-file-edit"></i> Definir evaluacion
+        </button>
         <button class="btn btn--outline" type="button" [disabled]="submitDisabled()"
           pTooltip="Disponible en el flujo de aprobacion (C4.1) — requiere contenido y revision de supervisor"
           tooltipPosition="top">

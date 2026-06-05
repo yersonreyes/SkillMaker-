@@ -5,7 +5,7 @@ import {
   computed,
   OnInit,
 } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { InputTextModule } from 'primeng/inputtext';
 import { TextareaModule } from 'primeng/textarea';
@@ -66,6 +66,7 @@ export class CursoEditarComponent implements OnInit {
   private readonly materialService = inject(MaterialService);
   private readonly ui = inject(UiDialogService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   // ── Course form state ────────────────────────────────────────────────────────
   readonly titulo = signal<string>('');
@@ -333,5 +334,16 @@ export class CursoEditarComponent implements OnInit {
       rechazado:   'Rechazado',
     };
     return labels[estado] ?? estado;
+  }
+
+  // ── Navigation ────────────────────────────────────────────────────────────────
+
+  /**
+   * Navigate to the evaluation editor.
+   * CRITICAL: uses the ABSOLUTE /platform-prefixed path.
+   * A bare /creator/... path is a known C2.2 bug pattern — never use relative paths here.
+   */
+  navigateToEvaluation(): Promise<boolean> {
+    return this.router.navigateByUrl(`/platform/creator/evaluacion-editar/${this.courseId}`);
   }
 }

@@ -13,5 +13,11 @@ export const CREATOR_ROUTES: Routes = [
       import('./curso-editar/curso-editar.component').then(m => m.CursoEditarComponent),
     data: { title: 'Editar curso' },
   },
+  {
+    path: 'evaluacion-editar/:courseId',
+    loadComponent: () =>
+      import('./evaluacion-editar/evaluacion-editar.component').then(m => m.EvaluacionEditarComponent),
+    data: { title: 'Definir evaluacion' },
+  },
   { path: '', redirectTo: 'mi-contenido', pathMatch: 'full' },
 ];

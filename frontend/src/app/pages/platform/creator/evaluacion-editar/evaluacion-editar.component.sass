@@ -1,0 +1,304 @@
+// evaluacion-editar — Cyanotype Workshop
+// Lean SASS: reuse global .panel/.field/.btn/.empty/.tag classes from styles.sass.
+// Component-local rules only — keeps the file well under the 12kB anyComponentStyle budget.
+
+\:host
+  display: block
+
+.editor
+  padding: 32px 48px 64px
+  max-width: 1180px
+  margin: 0 auto
+
+  @media (max-width: 720px)
+    padding: 22px 18px 48px
+
+// ── Head ─────────────────────────────────────────────────────────────────────
+
+.editor__head
+  margin-bottom: 28px
+
+.editor__sep
+  color: var(--page-ink-faint)
+  margin: 0 2px
+
+.editor__title
+  font-family: var(--font-display)
+  font-style: italic
+  font-weight: 400
+  font-size: clamp(28px, 4vw, 44px)
+  line-height: 1.04
+  letter-spacing: -0.02em
+  color: var(--page-ink)
+  margin: 6px 0 0
+
+// ── Layout ───────────────────────────────────────────────────────────────────
+
+.eeval__layout
+  display: grid
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr)
+  gap: 22px
+
+  @media (max-width: 860px)
+    grid-template-columns: 1fr
+
+// ── Skeleton ─────────────────────────────────────────────────────────────────
+
+.eeval__skel
+  display: flex
+  flex-direction: column
+  gap: 14px
+
+// ── Question list ─────────────────────────────────────────────────────────────
+
+.qlist
+  list-style: none
+  margin: 0
+  padding: 0
+  display: flex
+  flex-direction: column
+  gap: 12px
+
+.qcard
+  background: var(--page-bg)
+  border: 1px solid var(--page-ink-hairline)
+  border-left: 2px solid var(--page-ink-faint)
+  border-radius: 2px
+  transition: border-color 0.18s ease
+
+  &:hover
+    border-left-color: var(--page-cyan)
+
+.qcard__bar
+  display: flex
+  align-items: center
+  gap: 10px
+  padding: 10px 14px
+
+.qcard__tipo
+  flex: 0 0 auto
+
+.qcard__enunciado
+  flex: 1 1 auto
+  font-size: 14px
+  color: var(--page-ink)
+  min-width: 0
+  overflow: hidden
+  text-overflow: ellipsis
+  white-space: nowrap
+
+.qcard__pts
+  font-family: var(--font-mono)
+  font-size: 11px
+  color: var(--page-ink-dim)
+  white-space: nowrap
+
+.qcard__actions
+  display: inline-flex
+  gap: 2px
+
+// ── Options within a question card (opcion_multiple) ─────────────────────────
+
+.qcard__opts
+  padding: 0 14px 12px
+  display: flex
+  flex-direction: column
+  gap: 6px
+
+.qcard__warn
+  font-size: 12.5px
+  color: #b3402f
+  display: flex
+  align-items: center
+  gap: 6px
+  margin: 0 0 4px
+  padding: 6px 10px
+  background: rgba(179, 64, 47, 0.07)
+  border: 1px solid rgba(179, 64, 47, 0.2)
+  border-radius: 2px
+
+.qcard__opt-row
+  display: flex
+  align-items: center
+  gap: 8px
+  padding: 6px 10px
+  background: var(--page-surface)
+  border: 1px solid var(--page-ink-hairline)
+  border-radius: 2px
+
+.qcard__opt-correcta
+  color: var(--page-ink-dim)
+  font-size: 14px
+  flex: 0 0 auto
+
+  &--ok
+    color: #1f7a4d
+
+.qcard__opt-texto
+  flex: 1 1 auto
+  font-size: 13.5px
+  color: var(--page-ink)
+
+// ── V/F radio selector ────────────────────────────────────────────────────────
+
+.qcard__vf
+  display: flex
+  gap: 10px
+  padding: 0 14px 12px
+
+.qcard__vf-opt
+  display: inline-flex
+  align-items: center
+  gap: 8px
+  padding: 6px 14px
+  border: 1px solid var(--page-ink-hairline)
+  border-radius: 2px
+  background: var(--page-surface)
+  cursor: pointer
+  font-size: 13.5px
+  color: var(--page-ink-soft)
+  transition: border-color 0.15s ease, color 0.15s ease
+
+  input[type="radio"]
+    accent-color: var(--page-cyan)
+    cursor: pointer
+
+  &--selected
+    border-color: var(--page-cyan-edge)
+    color: var(--page-cyan)
+    background: var(--page-cyan-soft)
+
+// ── Panel head extensions ─────────────────────────────────────────────────────
+
+.panel__count
+  margin-left: 10px
+  font-family: var(--font-mono)
+  font-size: 10.5px
+  letter-spacing: 0.16em
+  color: var(--page-ink-dim)
+
+.panel__action
+  margin-left: auto
+
+.panel__body--flush
+  padding: 16px
+
+// ── Entrance ─────────────────────────────────────────────────────────────────
+
+.reveal
+  opacity: 0
+  transform: translateY(10px)
+  animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) forwards
+  animation-delay: var(--d, 0ms)
+
+@keyframes rise
+  to
+    opacity: 1
+    transform: translateY(0)
+
+@media (prefers-reduced-motion: reduce)
+  .reveal
+    animation: none
+    opacity: 1
+    transform: none
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Dialog overrides (PrimeNG) — blueprint sheet style (minimal — reuse dlg class from global if possible)
+// ═══════════════════════════════════════════════════════════════════════════
+
+.dlg__row
+  display: grid
+  grid-template-columns: 1fr 1fr
+  gap: 16px
+  margin-top: 16px
+
+.dlg__opts-section
+  margin-top: 18px
+
+.dlg__opts-head
+  display: flex
+  align-items: center
+  justify-content: space-between
+  margin-bottom: 10px
+
+.dlg__opts-warn
+  font-size: 12.5px
+  color: #b3402f
+  display: flex
+  align-items: center
+  gap: 6px
+  margin: 0 0 10px
+  padding: 6px 10px
+  background: rgba(179, 64, 47, 0.07)
+  border: 1px solid rgba(179, 64, 47, 0.2)
+  border-radius: 2px
+
+.dlg__opt-row
+  display: flex
+  align-items: center
+  gap: 8px
+  margin-bottom: 8px
+
+.dlg__opt-check
+  display: inline-flex
+  align-items: center
+  gap: 6px
+  cursor: pointer
+  color: var(--page-ink-dim)
+  flex: 0 0 auto
+
+  input[type="checkbox"]
+    display: none
+
+.dlg__opt-check-icon
+  font-size: 16px
+  color: var(--page-ink-dim)
+
+  .pi-check-circle
+    color: #1f7a4d
+
+.dlg__opt-input
+  flex: 1 1 auto
+
+\:host ::ng-deep
+  .field__select
+    width: 100%
+    .p-select
+      width: 100%
+      border: 1px solid var(--page-ink-hairline)
+      border-radius: 2px
+      background: var(--page-surface)
+      &:not(.p-disabled):hover
+        border-color: var(--page-ink-faint)
+      &.p-focus
+        border-color: var(--page-cyan)
+        box-shadow: 0 0 0 3px var(--page-cyan-soft)
+    .p-select-label
+      font-family: var(--font-ui)
+      font-size: 14px
+      color: var(--page-ink)
+      padding: 10px 12px
+
+  .dlg
+    border: 1px solid var(--page-ink-hairline)
+    border-radius: 2px
+    box-shadow: 0 24px 60px -24px rgba(12, 24, 48, 0.4)
+    .p-dialog-header
+      background: var(--page-cyan-soft)
+      border-bottom: 1px solid var(--page-ink-hairline)
+      padding: 14px 20px
+    .p-dialog-title
+      font-family: var(--font-mono)
+      font-size: 11px
+      font-weight: 600
+      letter-spacing: 0.2em
+      text-transform: uppercase
+      color: var(--page-cyan)
+    .p-dialog-content
+      padding: 20px
+    .p-dialog-footer
+      padding: 14px 20px
+      border-top: 1px solid var(--page-ink-hairline)
+      display: flex
+      justify-content: flex-end
+      gap: 10px

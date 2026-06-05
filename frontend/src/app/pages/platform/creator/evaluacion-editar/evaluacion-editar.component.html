@@ -1,0 +1,235 @@
+<!-- evaluacion-editar.component.html — Cyanotype Workshop evaluation editor -->
+<div class="editor">
+
+  <!-- ── Head ─────────────────────────────────────────────────────────────── -->
+  <header class="editor__head">
+    <p class="page__eyebrow">Creador <span class="editor__sep">/</span> Definir evaluacion</p>
+    <h1 class="editor__title">Evaluacion<span class="tk-dot">.</span></h1>
+  </header>
+
+  @if (loading()) {
+    <div class="panel"><div class="panel__body eeval__skel"><p-skeleton height="2.4rem" /><p-skeleton height="4rem" /></div></div>
+  } @else if (showEmptyState()) {
+
+    <!-- ── Empty state: create evaluation ────────────────────────────────── -->
+    <section class="panel reveal" style="--d: 0ms; max-width: 480px">
+      <div class="panel__head"><i class="pi pi-file-edit"></i><span>Nueva evaluacion</span></div>
+      <div class="panel__body">
+        <p style="font-size:13.5px;color:var(--page-ink-soft);margin:0 0 20px;line-height:1.55">
+          Este curso aun no tiene evaluacion. Configura los parametros basicos para comenzar.
+        </p>
+        <div class="field">
+          <label class="field__label" for="cre-nota">Nota minima (0–100) <span class="req">*</span></label>
+          <input id="cre-nota" pInputText type="number" class="field__input"
+            [(ngModel)]="createForm.notaMinima"
+            min="0" max="100" placeholder="70" />
+        </div>
+        <div class="field">
+          <label class="field__label" for="cre-intentos">Intentos maximos <span class="req">*</span></label>
+          <input id="cre-intentos" pInputText type="number" class="field__input"
+            [(ngModel)]="createForm.intentosMax"
+            min="0" placeholder="0 = ilimitado" />
+        </div>
+        <div style="margin-top:22px">
+          <button class="btn btn--cyan" type="button" [disabled]="saving()" (click)="createEvaluation()">
+            <i class="pi" [class.pi-spin]="saving()" [class.pi-spinner]="saving()" [class.pi-check]="!saving()"></i>
+            Crear evaluacion
+          </button>
+        </div>
+      </div>
+    </section>
+
+  } @else {
+    <div class="eeval__layout">
+
+      <!-- ── Evaluation settings ───────────────────────────────────────────── -->
+      <section class="panel reveal" style="--d: 0ms">
+        <div class="panel__head"><i class="pi pi-sliders-h"></i><span>Configuracion</span></div>
+        <div class="panel__body">
+          <div class="field">
+            <label class="field__label" for="ev-nota">Nota minima (0–100) <span class="req">*</span></label>
+            <input id="ev-nota" pInputText type="number" class="field__input"
+              [(ngModel)]="createForm.notaMinima"
+              min="0" max="100" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="ev-intentos">Intentos maximos</label>
+            <input id="ev-intentos" pInputText type="number" class="field__input"
+              [(ngModel)]="createForm.intentosMax" min="0" />
+          </div>
+          <div style="margin-top:22px">
+            <button class="btn btn--cyan" type="button" [disabled]="saving()" (click)="saveEvaluation()">
+              <i class="pi" [class.pi-spin]="saving()" [class.pi-spinner]="saving()" [class.pi-save]="!saving()"></i>
+              Guardar
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Questions ─────────────────────────────────────────────────────── -->
+      <section class="panel reveal" style="--d: 90ms">
+        <div class="panel__head">
+          <i class="pi pi-list"></i><span>Preguntas</span>
+          <span class="panel__count">{{ questions().length }}</span>
+          <button class="btn btn--ghost panel__action" type="button" (click)="openAddQuestionDialog()">
+            <i class="pi pi-plus"></i> Pregunta
+          </button>
+        </div>
+        <div class="panel__body panel__body--flush">
+
+          @if (questions().length === 0) {
+            <div class="empty">
+              <span class="empty__mark"><i class="pi pi-list"></i></span>
+              <p class="empty__title">Sin preguntas</p>
+              <p class="empty__lede">Agrega la primera pregunta a la evaluacion.</p>
+              <button class="btn btn--cyan" type="button" (click)="openAddQuestionDialog()">
+                <i class="pi pi-plus"></i> Primera pregunta
+              </button>
+            </div>
+          } @else {
+            <ul class="qlist">
+              @for (q of questions(); track q.id) {
+                <li class="qcard">
+                  <header class="qcard__bar">
+                    <span class="qcard__tipo tag">{{ q.tipo === 'opcion_multiple' ? 'Multiple' : 'V/F' }}</span>
+                    <span class="qcard__enunciado">{{ q.enunciado }}</span>
+                    <span class="qcard__pts" pTooltip="Puntaje" tooltipPosition="top">{{ q.puntaje }} pts</span>
+                    <span class="qcard__actions" (click)="$event.stopPropagation()">
+                      <button class="icon-btn icon-btn--danger" type="button" pTooltip="Eliminar pregunta" tooltipPosition="top"
+                        (click)="deleteQuestion(q.id)"><i class="pi pi-trash"></i></button>
+                    </span>
+                  </header>
+
+                  <!-- ── opcion_multiple: show options with correcta toggles ── -->
+                  @if (q.tipo === 'opcion_multiple') {
+                    <div class="qcard__opts">
+                      @if (!canSaveQuestion(q)) {
+                        <p class="qcard__warn"><i class="pi pi-exclamation-triangle"></i> Marca al menos una opcion como correcta.</p>
+                      }
+                      @for (opt of q.options; track opt.id) {
+                        <div class="qcard__opt-row">
+                          <span class="qcard__opt-correcta" [class.qcard__opt-correcta--ok]="opt.correcta">
+                            <i class="pi" [class.pi-check-circle]="opt.correcta" [class.pi-circle]="!opt.correcta"></i>
+                          </span>
+                          <span class="qcard__opt-texto">{{ opt.texto }}</span>
+                          <button class="icon-btn icon-btn--danger" type="button" pTooltip="Eliminar opcion" tooltipPosition="top"
+                            (click)="deleteOption(q.id, opt.id)"><i class="pi pi-times"></i></button>
+                        </div>
+                      }
+                    </div>
+                  }
+
+                  <!-- ── verdadero_falso: show radio selector ──────────────── -->
+                  @if (q.tipo === 'verdadero_falso') {
+                    <div class="qcard__vf">
+                      @for (opt of q.options; track opt.id) {
+                        <label class="qcard__vf-opt" [class.qcard__vf-opt--selected]="opt.correcta">
+                          <input type="radio"
+                            [name]="'vf-' + q.id"
+                            [checked]="opt.correcta"
+                            (change)="setVFCorrect(q.id, opt.id)" />
+                          {{ opt.texto }}
+                        </label>
+                      }
+                    </div>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        </div>
+      </section>
+    </div>
+  }
+</div>
+
+<!-- ── Agregar pregunta dialog ─────────────────────────────────────────────── -->
+<p-dialog
+  header="Nueva pregunta"
+  [modal]="true"
+  [visible]="addQuestionVisible()"
+  (visibleChange)="addQuestionVisible.set($event)"
+  styleClass="dlg"
+  [style]="{ width: '38rem' }">
+
+  <div class="field">
+    <label class="field__label" for="q-enunciado">Enunciado <span class="req">*</span></label>
+    <textarea id="q-enunciado" pTextarea rows="3" class="field__input field__input--area"
+      [(ngModel)]="questionForm.enunciado"
+      placeholder="Escribe la pregunta..."></textarea>
+  </div>
+
+  <div class="dlg__row">
+    <div class="field">
+      <label class="field__label">Tipo <span class="req">*</span></label>
+      <p-select
+        [options]="tipoOptions"
+        [(ngModel)]="questionForm.tipo"
+        optionLabel="label"
+        optionValue="value"
+        styleClass="field__select" />
+    </div>
+    <div class="field">
+      <label class="field__label" for="q-puntaje">Puntaje <span class="req">*</span></label>
+      <input id="q-puntaje" pInputText type="number" class="field__input"
+        [(ngModel)]="questionForm.puntaje" min="1" />
+    </div>
+  </div>
+
+  <!-- ── opcion_multiple: dynamic options editor ──────────────────────────── -->
+  @if (questionForm.tipo === 'opcion_multiple') {
+    <div class="dlg__opts-section">
+      <div class="dlg__opts-head">
+        <span class="field__label">Opciones</span>
+        <button class="btn btn--ghost" type="button" (click)="addPendingOption()">
+          <i class="pi pi-plus"></i> Opcion
+        </button>
+      </div>
+
+      @if (optionValidationError()) {
+        <p class="dlg__opts-warn"><i class="pi pi-exclamation-triangle"></i> {{ optionValidationError() }}</p>
+      }
+
+      @for (opt of pendingOptions(); track $index) {
+        <div class="dlg__opt-row">
+          <label class="dlg__opt-check" pTooltip="Marcar como correcta" tooltipPosition="top">
+            <input type="checkbox" [checked]="opt.correcta" (change)="togglePendingCorrect($index)" />
+            <span class="dlg__opt-check-icon">
+              <i class="pi" [class.pi-check-circle]="opt.correcta" [class.pi-circle]="!opt.correcta"></i>
+            </span>
+          </label>
+          <input pInputText type="text" class="field__input dlg__opt-input"
+            [(ngModel)]="opt.texto"
+            placeholder="Texto de la opcion" />
+          <button class="icon-btn icon-btn--danger" type="button" (click)="removePendingOption($index)">
+            <i class="pi pi-times"></i>
+          </button>
+        </div>
+      }
+
+      @if (pendingOptions().length === 0) {
+        <p style="font-size:13px;color:var(--page-ink-dim);margin:8px 0 0">
+          Agrega al menos una opcion antes de guardar la pregunta.
+        </p>
+      }
+    </div>
+  }
+
+  <!-- ── verdadero_falso: info ────────────────────────────────────────────── -->
+  @if (questionForm.tipo === 'verdadero_falso') {
+    <p style="font-size:13.5px;color:var(--page-ink-soft);margin:14px 0 0;line-height:1.5">
+      <i class="pi pi-info-circle" style="color:var(--page-cyan)"></i>
+      Las opciones "Verdadero" y "Falso" se crean automaticamente. Podras elegir la correcta desde el editor.
+    </p>
+  }
+
+  <ng-template pTemplate="footer">
+    <button class="btn btn--ghost" type="button" (click)="addQuestionVisible.set(false)">Cancelar</button>
+    <button class="btn btn--cyan" type="button"
+      [disabled]="!questionForm.enunciado.trim() || addingQuestionBusy()"
+      (click)="addQuestion()">
+      <i class="pi" [class.pi-spin]="addingQuestionBusy()" [class.pi-spinner]="addingQuestionBusy()" [class.pi-check]="!addingQuestionBusy()"></i>
+      Agregar
+    </button>
+  </ng-template>
+</p-dialog>
