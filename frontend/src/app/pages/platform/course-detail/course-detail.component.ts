@@ -7,6 +7,7 @@
  *  - enrolled=true  → full tree (secciones → VideoEmbed + materiales)
  *
  * "Inscribirme" calls enroll(id) → on success re-fetches getDetail(id) to flip to enrolled view.
+ * "Mi certificado" (C5.1) appears when a certificate matching this courseId exists.
  * Navigation uses ABSOLUTE /platform/... paths (C2.2 relative-nav bug prevention).
  */
 import {
@@ -20,12 +21,14 @@ import { ActivatedRoute } from '@angular/router';
 import { SkeletonModule } from 'primeng/skeleton';
 
 import { CourseCatalogService } from '@core/services/courseCatalogService/course-catalog.service';
+import { CertificateService } from '@core/services/certificateService/certificate.service';
 import { VideoEmbedComponent } from '@shared/components/video-embed/video-embed.component';
 import type {
   CourseDetailResponse,
   CourseDetailAlumnoResponse,
   CoursePreviewResponse,
 } from '@core/services/courseCatalogService/course-catalog.dto';
+import type { CertificateListItem } from '@core/services/certificateService/certificate.dto';
 
 @Component({
   selector: 'app-course-detail-alumno',
@@ -36,12 +39,22 @@ import type {
 })
 export class CourseDetailAlumnoComponent implements OnInit {
   private readonly catalogService = inject(CourseCatalogService);
+  private readonly certService = inject(CertificateService);
   private readonly route = inject(ActivatedRoute);
 
   // ── State ──────────────────────────────────────────────────────────────────
   readonly detail = signal<CourseDetailResponse | null>(null);
   readonly loading = signal<boolean>(false);
   readonly enrolling = signal<boolean>(false);
+
+  /** All user certificates — populated after loadDetail. */
+  private readonly myCerts = signal<CertificateListItem[]>([]);
+
+  /**
+   * courseId as a signal so `myCertificate` computed stays reactive when it updates.
+   * Set from ActivatedRoute in ngOnInit.
+   */
+  private readonly courseIdSignal = signal<string>('');
 
   // ── Computed discriminators ─────────────────────────────────────────────────
   readonly enrolled = computed(() => this.detail()?.enrolled ?? false);
@@ -56,10 +69,22 @@ export class CourseDetailAlumnoComponent implements OnInit {
     return d as CourseDetailAlumnoResponse;
   });
 
+  /**
+   * The certificate for this specific course, if the user has earned it.
+   * Match is done by courseId from the certificate list.
+   */
+  readonly myCertificate = computed((): CertificateListItem | null => {
+    const certs = this.myCerts();
+    const id = this.courseIdSignal();
+    const found = certs.find(c => c.courseId === id);
+    return found ?? null;
+  });
+
   private courseId = '';
 
   ngOnInit(): void {
     this.courseId = this.route.snapshot.paramMap.get('id') ?? '';
+    this.courseIdSignal.set(this.courseId);
     void this.loadDetail();
   }
 
@@ -67,8 +92,12 @@ export class CourseDetailAlumnoComponent implements OnInit {
     if (!this.courseId) return;
     this.loading.set(true);
     try {
-      const result = await this.catalogService.getDetail(this.courseId);
+      const [result, certs] = await Promise.all([
+        this.catalogService.getDetail(this.courseId),
+        this.certService.getMyCertificates().catch(() => [] as CertificateListItem[]),
+      ]);
       this.detail.set(result);
+      this.myCerts.set(certs);
     } catch {
       // Error toast shown by HttpPromiseBuilderService
     } finally {
@@ -88,6 +117,18 @@ export class CourseDetailAlumnoComponent implements OnInit {
       // Error toast shown by builder
     } finally {
       this.enrolling.set(false);
+    }
+  }
+
+  /** Fetch presigned download URL and open in new tab. */
+  async downloadCertificate(certId: string): Promise<void> {
+    try {
+      const res = await this.certService.getDownloadUrl(certId);
+      if (res.url) {
+        window.open(res.url, '_blank');
+      }
+    } catch {
+      // Error toast shown by HttpPromiseBuilderService
     }
   }
 }

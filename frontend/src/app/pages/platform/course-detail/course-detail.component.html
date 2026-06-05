@@ -29,6 +29,17 @@
         >
           {{ enrolling() ? 'Inscribiendo...' : 'Inscribirme' }}
         </button>
+
+        <!-- Mi certificado — visible only when user has earned a cert for this course (C5.1) -->
+        @if (myCertificate()) {
+          <button
+            type="button"
+            class="btn btn--outline"
+            (click)="downloadCertificate(myCertificate()!.id!)"
+          >
+            Mi certificado
+          </button>
+        }
       </div>
     </div>
   }
@@ -41,6 +52,16 @@
         {{ enrolledDetail()!.titulo }}<span class="tk-dot">.</span>
       </h1>
       <p class="page__lede">{{ enrolledDetail()!.descripcion }}</p>
+      <!-- Mi certificado — visible when earned (C5.1) -->
+      @if (myCertificate()) {
+        <button
+          type="button"
+          class="btn btn--outline course-detail__cert-btn"
+          (click)="downloadCertificate(myCertificate()!.id!)"
+        >
+          Mi certificado
+        </button>
+      }
     </header>
 
     <!-- Secciones con videos -->

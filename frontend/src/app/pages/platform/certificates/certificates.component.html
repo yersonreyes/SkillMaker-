@@ -1,0 +1,64 @@
+<div class="page">
+
+  <header class="page__head">
+    <p class="page__eyebrow">Mis logros</p>
+    <h1 class="page__title">
+      Tus certificados<span class="tk-dot">.</span>
+    </h1>
+    <p class="page__lede">
+      Descarga los certificados de los cursos que has completado y comparte tus
+      logros con el mundo.
+    </p>
+  </header>
+
+  <!-- Loading -->
+  @if (loading()) {
+    <div class="panel">
+      <div class="panel__body certs__skeleton-grid">
+        <p-skeleton height="10rem" />
+        <p-skeleton height="10rem" />
+        <p-skeleton height="10rem" />
+      </div>
+    </div>
+  }
+
+  <!-- Empty state -->
+  @if (!loading() && certificates().length === 0) {
+    <div class="empty">
+      <i class="pi pi-file-pdf"></i>
+      <p>Aun no tienes certificados. Completa un curso para obtener el tuyo.</p>
+    </div>
+  }
+
+  <!-- Certificates grid -->
+  @if (!loading() && certificates().length > 0) {
+    <div class="certs__grid">
+      @for (cert of certificates(); track cert.id) {
+        <div class="panel certs__card">
+          <div class="panel__body">
+            <p class="certs__card-titulo">{{ cert.courseTitulo }}</p>
+            <p class="certs__card-fecha">
+              Emitido el {{ cert.emitidoEn | date: 'dd/MM/yyyy' }}
+            </p>
+            <p class="certs__card-codigo">
+              <span class="tag">{{ cert.codigo }}</span>
+            </p>
+            <button
+              type="button"
+              class="btn btn--cyan certs__card-btn"
+              [disabled]="downloadingId() === cert.id"
+              (click)="downloadCertificate(cert.id!)"
+            >
+              @if (downloadingId() === cert.id) {
+                Descargando...
+              } @else {
+                Descargar PDF
+              }
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+</div>

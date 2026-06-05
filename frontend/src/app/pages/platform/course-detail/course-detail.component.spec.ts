@@ -24,6 +24,7 @@ import { provideAnimationsAsync } from '@angular/platform-browser/animations/asy
 
 import { CourseDetailAlumnoComponent } from './course-detail.component';
 import { CourseCatalogService } from '@core/services/courseCatalogService/course-catalog.service';
+import { CertificateService } from '@core/services/certificateService/certificate.service';
 import type {
   CoursePreviewResponse,
   CourseDetailAlumnoResponse,
@@ -72,11 +73,18 @@ const MOCK_ENROLL: EnrollmentResponse = {
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 
+/** Minimal CertificateService stub — returns empty list (no cert hook interference). */
+const noCertSpy: Partial<CertificateService> = {
+  getMyCertificates: vi.fn().mockResolvedValue([]),
+  getDownloadUrl: vi.fn().mockResolvedValue({ url: '', expiresAt: '' }),
+};
+
 async function createComponent(catalogSpy: Partial<CourseCatalogService>) {
   await TestBed.configureTestingModule({
     imports: [CourseDetailAlumnoComponent],
     providers: [
       { provide: CourseCatalogService, useValue: catalogSpy },
+      { provide: CertificateService, useValue: noCertSpy },
       {
         provide: ActivatedRoute,
         useValue: {

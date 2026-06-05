@@ -1,0 +1,87 @@
+<div class="page">
+
+  <header class="page__head">
+    <p class="page__eyebrow">Gamificacion</p>
+    <h1 class="page__title">
+      Insignias y clasificacion<span class="tk-dot">.</span>
+    </h1>
+    <p class="page__lede">
+      Gana insignias completando cursos y escala en la clasificacion de la plataforma.
+    </p>
+  </header>
+
+  <!-- Loading -->
+  @if (loading()) {
+    <div class="panel">
+      <div class="panel__body">
+        <p-skeleton height="3rem" />
+        <p-skeleton height="3rem" styleClass="mt-2" />
+        <p-skeleton height="3rem" styleClass="mt-2" />
+      </div>
+    </div>
+  }
+
+  @if (!loading()) {
+
+    <!-- ── Mis insignias ──────────────────────────────────────────────────── -->
+    <section class="badges__section">
+      <h2 class="badges__section-title">Mis insignias</h2>
+
+      @if (badges().length === 0) {
+        <div class="empty">
+          <i class="pi pi-star"></i>
+          <p>Aun no tienes insignias. Completa cursos para desbloquearlas.</p>
+        </div>
+      }
+
+      @if (badges().length > 0) {
+        <div class="badges__grid">
+          @for (badge of badges(); track badge.id) {
+            <div class="panel badges__card">
+              <div class="panel__body">
+                <p class="badges__card-nombre">{{ badge.nombre }}</p>
+                <p class="badges__card-desc">{{ badge.descripcion }}</p>
+                <p class="badges__card-fecha">
+                  <span class="tag">{{ badge.otorgadoEn | date: 'dd/MM/yyyy' }}</span>
+                </p>
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </section>
+
+    <!-- ── Clasificacion ─────────────────────────────────────────────────── -->
+    <section class="badges__section">
+      <h2 class="badges__section-title">Clasificacion</h2>
+
+      @if (ranking().length === 0) {
+        <div class="empty">
+          <i class="pi pi-chart-bar"></i>
+          <p>La clasificacion esta vacia. Se el primero en completar un curso.</p>
+        </div>
+      }
+
+      @if (ranking().length > 0) {
+        <p-table [value]="ranking()" [tableStyle]="{ 'min-width': '30rem' }">
+          <ng-template pTemplate="header">
+            <tr>
+              <th>#</th>
+              <th>Usuario</th>
+              <th>Certificados</th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-item>
+            <tr>
+              <td>{{ item.posicion }}</td>
+              <td>{{ item.userNombre }}</td>
+              <td>{{ item.certCount }}</td>
+            </tr>
+          </ng-template>
+        </p-table>
+      }
+    </section>
+
+  }
+
+</div>

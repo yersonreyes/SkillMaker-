@@ -1,6 +1,5 @@
 import { Routes } from '@angular/router';
 import { PlatformLayoutComponent } from './layout/platform-layout.component';
-import { PendingViewComponent } from '@shared/components/pending-view/pending-view.component';
 import { roleGuard } from '@core/guards/role.guard';
 
 export const PLATFORM_ROUTES: Routes = [
@@ -39,8 +38,18 @@ export const PLATFORM_ROUTES: Routes = [
           import('./evaluacion-tomar/evaluacion-tomar.component').then(m => m.EvaluacionTomarComponent),
         data: { title: 'Evaluacion' },
       },
-      { path: 'certificates', component: PendingViewComponent, data: { title: 'Certificados' } },
-      { path: 'badges',       component: PendingViewComponent, data: { title: 'Insignias' } },
+      {
+        path: 'certificates',
+        loadComponent: () =>
+          import('./certificates/certificates.component').then(m => m.CertificatesComponent),
+        data: { title: 'Certificados' },
+      },
+      {
+        path: 'badges',
+        loadComponent: () =>
+          import('./badges/badges.component').then(m => m.BadgesComponent),
+        data: { title: 'Insignias' },
+      },
 
       // Sub-routers by role
       {
