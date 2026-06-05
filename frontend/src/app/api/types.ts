@@ -4,6 +4,83 @@
  */
 
 export interface paths {
+  "/attempts/{id}": {
+    /** Retorna el intento con sus preguntas (sin correcta) y las respuestas actuales del estudiante. */
+    get: {
+      parameters: {
+        path: {
+          /** UUID del intento */
+          id: string;
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.AttemptStateResponse"];
+        };
+        /** intento no encontrado o no pertenece al usuario */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/attempts/{id}/answers": {
+    /** Registra o actualiza la respuesta del estudiante para una pregunta del intento. */
+    post: {
+      parameters: {
+        path: {
+          /** UUID del intento */
+          id: string;
+        };
+        body: {
+          /** Respuesta */
+          body: definitions["dto.AnswerRequest"];
+        };
+      };
+      responses: {
+        /** No Content */
+        204: never;
+        /** opcion o pregunta invalida */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** intento no encontrado */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** intento ya finalizado */
+        409: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/attempts/{id}/submit": {
+    /** Cierra el intento, calcula el puntaje y retorna el resultado. */
+    post: {
+      parameters: {
+        path: {
+          /** UUID del intento */
+          id: string;
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.SubmitResponse"];
+        };
+        /** intento no encontrado */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** intento ya finalizado */
+        409: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
   "/auth/google": {
     /**
      * Valida el ID token de Google, verifica que el campo hd coincida con el
@@ -576,6 +653,31 @@ export interface paths {
           schema: definitions["httperr.Error"];
         };
         /** Conflict */
+        409: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/evaluations/{id}/attempts": {
+    /** Crea un intento para el usuario autenticado en la evaluacion indicada. */
+    post: {
+      parameters: {
+        path: {
+          /** UUID de la evaluacion */
+          id: string;
+        };
+      };
+      responses: {
+        /** Created */
+        201: {
+          schema: definitions["dto.AttemptStartResponse"];
+        };
+        /** evaluacion no encontrada */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** intento abierto o maximo alcanzado */
         409: {
           schema: definitions["httperr.Error"];
         };
@@ -1177,6 +1279,39 @@ export interface definitions {
   "dto.ActivePatchRequest": {
     active: boolean;
   };
+  "dto.AnswerRequest": {
+    optionId: string;
+    questionId: string;
+  };
+  "dto.AttemptAnswerView": {
+    optionId?: string;
+    questionId?: string;
+  };
+  "dto.AttemptStartResponse": {
+    attemptId?: string;
+    iniciadoEn?: string;
+    numero?: number;
+  };
+  "dto.AttemptStateOptionResponse": {
+    id?: string;
+    texto?: string;
+  };
+  "dto.AttemptStateQuestionResponse": {
+    enunciado?: string;
+    id?: string;
+    options?: definitions["dto.AttemptStateOptionResponse"][];
+    puntaje?: number;
+    tipo?: string;
+  };
+  "dto.AttemptStateResponse": {
+    answers?: definitions["dto.AttemptAnswerView"][];
+    aprobado?: boolean;
+    attemptId?: string;
+    numero?: number;
+    puntaje?: number;
+    questions?: definitions["dto.AttemptStateQuestionResponse"][];
+    submitted?: boolean;
+  };
   "dto.CourseDetail": {
     creadorId?: string;
     createdAt?: string;
@@ -1323,6 +1458,10 @@ export interface definitions {
     orden?: number;
     titulo?: string;
     videos?: definitions["dto.VideoResponse"][];
+  };
+  "dto.SubmitResponse": {
+    aprobado?: boolean;
+    puntaje?: number;
   };
   "dto.SupervisionCreateRequest": {
     empleadoId: string;

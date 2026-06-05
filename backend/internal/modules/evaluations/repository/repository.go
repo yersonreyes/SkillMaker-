@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/evaluations/domain"
 )
@@ -28,6 +29,10 @@ var (
 	// ErrEvaluationExists is returned when a second evaluation is created for
 	// a course that already has one (maps Postgres UNIQUE violation 23505).
 	ErrEvaluationExists = errors.New("evaluation already exists for this course")
+
+	// ErrAttemptNotFound is returned when an attempt lookup finds no row.
+	// Also returned by GetOpenAttempt when no open (unsubmitted) attempt exists.
+	ErrAttemptNotFound = errors.New("attempt not found")
 )
 
 // Repository defines the data-access contract for the evaluations module.
@@ -79,6 +84,33 @@ type Repository interface {
 
 	// ListOptionsByQuestion returns all options for a question ordered by orden ASC.
 	ListOptionsByQuestion(ctx context.Context, questionID string) ([]domain.Option, error)
+
+	// CreateAttempt persists a new attempt row.
+	CreateAttempt(ctx context.Context, a *domain.Attempt) error
+
+	// GetAttemptByID fetches an attempt by primary key.
+	// Returns ErrAttemptNotFound when no row matches.
+	GetAttemptByID(ctx context.Context, id string) (*domain.Attempt, error)
+
+	// UpdateAttempt applies a partial field map update to an attempt.
+	// Returns ErrAttemptNotFound when zero rows are affected.
+	UpdateAttempt(ctx context.Context, id string, fields map[string]any) error
+
+	// CountAttemptsByUserEval returns the total number of attempts a user has
+	// made on a given evaluation (both open and submitted).
+	CountAttemptsByUserEval(ctx context.Context, userID, evalID string) (int64, error)
+
+	// GetOpenAttempt returns the single open (finalizado_en IS NULL) attempt for
+	// a (user, evaluation) pair. Returns ErrAttemptNotFound when no open attempt exists.
+	GetOpenAttempt(ctx context.Context, userID, evalID string) (*domain.Attempt, error)
+
+	// UpsertAnswer inserts or updates the student's answer for a (attempt, question) pair.
+	// Uses ON CONFLICT on uq_answer_attempt_question (migration 0007) to update
+	// option_id and correcta when the student re-answers the same question.
+	UpsertAnswer(ctx context.Context, attemptID, questionID, optionID string, correcta bool) error
+
+	// ListAnswersByAttempt returns all saved answers for an attempt.
+	ListAnswersByAttempt(ctx context.Context, attemptID string) ([]domain.Answer, error)
 }
 
 // ── gormRepository ─────────────────────────────────────────────────────────────
@@ -245,6 +277,91 @@ func (r *gormRepository) ListOptionsByQuestion(ctx context.Context, questionID s
 		return nil, err
 	}
 	return options, nil
+}
+
+// ── Attempt implementations ────────────────────────────────────────────────────
+
+func (r *gormRepository) CreateAttempt(ctx context.Context, a *domain.Attempt) error {
+	if a.ID == "" {
+		a.ID = uuid.New().String()
+	}
+	return r.db.WithContext(ctx).Create(a).Error
+}
+
+func (r *gormRepository) GetAttemptByID(ctx context.Context, id string) (*domain.Attempt, error) {
+	var a domain.Attempt
+	result := r.db.WithContext(ctx).Where("id = ?", id).First(&a)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, ErrAttemptNotFound
+	}
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &a, nil
+}
+
+func (r *gormRepository) UpdateAttempt(ctx context.Context, id string, fields map[string]any) error {
+	result := r.db.WithContext(ctx).
+		Model(&domain.Attempt{}).
+		Where("id = ?", id).
+		Updates(fields)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrAttemptNotFound
+	}
+	return nil
+}
+
+func (r *gormRepository) CountAttemptsByUserEval(ctx context.Context, userID, evalID string) (int64, error) {
+	var n int64
+	err := r.db.WithContext(ctx).
+		Model(&domain.Attempt{}).
+		Where("user_id = ? AND evaluation_id = ?", userID, evalID).
+		Count(&n).Error
+	return n, err
+}
+
+func (r *gormRepository) GetOpenAttempt(ctx context.Context, userID, evalID string) (*domain.Attempt, error) {
+	var a domain.Attempt
+	result := r.db.WithContext(ctx).
+		Where("user_id = ? AND evaluation_id = ? AND finalizado_en IS NULL", userID, evalID).
+		First(&a)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, ErrAttemptNotFound
+	}
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &a, nil
+}
+
+// UpsertAnswer inserts or updates the student's answer for a (attempt, question) pair.
+// ON CONFLICT on uq_answer_attempt_question (migration 0007) updates option_id and correcta.
+func (r *gormRepository) UpsertAnswer(ctx context.Context, attemptID, questionID, optionID string, correcta bool) error {
+	ans := domain.Answer{
+		ID:         uuid.New().String(),
+		AttemptID:  attemptID,
+		QuestionID: questionID,
+		OptionID:   optionID,
+		Correcta:   correcta,
+	}
+	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "attempt_id"}, {Name: "question_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"option_id", "correcta"}),
+	}).Create(&ans).Error
+}
+
+func (r *gormRepository) ListAnswersByAttempt(ctx context.Context, attemptID string) ([]domain.Answer, error) {
+	var answers []domain.Answer
+	err := r.db.WithContext(ctx).
+		Where("attempt_id = ?", attemptID).
+		Find(&answers).Error
+	if err != nil {
+		return nil, err
+	}
+	return answers, nil
 }
 
 // ── helpers ────────────────────────────────────────────────────────────────────

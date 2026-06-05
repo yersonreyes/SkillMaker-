@@ -164,3 +164,116 @@ func ToQuestion(m *service.QuestionModel) QuestionResponse {
 		Orden:        m.Orden,
 	}
 }
+
+// ── Student attempt DTOs (C3.2) ────────────────────────────────────────────────
+
+// AttemptStartResponse is the response body for POST /api/evaluations/:id/attempts.
+type AttemptStartResponse struct {
+	AttemptID  string    `json:"attemptId"`
+	Numero     int       `json:"numero"`
+	IniciadoEn time.Time `json:"iniciadoEn"`
+}
+
+// AttemptStateOptionResponse is the student-facing option shape.
+// It has NO correcta field — the omission is structural and compile-time guaranteed (ADR-E, R1).
+type AttemptStateOptionResponse struct {
+	ID    string `json:"id"`
+	Texto string `json:"texto"`
+}
+
+// AttemptStateQuestionResponse is a question with student-safe options (no correcta).
+type AttemptStateQuestionResponse struct {
+	ID        string                       `json:"id"`
+	Enunciado string                       `json:"enunciado"`
+	Tipo      string                       `json:"tipo"`
+	Puntaje   int                          `json:"puntaje"`
+	Options   []AttemptStateOptionResponse `json:"options"`
+}
+
+// AttemptAnswerView is the student's current answer selection for a question.
+type AttemptAnswerView struct {
+	QuestionID string `json:"questionId"`
+	OptionID   string `json:"optionId"`
+}
+
+// AttemptStateResponse is the response body for GET /api/attempts/:id.
+// Puntaje and Aprobado are meaningful only when Submitted=true.
+type AttemptStateResponse struct {
+	AttemptID string                         `json:"attemptId"`
+	Numero    int                            `json:"numero"`
+	Submitted bool                           `json:"submitted"`
+	Puntaje   int                            `json:"puntaje"`
+	Aprobado  bool                           `json:"aprobado"`
+	Questions []AttemptStateQuestionResponse `json:"questions"`
+	Answers   []AttemptAnswerView            `json:"answers"`
+}
+
+// AnswerRequest is the request body for POST /api/attempts/:id/answers.
+type AnswerRequest struct {
+	QuestionID string `json:"questionId" binding:"required"`
+	OptionID   string `json:"optionId"   binding:"required"`
+}
+
+// SubmitResponse is the response body for POST /api/attempts/:id/submit.
+type SubmitResponse struct {
+	Puntaje  int  `json:"puntaje"`
+	Aprobado bool `json:"aprobado"`
+}
+
+// ── Student attempt mappers ────────────────────────────────────────────────────
+
+// ToAttemptStart converts a service AttemptModel to an AttemptStartResponse.
+func ToAttemptStart(m *service.AttemptModel) AttemptStartResponse {
+	return AttemptStartResponse{
+		AttemptID:  m.ID,
+		Numero:     m.Numero,
+		IniciadoEn: m.IniciadoEn,
+	}
+}
+
+// ToAttemptState converts a service AttemptStateModel to an AttemptStateResponse.
+// Options in the returned struct have NO correcta field — structural no-leak (ADR-E).
+func ToAttemptState(m *service.AttemptStateModel) AttemptStateResponse {
+	questions := make([]AttemptStateQuestionResponse, 0, len(m.Questions))
+	for i := range m.Questions {
+		opts := make([]AttemptStateOptionResponse, 0, len(m.Questions[i].Options))
+		for j := range m.Questions[i].Options {
+			// NOTE: service.AttemptStateOption has no Correcta — no field to copy.
+			opts = append(opts, AttemptStateOptionResponse{
+				ID:    m.Questions[i].Options[j].ID,
+				Texto: m.Questions[i].Options[j].Texto,
+			})
+		}
+		questions = append(questions, AttemptStateQuestionResponse{
+			ID:        m.Questions[i].ID,
+			Enunciado: m.Questions[i].Enunciado,
+			Tipo:      m.Questions[i].Tipo,
+			Puntaje:   m.Questions[i].Puntaje,
+			Options:   opts,
+		})
+	}
+	answers := make([]AttemptAnswerView, 0, len(m.Answers))
+	for i := range m.Answers {
+		answers = append(answers, AttemptAnswerView{
+			QuestionID: m.Answers[i].QuestionID,
+			OptionID:   m.Answers[i].OptionID,
+		})
+	}
+	return AttemptStateResponse{
+		AttemptID: m.ID,
+		Numero:    m.Numero,
+		Submitted: m.Submitted,
+		Puntaje:   m.Puntaje,
+		Aprobado:  m.Aprobado,
+		Questions: questions,
+		Answers:   answers,
+	}
+}
+
+// ToSubmit converts a service AttemptResultModel to a SubmitResponse.
+func ToSubmit(m *service.AttemptResultModel) SubmitResponse {
+	return SubmitResponse{
+		Puntaje:  m.Puntaje,
+		Aprobado: m.Aprobado,
+	}
+}

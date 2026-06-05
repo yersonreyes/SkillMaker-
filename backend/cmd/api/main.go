@@ -99,10 +99,13 @@ func main() {
 	creatorGrp := protected.Group("", middleware.RequireRole("creador"))
 	courses.RegisterRoutes(creatorGrp, coursesSvc)
 
-	// Evaluations module (C3.1) — coursesSvc satisfies evaluations.CoursesChecker structurally.
+	// Evaluations module (C3.1 + C3.2) — coursesSvc satisfies evaluations.CoursesChecker structurally.
+	// Seams (EnrollmentCompleter, CertificateIssuer) stay nil in C3.2; wired in C2.4 / C5.1.
 	evaluationsRepo := evaluations.NewRepository(db)
 	evaluationsSvc := evaluations.NewService(evaluationsRepo, coursesSvc)
 	evaluations.RegisterRoutes(creatorGrp, evaluationsSvc)
+	// C3.2: student attempt lifecycle on the JWT-only protected group (no RequireRole restriction).
+	evaluations.RegisterStudentRoutes(protected, evaluationsSvc)
 	// Additional modules (approvals, certificates, reporting) will be wired here.
 
 	srv := httpserver.NewServer(cfg.Port, router)

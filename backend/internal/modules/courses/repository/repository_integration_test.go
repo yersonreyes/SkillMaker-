@@ -220,15 +220,17 @@ func TestMigration0004RoundTrip(t *testing.T) {
 // to reach the state where 0004 has been reversed. The assertions remain unchanged.
 // NOTE (C3.1): after migration 0006 was added, we must roll back 3 steps (0006+0005+0004)
 // to reach the state where 0004 has been reversed. All migrations 0001–0006 are applied.
+// NOTE (C3.2): after migration 0007 was added, we must roll back 4 steps (0007+0006+0005+0004)
+// to reach the state where 0004 has been reversed. All migrations 0001–0007 are applied.
 func TestMigration0004Down_ReversesSchema(t *testing.T) {
 	// Use the migrate-aware setup so we can call m.Down() ourselves.
 	db, m, teardown := testutil.SetupPostgresWithMigrate(t)
 	defer teardown()
 
-	// All migrations up (0001–0006) are applied by SetupPostgresWithMigrate.
-	// Roll back 3 steps: first 0006, then 0005, then 0004.
-	err := m.Steps(-3)
-	require.NoError(t, err, "m.Steps(-3) must roll back 0006+0005+0004 without error (SCH-1-B)")
+	// All migrations up (0001–0007) are applied by SetupPostgresWithMigrate.
+	// Roll back 4 steps: first 0007, then 0006, then 0005, then 0004.
+	err := m.Steps(-4)
+	require.NoError(t, err, "m.Steps(-4) must roll back 0007+0006+0005+0004 without error (SCH-1-B)")
 
 	// Step 2: Assert storage_key is restored.
 	var storageKeyCount int64
@@ -673,11 +675,12 @@ func TestMigration0005RoundTrip(t *testing.T) {
 	assert.Equal(t, int64(1), tamanoCount,
 		"material.tamano_bytes must exist after 0005 up (AC8)")
 
-	// Apply DOWN two steps — rolls back 0006 then 0005 (all migrations 0001–0006 applied).
-	// NOTE (C3.1): migration 0006 was added; -1 now rolls back 0006 only, so we need -2 to reach
+	// Apply DOWN three steps — rolls back 0007 then 0006 then 0005 (all migrations 0001–0007 applied).
+	// NOTE (C3.1): migration 0006 was added; -1 now rolls back 0006 only, so we need -2.
+	// NOTE (C3.2): migration 0007 was added; -2 now rolls back 0007+0006, so we need -3 to reach
 	// the post-0005-down state where mime_type and tamano_bytes are removed.
-	err = m.Steps(-2)
-	require.NoError(t, err, "m.Steps(-2) must roll back 0006+0005 without error (AC8)")
+	err = m.Steps(-3)
+	require.NoError(t, err, "m.Steps(-3) must roll back 0007+0006+0005 without error (AC8)")
 
 	// Verify mime_type is gone after 0005 down.
 	err = db.Raw(

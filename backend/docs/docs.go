@@ -15,6 +15,150 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/attempts/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retorna el intento con sus preguntas (sin correcta) y las respuestas actuales del estudiante.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attempts"
+                ],
+                "summary": "Obtiene el estado de un intento",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID del intento",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.AttemptStateResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "intento no encontrado o no pertenece al usuario",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/attempts/{id}/answers": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Registra o actualiza la respuesta del estudiante para una pregunta del intento.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attempts"
+                ],
+                "summary": "Guarda la respuesta de una pregunta",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID del intento",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Respuesta",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.AnswerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "opcion o pregunta invalida",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "intento no encontrado",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "intento ya finalizado",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/attempts/{id}/submit": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Cierra el intento, calcula el puntaje y retorna el resultado.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attempts"
+                ],
+                "summary": "Finaliza y califica un intento",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID del intento",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SubmitResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "intento no encontrado",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "intento ya finalizado",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/google": {
             "post": {
                 "description": "Valida el ID token de Google, verifica que el campo hd coincida con el\ndominio corporativo configurado (GOOGLE_HOSTED_DOMAIN), crea o actualiza\nel usuario por google_sub y retorna un JWT de acceso + refresh token opaco.",
@@ -1064,6 +1208,52 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/evaluations/{id}/attempts": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Crea un intento para el usuario autenticado en la evaluacion indicada.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attempts"
+                ],
+                "summary": "Inicia un nuevo intento de evaluacion",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID de la evaluacion",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/dto.AttemptStartResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "evaluacion no encontrada",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "intento abierto o maximo alcanzado",
                         "schema": {
                             "$ref": "#/definitions/httperr.Error"
                         }
@@ -2203,6 +2393,112 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.AnswerRequest": {
+            "type": "object",
+            "required": [
+                "optionId",
+                "questionId"
+            ],
+            "properties": {
+                "optionId": {
+                    "type": "string"
+                },
+                "questionId": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.AttemptAnswerView": {
+            "type": "object",
+            "properties": {
+                "optionId": {
+                    "type": "string"
+                },
+                "questionId": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.AttemptStartResponse": {
+            "type": "object",
+            "properties": {
+                "attemptId": {
+                    "type": "string"
+                },
+                "iniciadoEn": {
+                    "type": "string"
+                },
+                "numero": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.AttemptStateOptionResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "texto": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.AttemptStateQuestionResponse": {
+            "type": "object",
+            "properties": {
+                "enunciado": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.AttemptStateOptionResponse"
+                    }
+                },
+                "puntaje": {
+                    "type": "integer"
+                },
+                "tipo": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.AttemptStateResponse": {
+            "type": "object",
+            "properties": {
+                "answers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.AttemptAnswerView"
+                    }
+                },
+                "aprobado": {
+                    "type": "boolean"
+                },
+                "attemptId": {
+                    "type": "string"
+                },
+                "numero": {
+                    "type": "integer"
+                },
+                "puntaje": {
+                    "type": "integer"
+                },
+                "questions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.AttemptStateQuestionResponse"
+                    }
+                },
+                "submitted": {
+                    "type": "boolean"
+                }
+            }
+        },
         "dto.CourseDetail": {
             "type": "object",
             "properties": {
@@ -2699,6 +2995,17 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/dto.VideoResponse"
                     }
+                }
+            }
+        },
+        "dto.SubmitResponse": {
+            "type": "object",
+            "properties": {
+                "aprobado": {
+                    "type": "boolean"
+                },
+                "puntaje": {
+                    "type": "integer"
                 }
             }
         },

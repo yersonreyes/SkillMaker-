@@ -160,3 +160,29 @@ func (m *MockCoursesChecker) GetCourseOwnership(ctx context.Context, courseID st
 	args := m.Called(ctx, courseID)
 	return args.String(0), args.String(1), args.Error(2)
 }
+
+// MockEnrollmentCompleter is a testify/mock implementation of the evaluations
+// service.EnrollmentCompleter interface. Used in service unit tests to verify
+// the seam is called on pass and skipped on fail (C3.2 REQ-SEAMS).
+type MockEnrollmentCompleter struct {
+	mock.Mock
+}
+
+// MarkEnrollmentCompleted records the call and returns the mocked error.
+func (m *MockEnrollmentCompleter) MarkEnrollmentCompleted(ctx context.Context, userID, courseID string) error {
+	args := m.Called(ctx, userID, courseID)
+	return args.Error(0)
+}
+
+// MockCertificateIssuer is a testify/mock implementation of the evaluations
+// service.CertificateIssuer interface. Used in service unit tests alongside
+// MockEnrollmentCompleter to verify seam invocation on pass (C3.2 REQ-SEAMS).
+type MockCertificateIssuer struct {
+	mock.Mock
+}
+
+// IssueOnPass records the call and returns the mocked error.
+func (m *MockCertificateIssuer) IssueOnPass(ctx context.Context, userID, courseID string) error {
+	args := m.Called(ctx, userID, courseID)
+	return args.Error(0)
+}

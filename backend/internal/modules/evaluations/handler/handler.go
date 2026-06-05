@@ -339,7 +339,145 @@ func (h *Handler) DeleteOption(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// ── Student routes (C3.2) ─────────────────────────────────────────────────────
+
+// RegisterStudent mounts the student attempt routes onto a JWT-only route group.
+// Student routes are disjoint from creator routes:
+//   - POST /evaluations/:id/attempts shares the :id wildcard segment with the creator
+//     POST /evaluations/:id/questions (same param name, no Gin conflict).
+//   - /attempts/:id is a brand-new top-level tree.
+func RegisterStudent(protectedGrp *gin.RouterGroup, svc service.Service) {
+	h := &Handler{svc: svc}
+	protectedGrp.POST("/evaluations/:id/attempts", h.StartAttempt)
+	protectedGrp.GET("/attempts/:id", h.GetAttempt)
+	protectedGrp.POST("/attempts/:id/answers", h.SaveAnswer)
+	protectedGrp.POST("/attempts/:id/submit", h.SubmitAttempt)
+}
+
+// StartAttempt godoc
+// @Summary     Inicia un nuevo intento de evaluacion
+// @Description Crea un intento para el usuario autenticado en la evaluacion indicada.
+// @Tags        attempts
+// @Produce     json
+// @Security    BearerAuth
+// @Param       id path string true "UUID de la evaluacion"
+// @Success     201 {object} dto.AttemptStartResponse
+// @Failure     404 {object} httperr.Error "evaluacion no encontrada"
+// @Failure     409 {object} httperr.Error "intento abierto o maximo alcanzado"
+// @Router      /evaluations/{id}/attempts [post]
+func (h *Handler) StartAttempt(c *gin.Context) {
+	evalID := c.Param("id")
+	userID := middleware.UserIDFrom(c)
+
+	model, err := h.svc.StartAttempt(c.Request.Context(), evalID, userID)
+	if err != nil {
+		h.renderAttemptError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, dto.ToAttemptStart(model))
+}
+
+// GetAttempt godoc
+// @Summary     Obtiene el estado de un intento
+// @Description Retorna el intento con sus preguntas (sin correcta) y las respuestas actuales del estudiante.
+// @Tags        attempts
+// @Produce     json
+// @Security    BearerAuth
+// @Param       id path string true "UUID del intento"
+// @Success     200 {object} dto.AttemptStateResponse
+// @Failure     404 {object} httperr.Error "intento no encontrado o no pertenece al usuario"
+// @Router      /attempts/{id} [get]
+func (h *Handler) GetAttempt(c *gin.Context) {
+	attemptID := c.Param("id")
+	userID := middleware.UserIDFrom(c)
+
+	state, err := h.svc.GetAttempt(c.Request.Context(), attemptID, userID)
+	if err != nil {
+		h.renderAttemptError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.ToAttemptState(state))
+}
+
+// SaveAnswer godoc
+// @Summary     Guarda la respuesta de una pregunta
+// @Description Registra o actualiza la respuesta del estudiante para una pregunta del intento.
+// @Tags        attempts
+// @Accept      json
+// @Security    BearerAuth
+// @Param       id   path   string              true "UUID del intento"
+// @Param       body body   dto.AnswerRequest   true "Respuesta"
+// @Success     204
+// @Failure     400 {object} httperr.Error "opcion o pregunta invalida"
+// @Failure     404 {object} httperr.Error "intento no encontrado"
+// @Failure     409 {object} httperr.Error "intento ya finalizado"
+// @Router      /attempts/{id}/answers [post]
+func (h *Handler) SaveAnswer(c *gin.Context) {
+	attemptID := c.Param("id")
+	userID := middleware.UserIDFrom(c)
+
+	var req dto.AnswerRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperr.Render(c, httperr.BadRequest("INVALID_BODY", "body invalido: "+err.Error()))
+		return
+	}
+
+	if err := h.svc.SaveAnswer(c.Request.Context(), attemptID, userID, req.QuestionID, req.OptionID); err != nil {
+		h.renderAttemptError(c, err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+// SubmitAttempt godoc
+// @Summary     Finaliza y califica un intento
+// @Description Cierra el intento, calcula el puntaje y retorna el resultado.
+// @Tags        attempts
+// @Produce     json
+// @Security    BearerAuth
+// @Param       id path string true "UUID del intento"
+// @Success     200 {object} dto.SubmitResponse
+// @Failure     404 {object} httperr.Error "intento no encontrado"
+// @Failure     409 {object} httperr.Error "intento ya finalizado"
+// @Router      /attempts/{id}/submit [post]
+func (h *Handler) SubmitAttempt(c *gin.Context) {
+	attemptID := c.Param("id")
+	userID := middleware.UserIDFrom(c)
+
+	result, err := h.svc.SubmitAttempt(c.Request.Context(), attemptID, userID)
+	if err != nil {
+		h.renderAttemptError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.ToSubmit(result))
+}
+
 // ── Error render helpers (TWO — deliberate, mirrors courses handler REQ-DIVERGENCE) ────
+
+// renderAttemptError maps student attempt sentinels to HTTP status codes.
+// This is a THIRD render helper — intentionally separate from renderReadError and
+// renderWriteError (ADR-D). The student sentinel set is disjoint from the creator set.
+func (h *Handler) renderAttemptError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, service.ErrAttemptNotFound), errors.Is(err, service.ErrEvaluationNotFound):
+		httperr.Render(c, httperr.NotFound("ATTEMPT_NOT_FOUND", "attempt not found"))
+	case errors.Is(err, service.ErrMaxAttemptsReached):
+		httperr.Render(c, httperr.Conflict("MAX_ATTEMPTS_REACHED", "max attempts reached"))
+	case errors.Is(err, service.ErrAttemptAlreadySubmitted):
+		httperr.Render(c, httperr.Conflict("ATTEMPT_ALREADY_SUBMITTED", "attempt already submitted"))
+	case errors.Is(err, service.ErrAttemptOpen):
+		httperr.Render(c, httperr.Conflict("ATTEMPT_OPEN", "an open attempt already exists"))
+	case errors.Is(err, service.ErrInvalidAnswer):
+		httperr.Render(c, httperr.BadRequest("INVALID_ANSWER", "invalid answer"))
+	default:
+		slog.Error("evaluations: unexpected error (attempt)", "err", err)
+		httperr.Render(c, httperr.Internal(err.Error()))
+	}
+}
 
 // renderReadError maps service sentinels to HTTP statuses for READ routes (GET).
 // ErrNotOwner → 404 (hides existence of the evaluation from non-owners).

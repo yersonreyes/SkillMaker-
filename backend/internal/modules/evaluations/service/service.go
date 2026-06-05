@@ -9,6 +9,7 @@ package service
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -17,13 +18,38 @@ import (
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/evaluations/repository"
 )
 
-// ── Cross-module seam ──────────────────────────────────────────────────────────
+// ── Cross-module seams ─────────────────────────────────────────────────────────
 
 // CoursesChecker is the narrow cross-module seam into courses.
 // coursesSvc satisfies this structurally — evaluations never imports courses internals.
 // The string estado (not courses.Estado) keeps the seam minimal, zero domain leak (Decision 1).
 type CoursesChecker interface {
 	GetCourseOwnership(ctx context.Context, courseID string) (creadorID, estado string, err error)
+}
+
+// EnrollmentCompleter is a nil-able forward seam wired by C2.4.
+// In C3.2 it is nil (no-op).
+type EnrollmentCompleter interface {
+	MarkEnrollmentCompleted(ctx context.Context, userID, courseID string) error
+}
+
+// CertificateIssuer is a nil-able forward seam wired by C5.1.
+// In C3.2 it is nil (no-op).
+type CertificateIssuer interface {
+	IssueOnPass(ctx context.Context, userID, courseID string) error
+}
+
+// Option configures optional serviceImpl dependencies via functional options (ADR-A).
+type Option func(*serviceImpl)
+
+// WithEnrollmentCompleter injects an EnrollmentCompleter seam into the service.
+func WithEnrollmentCompleter(ec EnrollmentCompleter) Option {
+	return func(s *serviceImpl) { s.enroll = ec }
+}
+
+// WithCertificateIssuer injects a CertificateIssuer seam into the service.
+func WithCertificateIssuer(ci CertificateIssuer) Option {
+	return func(s *serviceImpl) { s.certs = ci }
 }
 
 // ── Read models ────────────────────────────────────────────────────────────────
@@ -65,6 +91,58 @@ type QuestionWithOptionsModel struct {
 type EvaluationDetailModel struct {
 	EvaluationModel
 	Questions []QuestionWithOptionsModel
+}
+
+// ── Attempt read-models ────────────────────────────────────────────────────────
+
+// AttemptModel is the flat read model returned by StartAttempt.
+type AttemptModel struct {
+	ID           string
+	UserID       string
+	EvaluationID string
+	Numero       int
+	Puntaje      int
+	Aprobado     bool
+	IniciadoEn   time.Time
+	FinalizadoEn *time.Time
+}
+
+// AttemptStateOption is the student-facing option shape.
+// It has NO Correcta field — the omission is structural and compile-time guaranteed (ADR-E, R1).
+type AttemptStateOption struct {
+	ID    string
+	Texto string
+}
+
+// AttemptStateQuestion is a question with student-safe options (no Correcta).
+type AttemptStateQuestion struct {
+	ID        string
+	Enunciado string
+	Tipo      string
+	Puntaje   int
+	Options   []AttemptStateOption
+}
+
+// AttemptStateAnswer records the student's current selection for a question.
+type AttemptStateAnswer struct {
+	QuestionID string
+	OptionID   string
+}
+
+// AttemptStateModel is the full state of an attempt including questions and
+// the student's current answers. Submitted is true when finalizado_en is set.
+// Post-submit: Puntaje and Aprobado carry the final score; Correcta is still absent.
+type AttemptStateModel struct {
+	AttemptModel
+	Questions []AttemptStateQuestion
+	Answers   []AttemptStateAnswer
+	Submitted bool
+}
+
+// AttemptResultModel is the slim response returned by SubmitAttempt.
+type AttemptResultModel struct {
+	Puntaje  int
+	Aprobado bool
 }
 
 // ── Request types ──────────────────────────────────────────────────────────────
@@ -152,6 +230,26 @@ type Service interface {
 	// NOT wired to any mutating endpoint in C3.1 — used as a pre-submit gate in C4.1.
 	// Implemented and tested here per Decision 5.
 	ValidateEvaluationComplete(ctx context.Context, evalID string) error
+
+	// StartAttempt creates a new attempt for the given student on the evaluation.
+	// Returns ErrEvaluationNotFound if the evaluation does not exist.
+	// Returns ErrAttemptOpen if the student has an unsubmitted attempt.
+	// Returns ErrMaxAttemptsReached if intentos_max > 0 and count >= intentos_max.
+	StartAttempt(ctx context.Context, evaluationID, userID string) (*AttemptModel, error)
+
+	// GetAttempt returns the full attempt state including questions (no correcta) and
+	// the student's current answers. Returns ErrAttemptNotFound for non-owners (anti-enum).
+	GetAttempt(ctx context.Context, attemptID, userID string) (*AttemptStateModel, error)
+
+	// SaveAnswer records or updates the student's answer for a question.
+	// Returns ErrAttemptNotFound for non-owners, ErrAttemptAlreadySubmitted if submitted,
+	// and ErrInvalidAnswer if the option/question pair is invalid.
+	SaveAnswer(ctx context.Context, attemptID, userID, questionID, optionID string) error
+
+	// SubmitAttempt finalises the attempt, computing puntaje and aprobado.
+	// Returns ErrAttemptNotFound for non-owners, ErrAttemptAlreadySubmitted if already done.
+	// Calls EnrollmentCompleter + CertificateIssuer seams if aprobado (non-fatal on error).
+	SubmitAttempt(ctx context.Context, attemptID, userID string) (*AttemptResultModel, error)
 }
 
 // ── concrete implementation ────────────────────────────────────────────────────
@@ -159,11 +257,19 @@ type Service interface {
 type serviceImpl struct {
 	repo    repository.Repository
 	courses CoursesChecker
+	enroll  EnrollmentCompleter // nil in C3.2; wired by C2.4
+	certs   CertificateIssuer   // nil in C3.2; wired by C5.1
 }
 
 // New creates a Service backed by the given Repository and CoursesChecker.
-func New(repo repository.Repository, courses CoursesChecker) Service {
-	return &serviceImpl{repo: repo, courses: courses}
+// Optional seam dependencies are injected via functional options (ADR-A).
+// The existing 2-arg call site (main.go) stays valid — opts is variadic.
+func New(repo repository.Repository, courses CoursesChecker, opts ...Option) Service {
+	s := &serviceImpl{repo: repo, courses: courses}
+	for _, o := range opts {
+		o(s)
+	}
+	return s
 }
 
 // ── CreateEvaluation ───────────────────────────────────────────────────────────

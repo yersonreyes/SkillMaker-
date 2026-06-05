@@ -115,6 +115,35 @@ func (m *mockEvalSvc) ValidateEvaluationComplete(ctx context.Context, evalID str
 	return args.Error(0)
 }
 
+func (m *mockEvalSvc) StartAttempt(ctx context.Context, evaluationID, userID string) (*service.AttemptModel, error) {
+	args := m.Called(ctx, evaluationID, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*service.AttemptModel), args.Error(1)
+}
+
+func (m *mockEvalSvc) GetAttempt(ctx context.Context, attemptID, userID string) (*service.AttemptStateModel, error) {
+	args := m.Called(ctx, attemptID, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*service.AttemptStateModel), args.Error(1)
+}
+
+func (m *mockEvalSvc) SaveAnswer(ctx context.Context, attemptID, userID, questionID, optionID string) error {
+	args := m.Called(ctx, attemptID, userID, questionID, optionID)
+	return args.Error(0)
+}
+
+func (m *mockEvalSvc) SubmitAttempt(ctx context.Context, attemptID, userID string) (*service.AttemptResultModel, error) {
+	args := m.Called(ctx, attemptID, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*service.AttemptResultModel), args.Error(1)
+}
+
 // ── Mock courses service (minimal — satisfies full interface) ──────────────────
 
 type mockCourseSvc struct {

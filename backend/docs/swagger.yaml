@@ -7,6 +7,75 @@ definitions:
     required:
     - active
     type: object
+  dto.AnswerRequest:
+    properties:
+      optionId:
+        type: string
+      questionId:
+        type: string
+    required:
+    - optionId
+    - questionId
+    type: object
+  dto.AttemptAnswerView:
+    properties:
+      optionId:
+        type: string
+      questionId:
+        type: string
+    type: object
+  dto.AttemptStartResponse:
+    properties:
+      attemptId:
+        type: string
+      iniciadoEn:
+        type: string
+      numero:
+        type: integer
+    type: object
+  dto.AttemptStateOptionResponse:
+    properties:
+      id:
+        type: string
+      texto:
+        type: string
+    type: object
+  dto.AttemptStateQuestionResponse:
+    properties:
+      enunciado:
+        type: string
+      id:
+        type: string
+      options:
+        items:
+          $ref: '#/definitions/dto.AttemptStateOptionResponse'
+        type: array
+      puntaje:
+        type: integer
+      tipo:
+        type: string
+    type: object
+  dto.AttemptStateResponse:
+    properties:
+      answers:
+        items:
+          $ref: '#/definitions/dto.AttemptAnswerView'
+        type: array
+      aprobado:
+        type: boolean
+      attemptId:
+        type: string
+      numero:
+        type: integer
+      puntaje:
+        type: integer
+      questions:
+        items:
+          $ref: '#/definitions/dto.AttemptStateQuestionResponse'
+        type: array
+      submitted:
+        type: boolean
+    type: object
   dto.CourseDetail:
     properties:
       creadorId:
@@ -344,6 +413,13 @@ definitions:
           $ref: '#/definitions/dto.VideoResponse'
         type: array
     type: object
+  dto.SubmitResponse:
+    properties:
+      aprobado:
+        type: boolean
+      puntaje:
+        type: integer
+    type: object
   dto.SupervisionCreateRequest:
     properties:
       empleadoId:
@@ -482,6 +558,99 @@ info:
   title: SkillMaker API
   version: "1.0"
 paths:
+  /attempts/{id}:
+    get:
+      description: Retorna el intento con sus preguntas (sin correcta) y las respuestas
+        actuales del estudiante.
+      parameters:
+      - description: UUID del intento
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.AttemptStateResponse'
+        "404":
+          description: intento no encontrado o no pertenece al usuario
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Obtiene el estado de un intento
+      tags:
+      - attempts
+  /attempts/{id}/answers:
+    post:
+      consumes:
+      - application/json
+      description: Registra o actualiza la respuesta del estudiante para una pregunta
+        del intento.
+      parameters:
+      - description: UUID del intento
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Respuesta
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.AnswerRequest'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: opcion o pregunta invalida
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: intento no encontrado
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "409":
+          description: intento ya finalizado
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Guarda la respuesta de una pregunta
+      tags:
+      - attempts
+  /attempts/{id}/submit:
+    post:
+      description: Cierra el intento, calcula el puntaje y retorna el resultado.
+      parameters:
+      - description: UUID del intento
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.SubmitResponse'
+        "404":
+          description: intento no encontrado
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "409":
+          description: intento ya finalizado
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Finaliza y califica un intento
+      tags:
+      - attempts
   /auth/google:
     post:
       consumes:
@@ -1181,6 +1350,35 @@ paths:
       summary: Actualiza una evaluacion (PATCH parcial)
       tags:
       - evaluations
+  /evaluations/{id}/attempts:
+    post:
+      description: Crea un intento para el usuario autenticado en la evaluacion indicada.
+      parameters:
+      - description: UUID de la evaluacion
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.AttemptStartResponse'
+        "404":
+          description: evaluacion no encontrada
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "409":
+          description: intento abierto o maximo alcanzado
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Inicia un nuevo intento de evaluacion
+      tags:
+      - attempts
   /evaluations/{id}/questions:
     post:
       consumes:

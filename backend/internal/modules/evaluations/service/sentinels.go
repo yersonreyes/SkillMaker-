@@ -45,4 +45,30 @@ var (
 	// {borrador, rechazado} and a mutating operation is attempted.
 	// Maps to 409 Conflict.
 	ErrCourseNotEditable = errors.New("course estado does not permit this edit")
+
+	// ErrAttemptNotFound is returned when an attempt lookup finds no row OR when the
+	// requesting user does not own the attempt (anti-enumeration — never 403).
+	// Maps to 404 Not Found.
+	ErrAttemptNotFound = errors.New("attempt not found")
+
+	// ErrMaxAttemptsReached is returned when the student has used all allowed attempts
+	// (intentos_max > 0 AND count >= intentos_max).
+	// Maps to 409 Conflict.
+	ErrMaxAttemptsReached = errors.New("max attempts reached")
+
+	// ErrAttemptAlreadySubmitted is returned when a student tries to answer or
+	// re-submit an already finalised attempt (finalizado_en is set).
+	// Maps to 409 Conflict.
+	ErrAttemptAlreadySubmitted = errors.New("attempt already submitted")
+
+	// ErrAttemptOpen is returned when StartAttempt is called but the user already
+	// has an open (unsubmitted) attempt for the same evaluation.
+	// Maps to 409 Conflict.
+	ErrAttemptOpen = errors.New("an open attempt already exists")
+
+	// ErrInvalidAnswer is returned when the supplied (questionID, optionID) pair
+	// is not valid for the attempt's evaluation (option does not belong to the
+	// question, or question does not belong to the evaluation).
+	// Maps to 400 Bad Request.
+	ErrInvalidAnswer = errors.New("invalid answer")
 )
