@@ -158,6 +158,180 @@ body
   letter-spacing: 0.12em
   text-transform: uppercase
 
+// Cyan accent dot used after display titles (e.g. "Evaluacion.").
+.tk-dot
+  color: var(--page-cyan)
+  font-style: normal
+
+// =============================================================================
+// Workshop editor primitives — shared form fields, buttons, empty states.
+// Used by curso-editar, evaluacion-editar and future creator/admin editors so
+// each page stays cohesive. Pages may still define page-specific overrides.
+// =============================================================================
+
+.field
+  display: flex
+  flex-direction: column
+  gap: 7px
+
+  & + .field
+    margin-top: 18px
+
+.field__label
+  font-family: var(--font-mono)
+  font-size: 10.5px
+  font-weight: 500
+  letter-spacing: 0.18em
+  text-transform: uppercase
+  color: var(--page-ink-soft)
+
+  .req
+    color: var(--page-cyan)
+    margin-left: 1px
+
+.field__hint
+  font-size: 11.5px
+  color: var(--page-ink-dim)
+  margin-top: 5px
+
+.field__input
+  width: 100%
+  font-family: var(--font-ui)
+  font-size: 14px
+  color: var(--page-ink)
+  background: var(--page-surface)
+  border: 1px solid var(--page-ink-hairline)
+  border-radius: 2px
+  padding: 10px 12px
+  transition: border-color 0.16s ease, box-shadow 0.16s ease
+
+  &::placeholder
+    color: var(--page-ink-dim)
+
+  &:hover
+    border-color: var(--page-ink-faint)
+
+  &:focus, &:focus-visible
+    outline: none
+    border-color: var(--page-cyan)
+    box-shadow: 0 0 0 3px var(--page-cyan-soft)
+
+  &--area
+    resize: vertical
+    min-height: 120px
+    line-height: 1.6
+
+.btn
+  display: inline-flex
+  align-items: center
+  justify-content: center
+  gap: 8px
+  font-family: var(--font-mono)
+  font-size: 11px
+  font-weight: 500
+  letter-spacing: 0.14em
+  text-transform: uppercase
+  border-radius: 2px
+  padding: 9px 16px
+  cursor: pointer
+  border: 1px solid transparent
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease, transform 0.08s ease
+  white-space: nowrap
+
+  i
+    font-size: 12px
+
+  &:active
+    transform: translateY(1px)
+
+  &:disabled
+    cursor: not-allowed
+    opacity: 0.5
+    transform: none
+
+  &--cyan
+    background: var(--page-cyan)
+    color: #fff
+    &:hover:not(:disabled)
+      background: var(--page-cyan-hover)
+
+  &--outline
+    background: var(--page-surface)
+    border-color: var(--page-ink-hairline)
+    color: var(--page-ink-soft)
+    &:hover:not(:disabled)
+      border-color: var(--page-cyan-edge)
+      color: var(--page-cyan)
+
+  &--ghost
+    background: transparent
+    color: var(--page-ink-soft)
+    padding: 7px 12px
+    &:hover:not(:disabled)
+      background: var(--page-cyan-soft)
+      color: var(--page-cyan)
+
+.icon-btn
+  display: inline-flex
+  align-items: center
+  justify-content: center
+  width: 30px
+  height: 30px
+  border-radius: 2px
+  border: 1px solid transparent
+  background: transparent
+  color: var(--page-ink-dim)
+  cursor: pointer
+  transition: background 0.15s ease, color 0.15s ease
+
+  i
+    font-size: 13px
+
+  &:hover
+    background: var(--page-cyan-soft)
+    color: var(--page-cyan)
+
+  &--danger:hover
+    background: rgba(179, 64, 47, 0.1)
+    color: #b3402f
+
+.empty
+  display: flex
+  flex-direction: column
+  align-items: center
+  text-align: center
+  padding: 48px 24px 44px
+  gap: 6px
+
+.empty__mark
+  display: inline-flex
+  align-items: center
+  justify-content: center
+  width: 56px
+  height: 56px
+  margin-bottom: 10px
+  border-radius: 3px
+  background: var(--page-cyan-soft)
+  border: 1px solid var(--page-cyan-edge)
+  color: var(--page-cyan)
+
+  i
+    font-size: 22px
+
+.empty__title
+  font-family: var(--font-display)
+  font-style: italic
+  font-size: 22px
+  color: var(--page-ink)
+  margin: 0
+
+.empty__lede
+  font-size: 13.5px
+  color: var(--page-ink-soft)
+  max-width: 340px
+  line-height: 1.55
+  margin: 0 0 16px
+
 // =============================================================================
 // PrimeNG tweaks (componentes que mantenemos: popover, tooltip)
 // =============================================================================

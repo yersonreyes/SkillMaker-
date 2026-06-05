@@ -37,10 +37,40 @@
 .eeval__layout
   display: grid
   grid-template-columns: minmax(0, 320px) minmax(0, 1fr)
+  align-items: stretch
   gap: 22px
 
   @media (max-width: 860px)
     grid-template-columns: 1fr
+
+// Both panels fill the viewport height; the questions body grows with content.
+.eeval__config, .eeval__questions
+  display: flex
+  flex-direction: column
+  min-height: calc(100dvh - 220px)
+
+  @media (max-width: 860px)
+    min-height: 0
+
+.eeval__questions .panel__body--flush
+  flex: 1 1 auto
+
+.eeval__create
+  max-width: 480px
+
+.eeval__lede
+  font-size: 13.5px
+  color: var(--page-ink-soft)
+  margin: 0 0 20px
+  line-height: 1.55
+
+.eeval__form-actions
+  margin-top: 22px
+
+.field__hint
+  font-size: 11.5px
+  color: var(--page-ink-dim)
+  margin-top: 5px
 
 // ── Skeleton ─────────────────────────────────────────────────────────────────
 
@@ -58,8 +88,10 @@
   display: flex
   flex-direction: column
   gap: 12px
+  counter-reset: qn
 
 .qcard
+  counter-increment: qn
   background: var(--page-bg)
   border: 1px solid var(--page-ink-hairline)
   border-left: 2px solid var(--page-ink-faint)
@@ -69,14 +101,44 @@
   &:hover
     border-left-color: var(--page-cyan)
 
+  &--invalid
+    border-left-color: #d08a3c
+
 .qcard__bar
   display: flex
   align-items: center
   gap: 10px
   padding: 10px 14px
 
+.qcard__idx
+  font-family: var(--font-mono)
+  font-size: 12px
+  font-weight: 500
+  color: var(--page-cyan)
+  flex: 0 0 auto
+
+  &::before
+    content: counter(qn, decimal-leading-zero)
+
 .qcard__tipo
   flex: 0 0 auto
+  display: inline-flex
+  align-items: center
+  padding: 3px 8px
+  border-radius: 2px
+  font-family: var(--font-mono)
+  font-size: 9.5px
+  font-weight: 500
+  letter-spacing: 0.12em
+  text-transform: uppercase
+  color: var(--page-cyan)
+  background: var(--page-cyan-soft)
+  border: 1px solid var(--page-cyan-edge)
+
+  &--vf
+    color: #7a5a1f
+    background: rgba(208, 138, 60, 0.1)
+    border-color: rgba(208, 138, 60, 0.3)
 
 .qcard__enunciado
   flex: 1 1 auto
@@ -121,23 +183,62 @@
   display: flex
   align-items: center
   gap: 8px
-  padding: 6px 10px
+  padding: 5px 8px
   background: var(--page-surface)
   border: 1px solid var(--page-ink-hairline)
   border-radius: 2px
+  transition: border-color 0.15s ease
 
-.qcard__opt-correcta
-  color: var(--page-ink-dim)
-  font-size: 14px
+  &--ok
+    border-color: rgba(31, 122, 77, 0.35)
+    background: rgba(31, 122, 77, 0.05)
+
+// Clickable correcta toggle on a persisted option
+.qcard__opt-toggle
+  display: inline-flex
+  align-items: center
+  justify-content: center
+  width: 26px
+  height: 26px
   flex: 0 0 auto
+  border: 0
+  background: transparent
+  border-radius: 2px
+  color: var(--page-ink-dim)
+  cursor: pointer
+  font-size: 15px
+  transition: color 0.15s ease, background 0.15s ease
+
+  &:hover
+    background: var(--page-cyan-soft)
+    color: var(--page-cyan)
 
   &--ok
     color: #1f7a4d
+
+    &:hover
+      background: rgba(31, 122, 77, 0.1)
+      color: #1f7a4d
 
 .qcard__opt-texto
   flex: 1 1 auto
   font-size: 13.5px
   color: var(--page-ink)
+  min-width: 0
+  overflow: hidden
+  text-overflow: ellipsis
+
+// Inline "add option" row on a persisted opcion_multiple question
+.qcard__opt-add
+  display: flex
+  align-items: center
+  gap: 8px
+  margin-top: 2px
+
+.qcard__opt-add-input
+  flex: 1 1 auto
+  padding: 6px 10px
+  font-size: 13px
 
 // ── V/F radio selector ────────────────────────────────────────────────────────
 
@@ -212,6 +313,11 @@
   gap: 16px
   margin-top: 16px
 
+  // Fields sit in grid columns — drop the vertical-stacking margin so TIPO and
+  // PUNTAJE align at the top.
+  .field + .field
+    margin-top: 0
+
 .dlg__opts-section
   margin-top: 18px
 
@@ -260,6 +366,24 @@
 .dlg__opt-input
   flex: 1 1 auto
 
+.dlg__opts-hint
+  font-size: 13px
+  color: var(--page-ink-dim)
+  margin: 8px 0 0
+
+.dlg__info
+  display: flex
+  align-items: flex-start
+  gap: 8px
+  font-size: 13.5px
+  color: var(--page-ink-soft)
+  margin: 14px 0 0
+  line-height: 1.5
+
+  i
+    color: var(--page-cyan)
+    margin-top: 2px
+
 \:host ::ng-deep
   .field__select
     width: 100%
@@ -296,6 +420,9 @@
       color: var(--page-cyan)
     .p-dialog-content
       padding: 20px
+    // The question enunciado is short — override the tall shared --area height.
+    .field__input--area
+      min-height: 74px
     .p-dialog-footer
       padding: 14px 20px
       border-top: 1px solid var(--page-ink-hairline)

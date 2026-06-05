@@ -89,6 +89,9 @@ export class EvaluacionEditarComponent implements OnInit {
   readonly pendingOptions = signal<OptionFormRow[]>([]);
   readonly optionValidationError = signal<string>('');
 
+  /** Per-question draft text for the inline "add option" input on persisted questions. */
+  readonly optionDrafts = signal<Record<string, string>>({});
+
   // ── tipo options for the Select dropdown ─────────────────────────────────────
 
   readonly tipoOptions = [
@@ -319,6 +322,47 @@ export class EvaluacionEditarComponent implements OnInit {
     } catch {
       // Error toast already shown
     }
+  }
+
+  /**
+   * Toggle a persisted opcion_multiple option's correcta flag (multiple correct allowed).
+   * PATCHes the option and reflects the new value locally.
+   */
+  async toggleOptionCorrect(questionId: string, optionId: string, current: boolean): Promise<void> {
+    try {
+      const updated = await this.questionService.updateOption(optionId, { correcta: !current });
+      this.questions.update(list =>
+        list.map(q =>
+          q.id === questionId
+            ? {
+                ...q,
+                options: q.options.map(o =>
+                  o.id === optionId ? { ...o, correcta: updated.correcta ?? !current } : o,
+                ),
+              }
+            : q,
+        ),
+      );
+    } catch {
+      // Error toast already shown
+    }
+  }
+
+  // ── Inline add-option on a persisted opcion_multiple question ──────────────────
+
+  setOptionDraft(questionId: string, texto: string): void {
+    this.optionDrafts.update(m => ({ ...m, [questionId]: texto }));
+  }
+
+  optionDraft(questionId: string): string {
+    return this.optionDrafts()[questionId] ?? '';
+  }
+
+  async submitNewOption(questionId: string): Promise<void> {
+    const texto = this.optionDraft(questionId).trim();
+    if (!texto) return;
+    await this.addOption(questionId, texto);
+    this.optionDrafts.update(m => ({ ...m, [questionId]: '' }));
   }
 
   // ── V/F correct selector ──────────────────────────────────────────────────────

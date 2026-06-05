@@ -12,25 +12,23 @@
   } @else if (showEmptyState()) {
 
     <!-- ── Empty state: create evaluation ────────────────────────────────── -->
-    <section class="panel reveal" style="--d: 0ms; max-width: 480px">
+    <section class="panel reveal eeval__create" style="--d: 0ms">
       <div class="panel__head"><i class="pi pi-file-edit"></i><span>Nueva evaluacion</span></div>
       <div class="panel__body">
-        <p style="font-size:13.5px;color:var(--page-ink-soft);margin:0 0 20px;line-height:1.55">
+        <p class="eeval__lede">
           Este curso aun no tiene evaluacion. Configura los parametros basicos para comenzar.
         </p>
         <div class="field">
           <label class="field__label" for="cre-nota">Nota minima (0–100) <span class="req">*</span></label>
           <input id="cre-nota" pInputText type="number" class="field__input"
-            [(ngModel)]="createForm.notaMinima"
-            min="0" max="100" placeholder="70" />
+            [(ngModel)]="createForm.notaMinima" min="0" max="100" placeholder="70" />
         </div>
         <div class="field">
           <label class="field__label" for="cre-intentos">Intentos maximos <span class="req">*</span></label>
           <input id="cre-intentos" pInputText type="number" class="field__input"
-            [(ngModel)]="createForm.intentosMax"
-            min="0" placeholder="0 = ilimitado" />
+            [(ngModel)]="createForm.intentosMax" min="0" placeholder="0 = ilimitado" />
         </div>
-        <div style="margin-top:22px">
+        <div class="eeval__form-actions">
           <button class="btn btn--cyan" type="button" [disabled]="saving()" (click)="createEvaluation()">
             <i class="pi" [class.pi-spin]="saving()" [class.pi-spinner]="saving()" [class.pi-check]="!saving()"></i>
             Crear evaluacion
@@ -43,21 +41,21 @@
     <div class="eeval__layout">
 
       <!-- ── Evaluation settings ───────────────────────────────────────────── -->
-      <section class="panel reveal" style="--d: 0ms">
+      <section class="panel reveal eeval__config" style="--d: 0ms">
         <div class="panel__head"><i class="pi pi-sliders-h"></i><span>Configuracion</span></div>
         <div class="panel__body">
           <div class="field">
             <label class="field__label" for="ev-nota">Nota minima (0–100) <span class="req">*</span></label>
             <input id="ev-nota" pInputText type="number" class="field__input"
-              [(ngModel)]="createForm.notaMinima"
-              min="0" max="100" />
+              [(ngModel)]="createForm.notaMinima" min="0" max="100" />
           </div>
           <div class="field">
             <label class="field__label" for="ev-intentos">Intentos maximos</label>
             <input id="ev-intentos" pInputText type="number" class="field__input"
               [(ngModel)]="createForm.intentosMax" min="0" />
+            <span class="field__hint">0 = intentos ilimitados</span>
           </div>
-          <div style="margin-top:22px">
+          <div class="eeval__form-actions">
             <button class="btn btn--cyan" type="button" [disabled]="saving()" (click)="saveEvaluation()">
               <i class="pi" [class.pi-spin]="saving()" [class.pi-spinner]="saving()" [class.pi-save]="!saving()"></i>
               Guardar
@@ -67,10 +65,12 @@
       </section>
 
       <!-- ── Questions ─────────────────────────────────────────────────────── -->
-      <section class="panel reveal" style="--d: 90ms">
+      <section class="panel reveal eeval__questions" style="--d: 90ms">
         <div class="panel__head">
           <i class="pi pi-list"></i><span>Preguntas</span>
-          <span class="panel__count">{{ questions().length }}</span>
+          <span class="panel__count">
+            {{ questions().length }} {{ questions().length === 1 ? 'pregunta' : 'preguntas' }}
+          </span>
           <button class="btn btn--ghost panel__action" type="button" (click)="openAddQuestionDialog()">
             <i class="pi pi-plus"></i> Pregunta
           </button>
@@ -89,44 +89,62 @@
           } @else {
             <ul class="qlist">
               @for (q of questions(); track q.id) {
-                <li class="qcard">
+                <li class="qcard" [class.qcard--invalid]="!canSaveQuestion(q)">
                   <header class="qcard__bar">
-                    <span class="qcard__tipo tag">{{ q.tipo === 'opcion_multiple' ? 'Multiple' : 'V/F' }}</span>
+                    <span class="qcard__idx"></span>
+                    <span class="qcard__tipo" [class.qcard__tipo--vf]="q.tipo === 'verdadero_falso'">
+                      {{ q.tipo === 'opcion_multiple' ? 'Multiple' : 'V / F' }}
+                    </span>
                     <span class="qcard__enunciado">{{ q.enunciado }}</span>
-                    <span class="qcard__pts" pTooltip="Puntaje" tooltipPosition="top">{{ q.puntaje }} pts</span>
-                    <span class="qcard__actions" (click)="$event.stopPropagation()">
+                    <span class="qcard__pts">{{ q.puntaje }} pts</span>
+                    <span class="qcard__actions">
                       <button class="icon-btn icon-btn--danger" type="button" pTooltip="Eliminar pregunta" tooltipPosition="top"
                         (click)="deleteQuestion(q.id)"><i class="pi pi-trash"></i></button>
                     </span>
                   </header>
 
-                  <!-- ── opcion_multiple: show options with correcta toggles ── -->
+                  <!-- ── opcion_multiple: editable options + inline add ── -->
                   @if (q.tipo === 'opcion_multiple') {
                     <div class="qcard__opts">
                       @if (!canSaveQuestion(q)) {
                         <p class="qcard__warn"><i class="pi pi-exclamation-triangle"></i> Marca al menos una opcion como correcta.</p>
                       }
                       @for (opt of q.options; track opt.id) {
-                        <div class="qcard__opt-row">
-                          <span class="qcard__opt-correcta" [class.qcard__opt-correcta--ok]="opt.correcta">
+                        <div class="qcard__opt-row" [class.qcard__opt-row--ok]="opt.correcta">
+                          <button class="qcard__opt-toggle" type="button"
+                            [class.qcard__opt-toggle--ok]="opt.correcta"
+                            [pTooltip]="opt.correcta ? 'Correcta — click para desmarcar' : 'Marcar como correcta'"
+                            tooltipPosition="top"
+                            (click)="toggleOptionCorrect(q.id, opt.id, opt.correcta)">
                             <i class="pi" [class.pi-check-circle]="opt.correcta" [class.pi-circle]="!opt.correcta"></i>
-                          </span>
+                          </button>
                           <span class="qcard__opt-texto">{{ opt.texto }}</span>
                           <button class="icon-btn icon-btn--danger" type="button" pTooltip="Eliminar opcion" tooltipPosition="top"
                             (click)="deleteOption(q.id, opt.id)"><i class="pi pi-times"></i></button>
                         </div>
                       }
+                      <!-- inline add option -->
+                      <div class="qcard__opt-add">
+                        <input pInputText type="text" class="field__input qcard__opt-add-input"
+                          [ngModel]="optionDraft(q.id)"
+                          (ngModelChange)="setOptionDraft(q.id, $event)"
+                          (keyup.enter)="submitNewOption(q.id)"
+                          placeholder="Agregar opcion..." />
+                        <button class="btn btn--ghost" type="button"
+                          [disabled]="!optionDraft(q.id).trim()"
+                          (click)="submitNewOption(q.id)">
+                          <i class="pi pi-plus"></i>
+                        </button>
+                      </div>
                     </div>
                   }
 
-                  <!-- ── verdadero_falso: show radio selector ──────────────── -->
+                  <!-- ── verdadero_falso: radio selector ──────────────── -->
                   @if (q.tipo === 'verdadero_falso') {
                     <div class="qcard__vf">
                       @for (opt of q.options; track opt.id) {
                         <label class="qcard__vf-opt" [class.qcard__vf-opt--selected]="opt.correcta">
-                          <input type="radio"
-                            [name]="'vf-' + q.id"
-                            [checked]="opt.correcta"
+                          <input type="radio" [name]="'vf-' + q.id" [checked]="opt.correcta"
                             (change)="setVFCorrect(q.id, opt.id)" />
                           {{ opt.texto }}
                         </label>
@@ -155,19 +173,14 @@
   <div class="field">
     <label class="field__label" for="q-enunciado">Enunciado <span class="req">*</span></label>
     <textarea id="q-enunciado" pTextarea rows="3" class="field__input field__input--area"
-      [(ngModel)]="questionForm.enunciado"
-      placeholder="Escribe la pregunta..."></textarea>
+      [(ngModel)]="questionForm.enunciado" placeholder="Escribe la pregunta..."></textarea>
   </div>
 
   <div class="dlg__row">
     <div class="field">
       <label class="field__label">Tipo <span class="req">*</span></label>
-      <p-select
-        [options]="tipoOptions"
-        [(ngModel)]="questionForm.tipo"
-        optionLabel="label"
-        optionValue="value"
-        styleClass="field__select" />
+      <p-select [options]="tipoOptions" [(ngModel)]="questionForm.tipo"
+        optionLabel="label" optionValue="value" styleClass="field__select" />
     </div>
     <div class="field">
       <label class="field__label" for="q-puntaje">Puntaje <span class="req">*</span></label>
@@ -199,8 +212,7 @@
             </span>
           </label>
           <input pInputText type="text" class="field__input dlg__opt-input"
-            [(ngModel)]="opt.texto"
-            placeholder="Texto de la opcion" />
+            [(ngModel)]="opt.texto" placeholder="Texto de la opcion" />
           <button class="icon-btn icon-btn--danger" type="button" (click)="removePendingOption($index)">
             <i class="pi pi-times"></i>
           </button>
@@ -208,17 +220,15 @@
       }
 
       @if (pendingOptions().length === 0) {
-        <p style="font-size:13px;color:var(--page-ink-dim);margin:8px 0 0">
-          Agrega al menos una opcion antes de guardar la pregunta.
-        </p>
+        <p class="dlg__opts-hint">Agrega al menos una opcion antes de guardar la pregunta.</p>
       }
     </div>
   }
 
   <!-- ── verdadero_falso: info ────────────────────────────────────────────── -->
   @if (questionForm.tipo === 'verdadero_falso') {
-    <p style="font-size:13.5px;color:var(--page-ink-soft);margin:14px 0 0;line-height:1.5">
-      <i class="pi pi-info-circle" style="color:var(--page-cyan)"></i>
+    <p class="dlg__info">
+      <i class="pi pi-info-circle"></i>
       Las opciones "Verdadero" y "Falso" se crean automaticamente. Podras elegir la correcta desde el editor.
     </p>
   }
