@@ -33,9 +33,11 @@ import (
 	"github.com/yersonreyes/SkillMaker-/backend/internal/middleware"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/approvals"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/auth"
+	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/certificates"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/evaluations"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/users"
+	usersService "github.com/yersonreyes/SkillMaker-/backend/internal/modules/users/service"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/platform/config"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/platform/database"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/platform/httpserver"
@@ -102,11 +104,27 @@ func main() {
 	// Catalog + enrollment (C2.4) — alumno-facing, JWT-only (no RequireRole).
 	courses.RegisterCatalogRoutes(protected, coursesSvc)
 
+	// Certificates module (C5.1) — MUST be built BEFORE evaluationsSvc (evaluations depends on it).
+	// userNameAdapter bridges users.Service.GetByID (*UserSummary) to certificates.UserNameReader.
+	// coursesSvc satisfies certificates.CourseTituloReader structurally (GetCourseTitulo added in C5.1).
+	certsRepo := certificates.NewRepository(db)
+	certsSvc := certificates.NewService(
+		certsRepo,
+		storageClient,
+		userNameAdapter{svc: usersSvc},
+		coursesSvc,
+		cfg.Storage.PresignTTL,
+	)
+
 	// Evaluations module (C3.1 + C3.2 + C2.4) — coursesSvc satisfies evaluations.CoursesChecker structurally.
 	// C2.4: WithEnrollmentCompleter wired — coursesSvc satisfies evaluations.EnrollmentCompleter structurally
 	// (MarkEnrollmentCompleted on the public courses.Service interface).
+	// C5.1: WithCertificateIssuer wired — certsSvc satisfies evaluations.CertificateIssuer structurally.
 	evaluationsRepo := evaluations.NewRepository(db)
-	evaluationsSvc := evaluations.NewService(evaluationsRepo, coursesSvc, evaluations.WithEnrollmentCompleter(coursesSvc))
+	evaluationsSvc := evaluations.NewService(evaluationsRepo, coursesSvc,
+		evaluations.WithEnrollmentCompleter(coursesSvc),
+		evaluations.WithCertificateIssuer(certsSvc),
+	)
 	evaluations.RegisterRoutes(creatorGrp, evaluationsSvc)
 	// C3.2: student attempt lifecycle on the JWT-only protected group (no RequireRole restriction).
 	evaluations.RegisterStudentRoutes(protected, evaluationsSvc)
@@ -117,6 +135,9 @@ func main() {
 	approvals.RegisterCreatorRoutes(creatorGrp, approvalsSvc) // POST /courses/:courseId/submit
 	approvals.RegisterAdminRoutes(adminGrp, approvalsSvc)     // GET /approvals/pending, POST approve/reject
 	approvals.RegisterHistoryRoutes(protected, approvalsSvc)  // GET /courses/:id/approvals (owner-or-admin)
+
+	// Certificates module routes (C5.1) — JWT-only, no RequireRole.
+	certificates.RegisterRoutes(protected, certsSvc)
 
 	srv := httpserver.NewServer(cfg.Port, router)
 
@@ -141,4 +162,21 @@ func main() {
 		log.Error("shutdown forzado", "err", err)
 	}
 	log.Info("servidor apagado")
+}
+
+// ── userNameAdapter ────────────────────────────────────────────────────────────
+
+// userNameAdapter bridges users.Service.GetByID (returns *UserSummary) to
+// certificates.UserNameReader (expects GetUserNombre(ctx, id) (string, error)).
+// users.Service.GetByID signature mismatch requires this thin adapter in main.go.
+type userNameAdapter struct {
+	svc usersService.Service
+}
+
+func (a userNameAdapter) GetUserNombre(ctx context.Context, id string) (string, error) {
+	u, err := a.svc.GetByID(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	return u.Nombre, nil
 }

@@ -14,6 +14,7 @@ package repository_test
 
 import (
 	"context"
+	"io"
 	"testing"
 	"time"
 
@@ -44,6 +45,9 @@ func (n *noopStorage) PresignGetURL(_ context.Context, _ string, _ time.Duration
 }
 func (n *noopStorage) Delete(_ context.Context, _ string) error { return nil }
 func (n *noopStorage) Ping(_ context.Context) error             { return nil }
+func (n *noopStorage) PutObject(_ context.Context, _ string, _ io.Reader, _ int64, _ string) error {
+	return nil
+}
 
 // Ensure noopStorage satisfies storage.Client at compile time.
 var _ storage.Client = &noopStorage{}

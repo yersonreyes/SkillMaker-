@@ -338,6 +338,13 @@ type Service interface {
 	// ListByEstado returns all courses with the given estado as CourseSummary read-models,
 	// ordered by created_at ASC. Used by approvals to list pending courses.
 	ListByEstado(ctx context.Context, estado string) ([]CourseSummary, error)
+
+	// ── C5.1 additions (cross-module seam for certificates) ──────────────────────
+
+	// GetCourseTitulo returns the course titulo for the cross-module certificates seam.
+	// Satisfies certificates/service.CourseTituloReader structurally — pass coursesSvc directly.
+	// Returns ErrCourseNotFound if no course with that id exists.
+	GetCourseTitulo(ctx context.Context, courseID string) (string, error)
 }
 
 // ── concrete implementation ────────────────────────────────────────────────────
@@ -865,6 +872,19 @@ func (s *serviceImpl) GetCourseOwnership(ctx context.Context, courseID string) (
 		return "", "", wrapNotFound(e) // repository.ErrCourseNotFound → service.ErrCourseNotFound
 	}
 	return c.CreadorID, string(c.Estado), nil
+}
+
+// ── C5.1 additions ─────────────────────────────────────────────────────────────
+
+// GetCourseTitulo returns the course titulo for the cross-module certificates seam.
+// certificates/service declares CourseTituloReader with this method — coursesSvc satisfies structurally.
+// Returns ErrCourseNotFound if no course with that id exists.
+func (s *serviceImpl) GetCourseTitulo(ctx context.Context, courseID string) (string, error) {
+	c, err := s.repo.GetByID(ctx, courseID)
+	if err != nil {
+		return "", wrapNotFound(err)
+	}
+	return c.Titulo, nil
 }
 
 // ── C4.1 additions ─────────────────────────────────────────────────────────────

@@ -180,6 +180,36 @@ export interface paths {
       };
     };
   };
+  "/badges/me": {
+    /** Devuelve las insignias ganadas por el usuario autenticado. */
+    get: {
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.ListBadgesResponse"];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/badges/ranking": {
+    /** Devuelve el top-10 de usuarios con más certificados. Excluye usuarios con 0 certificados. */
+    get: {
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.RankingResponse"];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
   "/catalog": {
     /** Retorna una página de cursos con estado='aprobado'. Soporta ?page, ?size, ?q (ILIKE titulo). */
     get: {
@@ -262,6 +292,71 @@ export interface paths {
         };
         /** Internal Server Error */
         500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/certificates/me": {
+    /** Devuelve los certificados del usuario autenticado, ordenados por emitidoEn DESC. */
+    get: {
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.ListCertificatesResponse"];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/certificates/{id}": {
+    /** Devuelve el certificado si pertenece al usuario autenticado. 404 para no-propietarios (anti-enumeración). */
+    get: {
+      parameters: {
+        path: {
+          /** Certificate ID */
+          id: string;
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.CertificateResponse"];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Not Found */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/certificates/{id}/download": {
+    /** Devuelve una URL presignada para descargar el PDF del certificado. Requiere ser el propietario. */
+    get: {
+      parameters: {
+        path: {
+          /** Certificate ID */
+          id: string;
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.DownloadURLResponse"];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Not Found */
+        404: {
           schema: definitions["httperr.Error"];
         };
       };
@@ -1567,6 +1662,40 @@ export interface definitions {
     questions?: definitions["dto.AttemptStateQuestionResponse"][];
     submitted?: boolean;
   };
+  "dto.BadgeResponse": {
+    /** @description Descripcion is the badge description. */
+    descripcion?: string;
+    /** @description ID is the badge UUID. */
+    id?: string;
+    /** @description Nombre is the badge display name. */
+    nombre?: string;
+    /** @description OtorgadoEn is the UTC timestamp when the badge was awarded. */
+    otorgadoEn?: string;
+  };
+  "dto.CertificateListItem": {
+    /** @description Codigo is the unique verification code printed on the certificate. */
+    codigo?: string;
+    /** @description CourseID is the UUID of the course for which this cert was issued. */
+    courseId?: string;
+    /** @description CourseTitulo is the display title of the course (from courses seam). */
+    courseTitulo?: string;
+    /** @description EmitidoEn is the ISO-8601 timestamp when the certificate was issued. */
+    emitidoEn?: string;
+    /** @description ID is the certificate UUID. */
+    id?: string;
+  };
+  "dto.CertificateResponse": {
+    /** @description Codigo is the unique verification code. */
+    codigo?: string;
+    /** @description CourseID is the UUID of the course. */
+    courseId?: string;
+    /** @description CourseTitulo is the display title of the course. */
+    courseTitulo?: string;
+    /** @description EmitidoEn is the issue timestamp. */
+    emitidoEn?: string;
+    /** @description ID is the certificate UUID. */
+    id?: string;
+  };
   "dto.CourseDetail": {
     creadorId?: string;
     createdAt?: string;
@@ -1603,6 +1732,12 @@ export interface definitions {
     expiresAt?: string;
     url?: string;
   };
+  "dto.DownloadURLResponse": {
+    /** @description ExpiresAt is the UTC timestamp when the presigned URL expires. */
+    expiresAt?: string;
+    /** @description URL is the presigned GET URL for the certificate PDF. */
+    url?: string;
+  };
   "dto.EnrollmentResponse": {
     courseId?: string;
     /** @description always true on 200 */
@@ -1632,6 +1767,12 @@ export interface definitions {
   };
   "dto.GoogleLoginRequest": {
     idToken: string;
+  };
+  "dto.ListBadgesResponse": {
+    badges?: definitions["dto.BadgeResponse"][];
+  };
+  "dto.ListCertificatesResponse": {
+    certificates?: definitions["dto.CertificateListItem"][];
   };
   "dto.LoginResponse": {
     access_token?: string;
@@ -1720,6 +1861,17 @@ export interface definitions {
     enunciado?: string;
     orden?: number;
     puntaje?: number;
+  };
+  "dto.RankingItem": {
+    /** @description CertCount is the total number of certificates the user has earned. */
+    certCount?: number;
+    /** @description Posicion is the 1-based rank position. */
+    posicion?: number;
+    /** @description UserNombre is the display name of the ranked user. */
+    userNombre?: string;
+  };
+  "dto.RankingResponse": {
+    ranking?: definitions["dto.RankingItem"][];
   };
   "dto.RefreshRequest": {
     refreshToken: string;

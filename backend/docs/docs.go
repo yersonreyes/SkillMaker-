@@ -324,6 +324,68 @@ const docTemplate = `{
                 }
             }
         },
+        "/badges/me": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Devuelve las insignias ganadas por el usuario autenticado.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "badges"
+                ],
+                "summary": "Lista mis insignias",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ListBadgesResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/badges/ranking": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Devuelve el top-10 de usuarios con más certificados. Excluye usuarios con 0 certificados.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "badges"
+                ],
+                "summary": "Ranking de usuarios por certificados",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.RankingResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/catalog": {
             "get": {
                 "security": [
@@ -478,6 +540,129 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/certificates/me": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Devuelve los certificados del usuario autenticado, ordenados por emitidoEn DESC.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "certificates"
+                ],
+                "summary": "Lista mis certificados",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ListCertificatesResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/certificates/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Devuelve el certificado si pertenece al usuario autenticado. 404 para no-propietarios (anti-enumeración).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "certificates"
+                ],
+                "summary": "Obtiene un certificado por ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Certificate ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.CertificateResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/certificates/{id}/download": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Devuelve una URL presignada para descargar el PDF del certificado. Requiere ser el propietario.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "certificates"
+                ],
+                "summary": "Obtiene URL de descarga del certificado",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Certificate ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.DownloadURLResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/httperr.Error"
                         }
@@ -2996,6 +3181,77 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.BadgeResponse": {
+            "type": "object",
+            "properties": {
+                "descripcion": {
+                    "description": "Descripcion is the badge description.",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "ID is the badge UUID.",
+                    "type": "string"
+                },
+                "nombre": {
+                    "description": "Nombre is the badge display name.",
+                    "type": "string"
+                },
+                "otorgadoEn": {
+                    "description": "OtorgadoEn is the UTC timestamp when the badge was awarded.",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.CertificateListItem": {
+            "type": "object",
+            "properties": {
+                "codigo": {
+                    "description": "Codigo is the unique verification code printed on the certificate.",
+                    "type": "string"
+                },
+                "courseId": {
+                    "description": "CourseID is the UUID of the course for which this cert was issued.",
+                    "type": "string"
+                },
+                "courseTitulo": {
+                    "description": "CourseTitulo is the display title of the course (from courses seam).",
+                    "type": "string"
+                },
+                "emitidoEn": {
+                    "description": "EmitidoEn is the ISO-8601 timestamp when the certificate was issued.",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "ID is the certificate UUID.",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.CertificateResponse": {
+            "type": "object",
+            "properties": {
+                "codigo": {
+                    "description": "Codigo is the unique verification code.",
+                    "type": "string"
+                },
+                "courseId": {
+                    "description": "CourseID is the UUID of the course.",
+                    "type": "string"
+                },
+                "courseTitulo": {
+                    "description": "CourseTitulo is the display title of the course.",
+                    "type": "string"
+                },
+                "emitidoEn": {
+                    "description": "EmitidoEn is the issue timestamp.",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "ID is the certificate UUID.",
+                    "type": "string"
+                }
+            }
+        },
         "dto.CourseDetail": {
             "type": "object",
             "properties": {
@@ -3107,6 +3363,19 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.DownloadURLResponse": {
+            "type": "object",
+            "properties": {
+                "expiresAt": {
+                    "description": "ExpiresAt is the UTC timestamp when the presigned URL expires.",
+                    "type": "string"
+                },
+                "url": {
+                    "description": "URL is the presigned GET URL for the certificate PDF.",
+                    "type": "string"
+                }
+            }
+        },
         "dto.EnrollmentResponse": {
             "type": "object",
             "properties": {
@@ -3198,6 +3467,28 @@ const docTemplate = `{
             "properties": {
                 "idToken": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.ListBadgesResponse": {
+            "type": "object",
+            "properties": {
+                "badges": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.BadgeResponse"
+                    }
+                }
+            }
+        },
+        "dto.ListCertificatesResponse": {
+            "type": "object",
+            "properties": {
+                "certificates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.CertificateListItem"
+                    }
                 }
             }
         },
@@ -3483,6 +3774,34 @@ const docTemplate = `{
                 "puntaje": {
                     "type": "integer",
                     "minimum": 1
+                }
+            }
+        },
+        "dto.RankingItem": {
+            "type": "object",
+            "properties": {
+                "certCount": {
+                    "description": "CertCount is the total number of certificates the user has earned.",
+                    "type": "integer"
+                },
+                "posicion": {
+                    "description": "Posicion is the 1-based rank position.",
+                    "type": "integer"
+                },
+                "userNombre": {
+                    "description": "UserNombre is the display name of the ranked user.",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.RankingResponse": {
+            "type": "object",
+            "properties": {
+                "ranking": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.RankingItem"
+                    }
                 }
             }
         },

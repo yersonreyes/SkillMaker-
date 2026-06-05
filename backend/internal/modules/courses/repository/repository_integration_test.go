@@ -230,11 +230,12 @@ func TestMigration0004Down_ReversesSchema(t *testing.T) {
 	db, m, teardown := testutil.SetupPostgresWithMigrate(t)
 	defer teardown()
 
-	// All migrations up (0001–0009) are applied by SetupPostgresWithMigrate.
-	// Roll back 6 steps: first 0009, then 0008, then 0007, then 0006, then 0005, then 0004.
+	// All migrations up (0001–0010) are applied by SetupPostgresWithMigrate.
+	// Roll back 7 steps: first 0010, then 0009, then 0008, then 0007, then 0006, then 0005, then 0004.
 	// NOTE (C2.4): migration 0009 was added; -5 now rolls back 0009+0008+0007+0006+0005, so we need -6 to also roll back 0004.
-	err := m.Steps(-6)
-	require.NoError(t, err, "m.Steps(-6) must roll back 0009+0008+0007+0006+0005+0004 without error (SCH-1-B)")
+	// NOTE (C5.1): migration 0010 was added; -6 now rolls back 0010+0009+0008+0007+0006+0005, so we need -7.
+	err := m.Steps(-7)
+	require.NoError(t, err, "m.Steps(-7) must roll back 0010+0009+0008+0007+0006+0005+0004 without error (SCH-1-B)")
 
 	// Step 2: Assert storage_key is restored.
 	var storageKeyCount int64
@@ -679,14 +680,15 @@ func TestMigration0005RoundTrip(t *testing.T) {
 	assert.Equal(t, int64(1), tamanoCount,
 		"material.tamano_bytes must exist after 0005 up (AC8)")
 
-	// Apply DOWN five steps — rolls back 0009 then 0008 then 0007 then 0006 then 0005 (all migrations 0001–0009 applied).
+	// Apply DOWN six steps — rolls back 0010 then 0009 then 0008 then 0007 then 0006 then 0005 (all migrations 0001–0010 applied).
 	// NOTE (C3.1): migration 0006 was added; -1 now rolls back 0006 only, so we need -2.
 	// NOTE (C3.2): migration 0007 was added; -2 now rolls back 0007+0006, so we need -3.
 	// NOTE (C4.1): migration 0008 was added; -3 now rolls back 0008+0007+0006, so we need -4.
 	// NOTE (C2.4): migration 0009 was added; -4 now rolls back 0009+0008+0007+0006, so we need -5 to reach
 	// the post-0005-down state where mime_type and tamano_bytes are removed.
-	err = m.Steps(-5)
-	require.NoError(t, err, "m.Steps(-5) must roll back 0009+0008+0007+0006+0005 without error (AC8)")
+	// NOTE (C5.1): migration 0010 was added; -5 now rolls back 0010+0009+0008+0007+0006, so we need -6.
+	err = m.Steps(-6)
+	require.NoError(t, err, "m.Steps(-6) must roll back 0010+0009+0008+0007+0006+0005 without error (AC8)")
 
 	// Verify mime_type is gone after 0005 down.
 	err = db.Raw(
@@ -915,10 +917,11 @@ func TestMigration0009RoundTrip(t *testing.T) {
 	assert.Contains(t, columnDefault, "false",
 		"enrollment.completado must have DEFAULT false after 0009 up (AC-13)")
 
-	// Roll back 1 step — drops 0009 (completado column).
-	err = m.Steps(-1)
+	// Roll back 2 steps — drops 0010 first, then 0009 (completado column).
+	// NOTE (C5.1): migration 0010 was added; -1 now rolls back 0010 only, so we need -2 to drop 0009.
+	err = m.Steps(-2)
 	require.NoError(t, err,
-		"m.Steps(-1) must roll back 0009 (completado column) without error (AC-13)")
+		"m.Steps(-2) must roll back 0010+0009 (completado column) without error (AC-13)")
 
 	// Verify completado is gone after 0009 down.
 	err = db.Raw(

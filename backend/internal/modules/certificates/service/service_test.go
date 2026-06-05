@@ -1,0 +1,412 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"io"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/certificates/domain"
+	"github.com/yersonreyes/SkillMaker-/backend/internal/platform/storage"
+)
+
+// ── Mock repository ────────────────────────────────────────────────────────────
+
+type mockRepo struct {
+	GetByUserCourseFn      func(ctx context.Context, userID, courseID string) (*domain.Certificate, error)
+	CreateFn               func(ctx context.Context, cert *domain.Certificate) error
+	GetByIDFn              func(ctx context.Context, certID string) (*domain.Certificate, error)
+	ListByUserFn           func(ctx context.Context, userID string) ([]domain.Certificate, error)
+	CountByUserFn          func(ctx context.Context, userID string) (int64, error)
+	ListBadgesByUserFn     func(ctx context.Context, userID string) ([]BadgeWithGrant, error)
+	ListBadgesUpToThreshFn func(ctx context.Context, count int64) ([]domain.Badge, error)
+	AwardBadgeFn           func(ctx context.Context, userID, badgeID string) error
+	RankingFn              func(ctx context.Context, n int) ([]RankingRow, error)
+	createCalls            []string // tracks certIDs created
+	awardCalls             []string // tracks badgeIDs awarded
+}
+
+func (m *mockRepo) GetByUserCourse(ctx context.Context, userID, courseID string) (*domain.Certificate, error) {
+	if m.GetByUserCourseFn != nil {
+		return m.GetByUserCourseFn(ctx, userID, courseID)
+	}
+	return nil, ErrCertificateNotFound
+}
+
+func (m *mockRepo) Create(ctx context.Context, cert *domain.Certificate) error {
+	m.createCalls = append(m.createCalls, cert.ID)
+	if m.CreateFn != nil {
+		return m.CreateFn(ctx, cert)
+	}
+	return nil
+}
+
+func (m *mockRepo) GetByID(ctx context.Context, certID string) (*domain.Certificate, error) {
+	if m.GetByIDFn != nil {
+		return m.GetByIDFn(ctx, certID)
+	}
+	return nil, ErrCertificateNotFound
+}
+
+func (m *mockRepo) ListByUser(ctx context.Context, userID string) ([]domain.Certificate, error) {
+	if m.ListByUserFn != nil {
+		return m.ListByUserFn(ctx, userID)
+	}
+	return nil, nil
+}
+
+func (m *mockRepo) CountByUser(ctx context.Context, userID string) (int64, error) {
+	if m.CountByUserFn != nil {
+		return m.CountByUserFn(ctx, userID)
+	}
+	return 0, nil
+}
+
+func (m *mockRepo) ListBadgesByUser(ctx context.Context, userID string) ([]BadgeWithGrant, error) {
+	if m.ListBadgesByUserFn != nil {
+		return m.ListBadgesByUserFn(ctx, userID)
+	}
+	return nil, nil
+}
+
+func (m *mockRepo) ListBadgesUpToThreshold(ctx context.Context, count int64) ([]domain.Badge, error) {
+	if m.ListBadgesUpToThreshFn != nil {
+		return m.ListBadgesUpToThreshFn(ctx, count)
+	}
+	return nil, nil
+}
+
+func (m *mockRepo) AwardBadge(ctx context.Context, userID, badgeID string) error {
+	m.awardCalls = append(m.awardCalls, badgeID)
+	if m.AwardBadgeFn != nil {
+		return m.AwardBadgeFn(ctx, userID, badgeID)
+	}
+	return nil
+}
+
+func (m *mockRepo) Ranking(ctx context.Context, n int) ([]RankingRow, error) {
+	if m.RankingFn != nil {
+		return m.RankingFn(ctx, n)
+	}
+	return nil, nil
+}
+
+// ── Mock storage ────────────────────────────────────────────────────────────────
+
+type mockStore struct {
+	PutObjectFn     func(ctx context.Context, key string, r io.Reader, size int64, ct string) error
+	PresignGetURLFn func(ctx context.Context, key string, ttl time.Duration) (string, error)
+	putObjectCalls  []string
+}
+
+func (m *mockStore) PutObject(ctx context.Context, key string, r io.Reader, size int64, ct string) error {
+	m.putObjectCalls = append(m.putObjectCalls, key)
+	if m.PutObjectFn != nil {
+		return m.PutObjectFn(ctx, key, r, size, ct)
+	}
+	return nil
+}
+
+func (m *mockStore) PresignPutURL(_ context.Context, _ string, _ time.Duration) (string, error) {
+	return "", nil
+}
+
+func (m *mockStore) PresignGetURL(ctx context.Context, key string, ttl time.Duration) (string, error) {
+	if m.PresignGetURLFn != nil {
+		return m.PresignGetURLFn(ctx, key, ttl)
+	}
+	return "https://presigned/" + key, nil
+}
+
+func (m *mockStore) Delete(_ context.Context, _ string) error { return nil }
+func (m *mockStore) Ping(_ context.Context) error             { return nil }
+
+var _ storage.Client = &mockStore{}
+
+// ── Mock seams ──────────────────────────────────────────────────────────────────
+
+type mockUserNames struct {
+	nombre string
+	err    error
+}
+
+func (m *mockUserNames) GetUserNombre(_ context.Context, _ string) (string, error) {
+	return m.nombre, m.err
+}
+
+type mockCourseTitulos struct {
+	titulo string
+	err    error
+}
+
+func (m *mockCourseTitulos) GetCourseTitulo(_ context.Context, _ string) (string, error) {
+	return m.titulo, m.err
+}
+
+// ── helpers ────────────────────────────────────────────────────────────────────
+
+func newTestService(repo *mockRepo, store *mockStore) Service {
+	return &serviceImpl{
+		repo:          repo,
+		store:         store,
+		userNames:     &mockUserNames{nombre: "Test User"},
+		courseTitulos: &mockCourseTitulos{titulo: "Test Course"},
+		renderPDF:     func(_, _ string, _ time.Time, _ string) ([]byte, error) { return []byte("PDF"), nil },
+		presignTTL:    15 * time.Minute,
+	}
+}
+
+// ── TestIssueOnPass_HappyPath ──────────────────────────────────────────────────
+
+func TestIssueOnPass_HappyPath(t *testing.T) {
+	repo := &mockRepo{}
+	store := &mockStore{}
+	svc := newTestService(repo, store)
+
+	userID := uuid.New().String()
+	courseID := uuid.New().String()
+
+	err := svc.IssueOnPass(context.Background(), userID, courseID)
+
+	require.NoError(t, err, "IssueOnPass happy path must return nil")
+	assert.Len(t, store.putObjectCalls, 1, "PutObject must be called once")
+	assert.Len(t, repo.createCalls, 1, "Create must be called once")
+	// PutObject key must use certificates/{certID}.pdf format.
+	assert.Contains(t, store.putObjectCalls[0], "certificates/", "storage key must be in certificates/ prefix")
+	assert.Contains(t, store.putObjectCalls[0], ".pdf", "storage key must end in .pdf")
+}
+
+// ── TestIssueOnPass_Idempotent ─────────────────────────────────────────────────
+
+func TestIssueOnPass_Idempotent(t *testing.T) {
+	existing := &domain.Certificate{
+		ID:     uuid.New().String(),
+		UserID: "u1", CourseID: "c1",
+	}
+	repo := &mockRepo{
+		GetByUserCourseFn: func(_ context.Context, _, _ string) (*domain.Certificate, error) {
+			return existing, nil // cert already exists
+		},
+	}
+	store := &mockStore{}
+	svc := newTestService(repo, store)
+
+	err := svc.IssueOnPass(context.Background(), "u1", "c1")
+
+	require.NoError(t, err, "IssueOnPass must return nil when cert already exists (idempotent)")
+	assert.Empty(t, store.putObjectCalls, "PutObject must NOT be called when cert already exists")
+	assert.Empty(t, repo.createCalls, "Create must NOT be called when cert already exists")
+}
+
+// ── TestIssueOnPass_StorageFailure ─────────────────────────────────────────────
+
+func TestIssueOnPass_StorageFailure(t *testing.T) {
+	storageErr := errors.New("storage unavailable")
+	repo := &mockRepo{}
+	store := &mockStore{
+		PutObjectFn: func(_ context.Context, _ string, _ io.Reader, _ int64, _ string) error {
+			return storageErr
+		},
+	}
+	svc := newTestService(repo, store)
+
+	err := svc.IssueOnPass(context.Background(), "u1", "c1")
+
+	require.Error(t, err, "IssueOnPass must return error when PutObject fails")
+	assert.ErrorIs(t, err, storageErr)
+}
+
+// ── TestIssueOnPass_EvaluateBadgesErrorIsSwallowed ─────────────────────────────
+
+func TestIssueOnPass_EvaluateBadgesErrorIsSwallowed(t *testing.T) {
+	badgeErr := errors.New("badge DB down")
+	repo := &mockRepo{
+		CountByUserFn: func(_ context.Context, _ string) (int64, error) {
+			return 0, badgeErr
+		},
+	}
+	store := &mockStore{}
+	svc := newTestService(repo, store)
+
+	err := svc.IssueOnPass(context.Background(), "u1", "c1")
+
+	require.NoError(t, err,
+		"IssueOnPass must return nil when EvaluateBadges fails (non-fatal — swallowed)")
+}
+
+// ── TestEvaluateBadges_Thresholds ─────────────────────────────────────────────
+
+func TestEvaluateBadges_Thresholds(t *testing.T) {
+	t.Run("1 cert awards Primer badge only", func(t *testing.T) {
+		primerID := uuid.New().String()
+		repo := &mockRepo{
+			CountByUserFn: func(_ context.Context, _ string) (int64, error) { return 1, nil },
+			ListBadgesUpToThreshFn: func(_ context.Context, count int64) ([]domain.Badge, error) {
+				assert.Equal(t, int64(1), count)
+				return []domain.Badge{{ID: primerID, Nombre: "Primer curso completado", Umbral: 1}}, nil
+			},
+		}
+		store := &mockStore{}
+		svc := newTestService(repo, store)
+
+		err := svc.EvaluateBadges(context.Background(), "u1")
+		require.NoError(t, err)
+		assert.Equal(t, []string{primerID}, repo.awardCalls)
+	})
+
+	t.Run("5 certs awards Primer + 5 cursos badges", func(t *testing.T) {
+		primerID := uuid.New().String()
+		cincoID := uuid.New().String()
+		repo := &mockRepo{
+			CountByUserFn: func(_ context.Context, _ string) (int64, error) { return 5, nil },
+			ListBadgesUpToThreshFn: func(_ context.Context, count int64) ([]domain.Badge, error) {
+				assert.Equal(t, int64(5), count)
+				return []domain.Badge{
+					{ID: primerID, Nombre: "Primer curso completado", Umbral: 1},
+					{ID: cincoID, Nombre: "5 cursos completados", Umbral: 5},
+				}, nil
+			},
+		}
+		store := &mockStore{}
+		svc := newTestService(repo, store)
+
+		err := svc.EvaluateBadges(context.Background(), "u1")
+		require.NoError(t, err)
+		assert.Contains(t, repo.awardCalls, primerID)
+		assert.Contains(t, repo.awardCalls, cincoID)
+	})
+
+	t.Run("10 certs awards all 3 badges", func(t *testing.T) {
+		primerID := uuid.New().String()
+		cincoID := uuid.New().String()
+		diezID := uuid.New().String()
+		repo := &mockRepo{
+			CountByUserFn: func(_ context.Context, _ string) (int64, error) { return 10, nil },
+			ListBadgesUpToThreshFn: func(_ context.Context, count int64) ([]domain.Badge, error) {
+				assert.Equal(t, int64(10), count)
+				return []domain.Badge{
+					{ID: primerID, Nombre: "Primer curso completado", Umbral: 1},
+					{ID: cincoID, Nombre: "5 cursos completados", Umbral: 5},
+					{ID: diezID, Nombre: "10 cursos completados", Umbral: 10},
+				}, nil
+			},
+		}
+		store := &mockStore{}
+		svc := newTestService(repo, store)
+
+		err := svc.EvaluateBadges(context.Background(), "u1")
+		require.NoError(t, err)
+		assert.Len(t, repo.awardCalls, 3, "must award 3 badges for 10 certs")
+	})
+}
+
+// ── TestGetCertificate_OwnerScoped ────────────────────────────────────────────
+
+func TestGetCertificate_OwnerScoped(t *testing.T) {
+	ownerID := uuid.New().String()
+	otherID := uuid.New().String()
+	certID := uuid.New().String()
+
+	cert := &domain.Certificate{ID: certID, UserID: ownerID, CourseID: uuid.New().String()}
+	repo := &mockRepo{
+		GetByIDFn: func(_ context.Context, id string) (*domain.Certificate, error) {
+			if id == certID {
+				return cert, nil
+			}
+			return nil, ErrCertificateNotFound
+		},
+	}
+	store := &mockStore{}
+	svc := newTestService(repo, store)
+
+	t.Run("owner gets cert", func(t *testing.T) {
+		got, err := svc.GetCertificate(context.Background(), certID, ownerID)
+		require.NoError(t, err)
+		assert.Equal(t, certID, got.ID)
+	})
+
+	t.Run("non-owner gets ErrCertificateNotFound (anti-enum)", func(t *testing.T) {
+		_, err := svc.GetCertificate(context.Background(), certID, otherID)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrCertificateNotFound,
+			"non-owner must get ErrCertificateNotFound (not ErrNotOwner) — anti-enumeration")
+	})
+
+	t.Run("missing cert gets ErrCertificateNotFound", func(t *testing.T) {
+		_, err := svc.GetCertificate(context.Background(), uuid.New().String(), ownerID)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrCertificateNotFound)
+	})
+}
+
+// ── TestGetDownloadURL_OwnerScoped ────────────────────────────────────────────
+
+func TestGetDownloadURL_OwnerScoped(t *testing.T) {
+	ownerID := uuid.New().String()
+	otherID := uuid.New().String()
+	certID := uuid.New().String()
+
+	cert := &domain.Certificate{ID: certID, UserID: ownerID, StorageKey: "certificates/test.pdf"}
+	repo := &mockRepo{
+		GetByIDFn: func(_ context.Context, id string) (*domain.Certificate, error) {
+			if id == certID {
+				return cert, nil
+			}
+			return nil, ErrCertificateNotFound
+		},
+	}
+	store := &mockStore{}
+	svc := newTestService(repo, store)
+
+	t.Run("owner gets download URL", func(t *testing.T) {
+		result, err := svc.GetDownloadURL(context.Background(), certID, ownerID)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result.URL, "download URL must not be empty")
+		assert.False(t, result.ExpiresAt.IsZero(), "expiresAt must be set")
+	})
+
+	t.Run("non-owner gets ErrCertificateNotFound", func(t *testing.T) {
+		_, err := svc.GetDownloadURL(context.Background(), certID, otherID)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrCertificateNotFound)
+	})
+
+	t.Run("cert with empty storage_key returns ErrNoPDF", func(t *testing.T) {
+		noPDFCert := &domain.Certificate{ID: certID, UserID: ownerID, StorageKey: ""}
+		repo2 := &mockRepo{
+			GetByIDFn: func(_ context.Context, _ string) (*domain.Certificate, error) {
+				return noPDFCert, nil
+			},
+		}
+		svc2 := newTestService(repo2, store)
+		_, err := svc2.GetDownloadURL(context.Background(), certID, ownerID)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrNoPDF, "empty storage_key must return ErrNoPDF")
+	})
+}
+
+// ── TestUserNameReaderFailure_NonFatalToAttempt ───────────────────────────────
+
+func TestUserNameReaderFailure_IsReturnedFromIssueOnPass(t *testing.T) {
+	userErr := errors.New("users service down")
+	repo := &mockRepo{}
+	store := &mockStore{}
+	svc := &serviceImpl{
+		repo:          repo,
+		store:         store,
+		userNames:     &mockUserNames{err: userErr},
+		courseTitulos: &mockCourseTitulos{titulo: "Test"},
+		renderPDF:     func(_, _ string, _ time.Time, _ string) ([]byte, error) { return []byte("PDF"), nil },
+		presignTTL:    15 * time.Minute,
+	}
+
+	err := svc.IssueOnPass(context.Background(), "u1", "c1")
+	// The error is returned from IssueOnPass — evaluations.SubmitAttempt swallows it.
+	require.Error(t, err)
+	assert.ErrorIs(t, err, userErr)
+}

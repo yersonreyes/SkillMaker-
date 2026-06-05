@@ -320,6 +320,11 @@ func (m *mockCourseSvc) MarkEnrollmentCompleted(ctx context.Context, userID, cou
 	return args.Error(0)
 }
 
+// GetCourseTitulo satisfies the C5.1 addition — certificates seam (CourseTituloReader).
+func (m *mockCourseSvc) GetCourseTitulo(_ context.Context, _ string) (string, error) {
+	return "", nil
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 func injectIdentity(userID string, roles []string) gin.HandlerFunc {

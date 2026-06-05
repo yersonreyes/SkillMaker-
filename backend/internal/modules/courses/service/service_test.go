@@ -21,6 +21,7 @@ package service
 
 import (
 	"context"
+	"io"
 	"testing"
 	"time"
 
@@ -215,16 +216,18 @@ func (m *MockCoursesRepository) MarkCompleted(ctx context.Context, userID, cours
 // ── MockStorageClient ─────────────────────────────────────────────────────────
 
 // mockStorageClient is a minimal mock for storage.Client using func fields.
-// This avoids testify/mock overhead for the storage interface (4 methods).
+// This avoids testify/mock overhead for the storage interface (5 methods).
 type mockStorageClient struct {
 	PresignPutURLFn func(ctx context.Context, key string, ttl time.Duration) (string, error)
 	PresignGetURLFn func(ctx context.Context, key string, ttl time.Duration) (string, error)
 	DeleteFn        func(ctx context.Context, key string) error
 	PingFn          func(ctx context.Context) error
+	PutObjectFn     func(ctx context.Context, objectName string, reader io.Reader, size int64, contentType string) error
 	// Track calls for assertion.
-	deleteCalls []string
-	putCalls    []string
-	getCalls    []string
+	deleteCalls    []string
+	putCalls       []string
+	getCalls       []string
+	putObjectCalls []string
 }
 
 func (m *mockStorageClient) PresignPutURL(ctx context.Context, key string, ttl time.Duration) (string, error) {
@@ -254,6 +257,14 @@ func (m *mockStorageClient) Delete(ctx context.Context, key string) error {
 func (m *mockStorageClient) Ping(ctx context.Context) error {
 	if m.PingFn != nil {
 		return m.PingFn(ctx)
+	}
+	return nil
+}
+
+func (m *mockStorageClient) PutObject(ctx context.Context, objectName string, reader io.Reader, size int64, contentType string) error {
+	m.putObjectCalls = append(m.putObjectCalls, objectName)
+	if m.PutObjectFn != nil {
+		return m.PutObjectFn(ctx, objectName, reader, size, contentType)
 	}
 	return nil
 }

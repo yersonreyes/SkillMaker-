@@ -242,6 +242,11 @@ func (m *mockCourseSvc) MarkEnrollmentCompleted(ctx context.Context, userID, cou
 	return args.Error(0)
 }
 
+// GetCourseTitulo satisfies the C5.1 addition — certificates seam.
+func (m *mockCourseSvc) GetCourseTitulo(_ context.Context, _ string) (string, error) {
+	return "", nil
+}
+
 // ── Fixtures ───────────────────────────────────────────────────────────────────
 
 func courseModel(id, creadorID string) *service.CourseModel {

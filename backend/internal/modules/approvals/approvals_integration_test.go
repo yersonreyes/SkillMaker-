@@ -5,10 +5,11 @@
 // Requires a real Postgres DB via testcontainers.
 //
 // Tests:
-//  (a) Full submit→pending→approve flow: estado=aprobado, publicado_en non-null, approval row.
-//  (b) Full submit→reject-with-comment: estado=rechazado, comentario persisted.
-//  (c) Cross-module: course with video but NO evaluation → ErrEvaluationNotFound, estado UNCHANGED.
-//  (d) Migration 0008 round-trip: Steps(-1) removes approval table + publicado_en column.
+//
+//	(a) Full submit→pending→approve flow: estado=aprobado, publicado_en non-null, approval row.
+//	(b) Full submit→reject-with-comment: estado=rechazado, comentario persisted.
+//	(c) Cross-module: course with video but NO evaluation → ErrEvaluationNotFound, estado UNCHANGED.
+//	(d) Migration 0008 round-trip: Steps(-1) removes approval table + publicado_en column.
 package approvals_test
 
 import (

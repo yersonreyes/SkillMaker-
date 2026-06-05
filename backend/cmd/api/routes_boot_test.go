@@ -22,6 +22,7 @@ import (
 	"github.com/yersonreyes/SkillMaker-/backend/internal/middleware"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/approvals"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/approvals/domain"
+	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/certificates"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses"
 	coursesService "github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses/service"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/evaluations"
@@ -113,6 +114,9 @@ func (n *nilCourseSvc) ListMyCourses(_ context.Context, _ string) ([]coursesServ
 }
 func (n *nilCourseSvc) MarkEnrollmentCompleted(_ context.Context, _, _ string) error { return nil }
 
+// GetCourseTitulo satisfies the C5.1 addition — certificates seam (CourseTituloReader).
+func (n *nilCourseSvc) GetCourseTitulo(_ context.Context, _ string) (string, error) { return "", nil }
+
 // nilEvalSvc is a nil-safe stub for evaluations.Service.
 type nilEvalSvc struct{}
 
@@ -152,6 +156,27 @@ func (n *nilEvalSvc) SubmitAttempt(_ context.Context, _, _ string) (*evalService
 	return nil, nil
 }
 
+// nilCertSvc is a nil-safe stub for certificates.Service (C5.1).
+type nilCertSvc struct{}
+
+func (n *nilCertSvc) IssueOnPass(_ context.Context, _, _ string) error { return nil }
+func (n *nilCertSvc) EvaluateBadges(_ context.Context, _ string) error { return nil }
+func (n *nilCertSvc) ListMyCertificates(_ context.Context, _ string) ([]certificates.CertificateModel, error) {
+	return nil, nil
+}
+func (n *nilCertSvc) GetCertificate(_ context.Context, _, _ string) (*certificates.CertificateModel, error) {
+	return nil, nil
+}
+func (n *nilCertSvc) GetDownloadURL(_ context.Context, _, _ string) (certificates.DownloadResult, error) {
+	return certificates.DownloadResult{}, nil
+}
+func (n *nilCertSvc) ListMyBadges(_ context.Context, _ string) ([]certificates.BadgeModel, error) {
+	return nil, nil
+}
+func (n *nilCertSvc) Ranking(_ context.Context, _ int) ([]certificates.RankingModel, error) {
+	return nil, nil
+}
+
 // nilApprovalSvc is a nil-safe stub for approvals.Service.
 type nilApprovalSvc struct{}
 
@@ -176,6 +201,7 @@ func TestRouteBoot_AllModules_NoPanic(t *testing.T) {
 	courseSvc := &nilCourseSvc{}
 	evalSvc := &nilEvalSvc{}
 	approvalSvc := &nilApprovalSvc{}
+	certSvc := &nilCertSvc{}
 
 	assert.NotPanics(t, func() {
 		r := gin.New()
@@ -196,6 +222,9 @@ func TestRouteBoot_AllModules_NoPanic(t *testing.T) {
 		approvals.RegisterCreatorRoutes(creatorGrp, approvalSvc)
 		approvals.RegisterAdminRoutes(adminGrp, approvalSvc)
 		approvals.RegisterHistoryRoutes(protected, approvalSvc)
+
+		// Certificates routes (C5.1) — JWT-only, no RequireRole.
+		certificates.RegisterRoutes(protected, certSvc)
 
 		// Verify all routes are registered.
 		routes := r.Routes()
@@ -225,6 +254,18 @@ func TestRouteBoot_AllModules_NoPanic(t *testing.T) {
 			"[AC-11] POST /api/catalog/:id/enroll must be registered without panic")
 		assert.True(t, routeMap["GET /api/users/me/courses"],
 			"[AC-11] GET /api/users/me/courses must be registered without panic")
+
+		// C5.1 certificates + badges routes.
+		assert.True(t, routeMap["GET /api/certificates/me"],
+			"[C5.1] GET /api/certificates/me must be registered without panic")
+		assert.True(t, routeMap["GET /api/certificates/:id"],
+			"[C5.1] GET /api/certificates/:id must be registered without panic")
+		assert.True(t, routeMap["GET /api/certificates/:id/download"],
+			"[C5.1] GET /api/certificates/:id/download must be registered without panic")
+		assert.True(t, routeMap["GET /api/badges/me"],
+			"[C5.1] GET /api/badges/me must be registered without panic")
+		assert.True(t, routeMap["GET /api/badges/ranking"],
+			"[C5.1] GET /api/badges/ranking must be registered without panic")
 	}, "registering all module routes must not panic (no Gin param-tree conflict)")
 
 	_ = time.Now() // suppress unused import

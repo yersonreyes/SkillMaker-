@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"io"
 	"net/url"
 	"strings"
 	"time"
@@ -27,6 +28,10 @@ type Client interface {
 
 	// Ping verifies that the storage backend is reachable.
 	Ping(ctx context.Context) error
+
+	// PutObject uploads an object directly from a reader. Used by the certificates
+	// module to store generated PDFs server-side without a presign round-trip.
+	PutObject(ctx context.Context, objectName string, reader io.Reader, size int64, contentType string) error
 }
 
 type minioClient struct {
@@ -74,5 +79,10 @@ func (m *minioClient) Delete(ctx context.Context, objectName string) error {
 
 func (m *minioClient) Ping(ctx context.Context) error {
 	_, err := m.client.BucketExists(ctx, m.bucket)
+	return err
+}
+
+func (m *minioClient) PutObject(ctx context.Context, objectName string, reader io.Reader, size int64, contentType string) error {
+	_, err := m.client.PutObject(ctx, m.bucket, objectName, reader, size, minio.PutObjectOptions{ContentType: contentType})
 	return err
 }
