@@ -61,6 +61,20 @@ type VideoModel struct {
 	CreatedAt time.Time
 }
 
+// CourseSummary is the cross-module read model returned by ListByEstado.
+// It is the canonical type for the approvals seam — approvals' CourseStateManager
+// declares ListByEstado returning []CourseSummary (matching evaluations' precedent of
+// importing the courses facade type rather than defining a local one).
+type CourseSummary struct {
+	ID          string
+	CreadorID   string
+	Titulo      string
+	Descripcion string
+	Estado      string
+	CreatedAt   time.Time
+	PublicadoEn *time.Time
+}
+
 // ── Request types ──────────────────────────────────────────────────────────────
 
 // CreateRequest carries the caller-supplied data for creating a course.
@@ -254,6 +268,18 @@ type Service interface {
 	// evaluations defines a local CoursesChecker interface that this method satisfies structurally.
 	// Returns ErrCourseNotFound if no course with that id exists.
 	GetCourseOwnership(ctx context.Context, courseID string) (creadorID, estado string, err error)
+
+	// ── C4.1 additions (cross-module seam for approvals) ─────────────────────────
+
+	// SetEstado transitions a course to the given estado.
+	// For "aprobado", stamps publicado_en=now() via UpdateEstadoPublicado.
+	// For all other valid states, uses UpdateEstado (publicado_en unchanged).
+	// Defense-in-depth: returns ErrInvalidTransition for unknown estado values.
+	SetEstado(ctx context.Context, courseID, estado string) error
+
+	// ListByEstado returns all courses with the given estado as CourseSummary read-models,
+	// ordered by created_at ASC. Used by approvals to list pending courses.
+	ListByEstado(ctx context.Context, estado string) ([]CourseSummary, error)
 }
 
 // ── concrete implementation ────────────────────────────────────────────────────
@@ -639,6 +665,50 @@ func (s *serviceImpl) GetCourseOwnership(ctx context.Context, courseID string) (
 		return "", "", wrapNotFound(e) // repository.ErrCourseNotFound → service.ErrCourseNotFound
 	}
 	return c.CreadorID, string(c.Estado), nil
+}
+
+// ── C4.1 additions ─────────────────────────────────────────────────────────────
+
+// SetEstado transitions a course to the given estado string.
+// Routes to UpdateEstadoPublicado when estado=="aprobado" (stamps publicado_en=now()).
+// Routes to UpdateEstado for all other valid states (publicado_en unchanged).
+// Defense-in-depth: rejects unknown estado values with ErrInvalidTransition.
+func (s *serviceImpl) SetEstado(ctx context.Context, courseID, estado string) error {
+	est := domain.Estado(estado)
+	if !est.Valid() {
+		return ErrInvalidTransition
+	}
+	if est == domain.EstadoAprobado {
+		return s.repo.UpdateEstadoPublicado(ctx, courseID, est, time.Now())
+	}
+	return s.repo.UpdateEstado(ctx, courseID, est)
+}
+
+// ListByEstado returns all courses with the given estado as CourseSummary read-models,
+// ordered by created_at ASC. Maps domain.Course → CourseSummary via toSummary.
+func (s *serviceImpl) ListByEstado(ctx context.Context, estado string) ([]CourseSummary, error) {
+	rows, err := s.repo.ListByEstado(ctx, domain.Estado(estado))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]CourseSummary, 0, len(rows))
+	for i := range rows {
+		out = append(out, toSummary(&rows[i]))
+	}
+	return out, nil
+}
+
+// toSummary converts a domain.Course to a CourseSummary read-model.
+func toSummary(c *domain.Course) CourseSummary {
+	return CourseSummary{
+		ID:          c.ID,
+		CreadorID:   c.CreadorID,
+		Titulo:      c.Titulo,
+		Descripcion: c.Descripcion,
+		Estado:      string(c.Estado),
+		CreatedAt:   c.CreatedAt,
+		PublicadoEn: c.PublicadoEn,
+	}
 }
 
 // ── Private helpers ────────────────────────────────────────────────────────────

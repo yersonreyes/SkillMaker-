@@ -144,6 +144,12 @@ func (m *mockEvalSvc) SubmitAttempt(ctx context.Context, attemptID, userID strin
 	return args.Get(0).(*service.AttemptResultModel), args.Error(1)
 }
 
+// ValidateSubmitReady satisfies the C4.1 addition to evaluations.Service.
+func (m *mockEvalSvc) ValidateSubmitReady(ctx context.Context, courseID string) error {
+	args := m.Called(ctx, courseID)
+	return args.Error(0)
+}
+
 // ── Mock courses service (minimal — satisfies full interface) ──────────────────
 
 type mockCourseSvc struct {
@@ -264,6 +270,21 @@ func (m *mockCourseSvc) DeleteMaterial(ctx context.Context, materialID, creadorI
 func (m *mockCourseSvc) GetCourseOwnership(ctx context.Context, courseID string) (creadorID, estado string, err error) {
 	args := m.Called(ctx, courseID)
 	return args.String(0), args.String(1), args.Error(2)
+}
+
+// SetEstado satisfies the C4.1 addition to courses.Service.
+func (m *mockCourseSvc) SetEstado(ctx context.Context, courseID, estado string) error {
+	args := m.Called(ctx, courseID, estado)
+	return args.Error(0)
+}
+
+// ListByEstado satisfies the C4.1 addition to courses.Service.
+func (m *mockCourseSvc) ListByEstado(ctx context.Context, estado string) ([]coursesService.CourseSummary, error) {
+	args := m.Called(ctx, estado)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]coursesService.CourseSummary), args.Error(1)
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

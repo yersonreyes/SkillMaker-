@@ -231,6 +231,12 @@ type Service interface {
 	// Implemented and tested here per Decision 5.
 	ValidateEvaluationComplete(ctx context.Context, evalID string) error
 
+	// ValidateSubmitReady is the C4.1 submit gate called by the approvals module.
+	// Composes GetEvaluationByCourse + ValidateEvaluationComplete.
+	// Returns ErrEvaluationNotFound if no evaluation exists for the course.
+	// Returns ErrNoCorrectOption if any question has no correct option.
+	ValidateSubmitReady(ctx context.Context, courseID string) error
+
 	// StartAttempt starts or resumes a student attempt on the evaluation.
 	// If an open (unsubmitted) attempt already exists for (user, evaluation), it is
 	// returned immediately (resume-on-start) — no new attempt is created.
@@ -563,6 +569,18 @@ func (s *serviceImpl) ValidateEvaluationComplete(ctx context.Context, evalID str
 		}
 	}
 	return nil
+}
+
+// ValidateSubmitReady is the C4.1 cross-module submit gate for the approvals module.
+// Composes GetEvaluationByCourse → ValidateEvaluationComplete.
+// Returns ErrEvaluationNotFound if no evaluation exists for the course.
+// Returns ErrNoCorrectOption if any question has no correct option.
+func (s *serviceImpl) ValidateSubmitReady(ctx context.Context, courseID string) error {
+	eval, err := s.repo.GetEvaluationByCourse(ctx, courseID)
+	if err != nil {
+		return wrapEvalNotFound(err) // → ErrEvaluationNotFound
+	}
+	return s.ValidateEvaluationComplete(ctx, eval.ID) // → nil OR ErrNoCorrectOption
 }
 
 // validateQuestionComplete checks that the given question has at least one correct option.

@@ -42,6 +42,16 @@ type (
 	Option = service.Option
 )
 
+// ── C4.1 sentinel re-exports ───────────────────────────────────────────────────
+
+// ErrEvaluationNotFound is re-exported so approvals can use errors.Is without
+// importing evaluations internals. Matches the evaluations → courses precedent (ADR-1).
+var ErrEvaluationNotFound = service.ErrEvaluationNotFound
+
+// ErrNoCorrectOption is re-exported so approvals can map the incomplete-evaluation
+// sentinel to the correct HTTP status via errors.Is.
+var ErrNoCorrectOption = service.ErrNoCorrectOption
+
 // NewRepository constructs a GORM-backed Repository.
 func NewRepository(db *gorm.DB) Repository {
 	return repository.New(db)

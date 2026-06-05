@@ -5,15 +5,22 @@ package testutil
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/stretchr/testify/mock"
 	"google.golang.org/api/idtoken"
 
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/auth/domain"
+	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/users"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/platform/pagination"
 )
+
+// ErrEvaluationNotFoundSentinel is a stand-in evaluation sentinel used in approvals
+// service unit tests to verify that the evaluations seam's errors are surfaced verbatim.
+// Using a distinct sentinel avoids importing the evaluations package into testutil.
+var ErrEvaluationNotFoundSentinel = errors.New("evaluation not found")
 
 // MockRepository is a testify/mock implementation of repository.Repository.
 // Use it in unit tests to avoid database dependencies.
@@ -184,5 +191,53 @@ type MockCertificateIssuer struct {
 // IssueOnPass records the call and returns the mocked error.
 func (m *MockCertificateIssuer) IssueOnPass(ctx context.Context, userID, courseID string) error {
 	args := m.Called(ctx, userID, courseID)
+	return args.Error(0)
+}
+
+// ── C4.1 mocks (approvals seam) ───────────────────────────────────────────────
+
+// MockCourseStateManager is a testify/mock implementation of the approvals
+// service.CourseStateManager interface. Used in approvals service unit tests.
+// Matches the full 4-method CourseStateManager seam defined in approvals/service.
+type MockCourseStateManager struct {
+	mock.Mock
+}
+
+// GetCourseOwnership returns the mocked creadorID, estado, and error.
+func (m *MockCourseStateManager) GetCourseOwnership(ctx context.Context, courseID string) (creadorID, estado string, err error) {
+	args := m.Called(ctx, courseID)
+	return args.String(0), args.String(1), args.Error(2)
+}
+
+// HasContent returns the mocked bool and error for the given courseID + creadorID.
+func (m *MockCourseStateManager) HasContent(ctx context.Context, courseID, creadorID string) (bool, error) {
+	args := m.Called(ctx, courseID, creadorID)
+	return args.Bool(0), args.Error(1)
+}
+
+// SetEstado records the call and returns the mocked error.
+func (m *MockCourseStateManager) SetEstado(ctx context.Context, courseID, estado string) error {
+	args := m.Called(ctx, courseID, estado)
+	return args.Error(0)
+}
+
+// ListByEstado returns the mocked []courses.CourseSummary and error.
+func (m *MockCourseStateManager) ListByEstado(ctx context.Context, estado string) ([]courses.CourseSummary, error) {
+	args := m.Called(ctx, estado)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]courses.CourseSummary), args.Error(1)
+}
+
+// MockEvaluationValidator is a testify/mock implementation of the approvals
+// service.EvaluationValidator interface. Used in approvals service unit tests.
+type MockEvaluationValidator struct {
+	mock.Mock
+}
+
+// ValidateSubmitReady records the call and returns the mocked error.
+func (m *MockEvaluationValidator) ValidateSubmitReady(ctx context.Context, courseID string) error {
+	args := m.Called(ctx, courseID)
 	return args.Error(0)
 }

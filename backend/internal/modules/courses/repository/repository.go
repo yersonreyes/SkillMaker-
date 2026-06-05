@@ -99,6 +99,17 @@ type Repository interface {
 	// Uses an EXISTS subquery joining video → section → course.
 	HasContent(ctx context.Context, courseID string) (bool, error)
 
+	// ── C4.1 additions ────────────────────────────────────────────────────────
+
+	// UpdateEstadoPublicado sets estado + publicado_en + updated_at in one UPDATE.
+	// Used exclusively for the "aprobado" transition — the only state that stamps publicado_en.
+	// Returns ErrCourseNotFound when no row matches.
+	UpdateEstadoPublicado(ctx context.Context, id string, estado domain.Estado, publicadoEn time.Time) error
+
+	// ListByEstado returns all courses with the given estado, ordered by created_at ASC.
+	// Used by the approvals module to list pending courses (en_revision).
+	ListByEstado(ctx context.Context, estado domain.Estado) ([]domain.Course, error)
+
 	// ── Material methods (C2.3) ────────────────────────────────────────────────
 
 	// CreateMaterial persists a new material. Assigns a UUID if ID is empty.
@@ -376,6 +387,40 @@ func (r *gormRepository) ListMaterialsByCourse(ctx context.Context, courseID str
 
 func (r *gormRepository) DeleteMaterial(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Where("id = ?", id).Delete(&domain.Material{}).Error
+}
+
+// ── C4.1 additions ────────────────────────────────────────────────────────────
+
+// UpdateEstadoPublicado sets estado + publicado_en + updated_at in one UPDATE.
+// This is the ONLY path that writes publicado_en — used exclusively by SetEstado("aprobado").
+// The existing UpdateEstado (2-arg) remains unchanged so callers that don't stamp publicado_en
+// can continue using it without risking unintentional publicado_en changes.
+func (r *gormRepository) UpdateEstadoPublicado(ctx context.Context, id string, estado domain.Estado, publicadoEn time.Time) error {
+	result := r.db.WithContext(ctx).
+		Model(&domain.Course{}).
+		Where("id = ?", id).
+		Updates(map[string]any{
+			"estado":       estado,
+			"publicado_en": publicadoEn,
+			"updated_at":   time.Now(),
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrCourseNotFound
+	}
+	return nil
+}
+
+// ListByEstado returns all courses with the given estado ordered by created_at ASC.
+func (r *gormRepository) ListByEstado(ctx context.Context, estado domain.Estado) ([]domain.Course, error) {
+	var courses []domain.Course
+	err := r.db.WithContext(ctx).
+		Where("estado = ?", estado).
+		Order("created_at ASC").
+		Find(&courses).Error
+	return courses, err
 }
 
 // isPgUniqueViolation reports whether err is a Postgres UNIQUE violation (23505).

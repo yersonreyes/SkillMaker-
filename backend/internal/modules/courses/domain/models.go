@@ -29,13 +29,14 @@ func (e Estado) Valid() bool {
 // Course is the aggregate root for the courses domain.
 // creador_id references "user"(id) ON DELETE RESTRICT (migration 0003).
 type Course struct {
-	ID          string    `gorm:"type:uuid;primaryKey"`
-	CreadorID   string    `gorm:"type:uuid;not null"`
-	Titulo      string    `gorm:"type:text;not null"`
-	Descripcion string    `gorm:"type:text;not null;default:''"`
-	Estado      Estado    `gorm:"type:text;not null;default:'borrador'"`
-	CreatedAt   time.Time `gorm:"type:timestamptz;default:now()"`
-	UpdatedAt   time.Time `gorm:"type:timestamptz;default:now()"`
+	ID          string     `gorm:"type:uuid;primaryKey"`
+	CreadorID   string     `gorm:"type:uuid;not null"`
+	Titulo      string     `gorm:"type:text;not null"`
+	Descripcion string     `gorm:"type:text;not null;default:''"`
+	Estado      Estado     `gorm:"type:text;not null;default:'borrador'"`
+	PublicadoEn *time.Time `gorm:"column:publicado_en;type:timestamptz"`
+	CreatedAt   time.Time  `gorm:"type:timestamptz;default:now()"`
+	UpdatedAt   time.Time  `gorm:"type:timestamptz;default:now()"`
 }
 
 // TableName overrides GORM's default pluralisation to match migration 0003.

@@ -9,6 +9,7 @@ package repository_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -222,15 +223,17 @@ func TestMigration0004RoundTrip(t *testing.T) {
 // to reach the state where 0004 has been reversed. All migrations 0001–0006 are applied.
 // NOTE (C3.2): after migration 0007 was added, we must roll back 4 steps (0007+0006+0005+0004)
 // to reach the state where 0004 has been reversed. All migrations 0001–0007 are applied.
+// NOTE (C4.1): after migration 0008 was added, we must roll back 5 steps (0008+0007+0006+0005+0004)
+// to reach the state where 0004 has been reversed. All migrations 0001–0008 are applied.
 func TestMigration0004Down_ReversesSchema(t *testing.T) {
 	// Use the migrate-aware setup so we can call m.Down() ourselves.
 	db, m, teardown := testutil.SetupPostgresWithMigrate(t)
 	defer teardown()
 
-	// All migrations up (0001–0007) are applied by SetupPostgresWithMigrate.
-	// Roll back 4 steps: first 0007, then 0006, then 0005, then 0004.
-	err := m.Steps(-4)
-	require.NoError(t, err, "m.Steps(-4) must roll back 0007+0006+0005+0004 without error (SCH-1-B)")
+	// All migrations up (0001–0008) are applied by SetupPostgresWithMigrate.
+	// Roll back 5 steps: first 0008, then 0007, then 0006, then 0005, then 0004.
+	err := m.Steps(-5)
+	require.NoError(t, err, "m.Steps(-5) must roll back 0008+0007+0006+0005+0004 without error (SCH-1-B)")
 
 	// Step 2: Assert storage_key is restored.
 	var storageKeyCount int64
@@ -653,7 +656,7 @@ func TestMigration0005RoundTrip(t *testing.T) {
 	db, m, teardown := testutil.SetupPostgresWithMigrate(t)
 	defer teardown()
 
-	// After SetupPostgresWithMigrate, all migrations (0001–0005) are applied.
+	// After SetupPostgresWithMigrate, all migrations (0001–0008) are applied.
 
 	// Verify mime_type column exists after 0005 up.
 	var mimeCount int64
@@ -675,12 +678,13 @@ func TestMigration0005RoundTrip(t *testing.T) {
 	assert.Equal(t, int64(1), tamanoCount,
 		"material.tamano_bytes must exist after 0005 up (AC8)")
 
-	// Apply DOWN three steps — rolls back 0007 then 0006 then 0005 (all migrations 0001–0007 applied).
+	// Apply DOWN four steps — rolls back 0008 then 0007 then 0006 then 0005 (all migrations 0001–0008 applied).
 	// NOTE (C3.1): migration 0006 was added; -1 now rolls back 0006 only, so we need -2.
-	// NOTE (C3.2): migration 0007 was added; -2 now rolls back 0007+0006, so we need -3 to reach
+	// NOTE (C3.2): migration 0007 was added; -2 now rolls back 0007+0006, so we need -3.
+	// NOTE (C4.1): migration 0008 was added; -3 now rolls back 0008+0007+0006, so we need -4 to reach
 	// the post-0005-down state where mime_type and tamano_bytes are removed.
-	err = m.Steps(-3)
-	require.NoError(t, err, "m.Steps(-3) must roll back 0007+0006+0005 without error (AC8)")
+	err = m.Steps(-4)
+	require.NoError(t, err, "m.Steps(-4) must roll back 0008+0007+0006+0005 without error (AC8)")
 
 	// Verify mime_type is gone after 0005 down.
 	err = db.Raw(
@@ -773,4 +777,104 @@ func TestMaterialCRUD(t *testing.T) {
 	// m2 must still exist.
 	_, err = repo.GetMaterialByID(context.Background(), m2.ID)
 	require.NoError(t, err, "m2 must still exist after deleting m1")
+}
+
+// ── T-1.5: UpdateEstadoPublicado + ListByEstado ───────────────────────────────
+
+// TestUpdateEstadoPublicado_SetsEstadoAndPublicadoEn verifies that
+// UpdateEstadoPublicado sets estado + publicado_en + updated_at in one row.
+// Spec: REQ-XMOD XMOD-3; Design §2 D2 repo additions.
+func TestUpdateEstadoPublicado_SetsEstadoAndPublicadoEn(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+	course := seedCourse(t, repo, creadorID, "Publicado En Test")
+
+	publicadoEn := time.Now().UTC()
+	err := repo.UpdateEstadoPublicado(context.Background(), course.ID, domain.EstadoAprobado, publicadoEn)
+	require.NoError(t, err, "UpdateEstadoPublicado must succeed")
+
+	updated, err := repo.GetByID(context.Background(), course.ID)
+	require.NoError(t, err)
+	assert.Equal(t, domain.EstadoAprobado, updated.Estado,
+		"estado must be aprobado after UpdateEstadoPublicado")
+	require.NotNil(t, updated.PublicadoEn,
+		"publicado_en must be non-null after UpdateEstadoPublicado")
+	assert.WithinDuration(t, publicadoEn, *updated.PublicadoEn, time.Second,
+		"publicado_en must match the provided timestamp")
+}
+
+// TestUpdateEstadoPublicado_NotFound verifies ErrCourseNotFound for missing course.
+func TestUpdateEstadoPublicado_NotFound(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	err := repo.UpdateEstadoPublicado(context.Background(), uuid.New().String(), domain.EstadoAprobado, time.Now())
+	assert.ErrorIs(t, err, repository.ErrCourseNotFound,
+		"UpdateEstadoPublicado on missing course must return ErrCourseNotFound")
+}
+
+// TestListByEstado_ReturnsMatchingCourses verifies ListByEstado filters by estado.
+// Spec: REQ-XMOD XMOD-3; Design §2 D2 repo additions.
+func TestListByEstado_ReturnsMatchingCourses(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+
+	// Create 2 courses en_revision, 1 borrador.
+	c1 := seedCourse(t, repo, creadorID, "Pending 1")
+	c2 := seedCourse(t, repo, creadorID, "Pending 2")
+	_ = seedCourse(t, repo, creadorID, "Draft 1") // borrador, should not appear
+
+	require.NoError(t, repo.UpdateEstado(context.Background(), c1.ID, domain.EstadoEnRevision))
+	require.NoError(t, repo.UpdateEstado(context.Background(), c2.ID, domain.EstadoEnRevision))
+
+	rows, err := repo.ListByEstado(context.Background(), domain.EstadoEnRevision)
+	require.NoError(t, err)
+	assert.Len(t, rows, 2, "must return exactly 2 en_revision courses")
+
+	for _, r := range rows {
+		assert.Equal(t, domain.EstadoEnRevision, r.Estado,
+			"all returned courses must have estado=en_revision")
+	}
+}
+
+// TestListByEstado_EmptyWhenNoneMatch verifies empty list when no courses match.
+func TestListByEstado_EmptyWhenNoneMatch(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+	_ = seedCourse(t, repo, creadorID, "Draft Course") // borrador only
+
+	rows, err := repo.ListByEstado(context.Background(), domain.EstadoEnRevision)
+	require.NoError(t, err)
+	assert.Empty(t, rows, "must return empty slice when no courses match")
+}
+
+// TestListByEstado_OrderedByCreatedAtASC verifies ASC ordering by created_at.
+func TestListByEstado_OrderedByCreatedAtASC(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+
+	c1 := seedCourse(t, repo, creadorID, "First")
+	c2 := seedCourse(t, repo, creadorID, "Second")
+
+	require.NoError(t, repo.UpdateEstado(context.Background(), c1.ID, domain.EstadoEnRevision))
+	require.NoError(t, repo.UpdateEstado(context.Background(), c2.ID, domain.EstadoEnRevision))
+
+	rows, err := repo.ListByEstado(context.Background(), domain.EstadoEnRevision)
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	assert.True(t, rows[0].CreatedAt.Before(rows[1].CreatedAt) || rows[0].CreatedAt.Equal(rows[1].CreatedAt),
+		"rows must be ordered by created_at ASC")
 }

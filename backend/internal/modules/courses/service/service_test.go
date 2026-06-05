@@ -159,6 +159,21 @@ func (m *MockCoursesRepository) DeleteMaterial(ctx context.Context, id string) e
 	return args.Error(0)
 }
 
+// ── T-1.6 additions: UpdateEstadoPublicado + ListByEstado ─────────────────────
+
+func (m *MockCoursesRepository) UpdateEstadoPublicado(ctx context.Context, id string, estado domain.Estado, publicadoEn time.Time) error {
+	args := m.Called(ctx, id, estado, publicadoEn)
+	return args.Error(0)
+}
+
+func (m *MockCoursesRepository) ListByEstado(ctx context.Context, estado domain.Estado) ([]domain.Course, error) {
+	args := m.Called(ctx, estado)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]domain.Course), args.Error(1)
+}
+
 // ── MockStorageClient ─────────────────────────────────────────────────────────
 
 // mockStorageClient is a minimal mock for storage.Client using func fields.
@@ -1502,5 +1517,110 @@ func TestGetCourseOwnership_NotFound_ReturnsErrCourseNotFound(t *testing.T) {
 
 	assert.ErrorIs(t, err, ErrCourseNotFound,
 		"GetCourseOwnership must wrap repository.ErrCourseNotFound → service.ErrCourseNotFound")
+	repo.AssertExpectations(t)
+}
+
+// ── T-1.6: SetEstado + ListByEstado service tests ─────────────────────────────
+
+// TestSetEstado_Aprobado_CallsUpdateEstadoPublicado verifies that
+// SetEstado("aprobado") routes to UpdateEstadoPublicado (not UpdateEstado).
+// Spec: REQ-XMOD XMOD-3; Design §2 D2 service.
+func TestSetEstado_Aprobado_CallsUpdateEstadoPublicado(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	courseID := uuid.New().String()
+	// SetEstado("aprobado") must call UpdateEstadoPublicado.
+	repo.On("UpdateEstadoPublicado", mock.Anything, courseID, domain.EstadoAprobado, mock.AnythingOfType("time.Time")).
+		Return(nil)
+
+	err := svc.SetEstado(context.Background(), courseID, "aprobado")
+	assert.NoError(t, err, "SetEstado(aprobado) must succeed")
+	repo.AssertExpectations(t)
+	// UpdateEstado must NOT be called for aprobado.
+	repo.AssertNotCalled(t, "UpdateEstado")
+}
+
+// TestSetEstado_Rechazado_CallsUpdateEstado verifies that
+// SetEstado("rechazado") routes to UpdateEstado (NOT UpdateEstadoPublicado).
+// Spec: REQ-XMOD XMOD-3; Design §2 D2 service.
+func TestSetEstado_Rechazado_CallsUpdateEstado(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	courseID := uuid.New().String()
+	// SetEstado("rechazado") must call UpdateEstado (not UpdateEstadoPublicado).
+	repo.On("UpdateEstado", mock.Anything, courseID, domain.EstadoRechazado).Return(nil)
+
+	err := svc.SetEstado(context.Background(), courseID, "rechazado")
+	assert.NoError(t, err, "SetEstado(rechazado) must succeed")
+	repo.AssertExpectations(t)
+	repo.AssertNotCalled(t, "UpdateEstadoPublicado")
+}
+
+// TestSetEstado_EnRevision_CallsUpdateEstado verifies SetEstado("en_revision") uses UpdateEstado.
+func TestSetEstado_EnRevision_CallsUpdateEstado(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	courseID := uuid.New().String()
+	repo.On("UpdateEstado", mock.Anything, courseID, domain.EstadoEnRevision).Return(nil)
+
+	err := svc.SetEstado(context.Background(), courseID, "en_revision")
+	assert.NoError(t, err, "SetEstado(en_revision) must succeed")
+	repo.AssertExpectations(t)
+	repo.AssertNotCalled(t, "UpdateEstadoPublicado")
+}
+
+// TestSetEstado_InvalidEstado_ReturnsErrInvalidTransition verifies defense-in-depth.
+func TestSetEstado_InvalidEstado_ReturnsErrInvalidTransition(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	err := svc.SetEstado(context.Background(), uuid.New().String(), "invalid_state")
+	assert.ErrorIs(t, err, ErrInvalidTransition,
+		"SetEstado with invalid estado must return ErrInvalidTransition")
+	repo.AssertNotCalled(t, "UpdateEstado")
+	repo.AssertNotCalled(t, "UpdateEstadoPublicado")
+}
+
+// TestListByEstado_DelegatesToRepoAndMapsToCourseSummary verifies that
+// ListByEstado delegates to repo and maps []domain.Course → []CourseSummary.
+// Spec: REQ-XMOD XMOD-3; Design §2 D2 service.
+func TestListByEstado_DelegatesToRepoAndMapsToCourseSummary(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	ownerID := uuid.New().String()
+	courses := []domain.Course{
+		{
+			ID:        uuid.New().String(),
+			CreadorID: ownerID,
+			Titulo:    "Pending Course",
+			Estado:    domain.EstadoEnRevision,
+			CreatedAt: time.Now(),
+		},
+	}
+	repo.On("ListByEstado", mock.Anything, domain.EstadoEnRevision).Return(courses, nil)
+
+	result, err := svc.ListByEstado(context.Background(), "en_revision")
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, courses[0].ID, result[0].ID)
+	assert.Equal(t, "Pending Course", result[0].Titulo)
+	assert.Equal(t, ownerID, result[0].CreadorID)
+	repo.AssertExpectations(t)
+}
+
+// TestListByEstado_EmptyList verifies empty list is returned without error.
+func TestListByEstado_EmptyList(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	repo.On("ListByEstado", mock.Anything, domain.EstadoEnRevision).Return([]domain.Course{}, nil)
+
+	result, err := svc.ListByEstado(context.Background(), "en_revision")
+	require.NoError(t, err)
+	assert.Empty(t, result, "must return empty slice when repo returns no courses")
 	repo.AssertExpectations(t)
 }

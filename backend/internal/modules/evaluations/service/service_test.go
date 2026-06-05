@@ -941,6 +941,77 @@ func TestUpdateOption_VF_SetFalso_ClearsVerdadero(t *testing.T) {
 	repo.AssertExpectations(t)
 }
 
+// ── T-1.10: ValidateSubmitReady tests ─────────────────────────────────────────
+
+// TestValidateSubmitReady_NoEvaluation_ReturnsErrEvaluationNotFound verifies
+// that when no evaluation exists for the course, ErrEvaluationNotFound is returned.
+// Spec: REQ-XMOD XMOD-4; Design §2 evaluations addition.
+func TestValidateSubmitReady_NoEvaluation_ReturnsErrEvaluationNotFound(t *testing.T) {
+	repo := &mockEvalRepo{}
+	checker := &testutil.MockCoursesChecker{} // unused by ValidateSubmitReady
+	svc := newSvc(repo, checker)
+
+	courseID := uuid.New().String()
+	repo.On("GetEvaluationByCourse", mock.Anything, courseID).
+		Return(nil, repository.ErrEvaluationNotFound)
+
+	err := svc.ValidateSubmitReady(context.Background(), courseID)
+	assert.ErrorIs(t, err, ErrEvaluationNotFound,
+		"must surface ErrEvaluationNotFound when no evaluation exists")
+	repo.AssertExpectations(t)
+}
+
+// TestValidateSubmitReady_IncompleteEvaluation_ReturnsErrNoCorrectOption verifies
+// that when the evaluation exists but is incomplete, ErrNoCorrectOption is returned.
+func TestValidateSubmitReady_IncompleteEvaluation_ReturnsErrNoCorrectOption(t *testing.T) {
+	repo := &mockEvalRepo{}
+	checker := &testutil.MockCoursesChecker{}
+	svc := newSvc(repo, checker)
+
+	courseID := uuid.New().String()
+	evalID := uuid.New().String()
+	questionID := uuid.New().String()
+
+	eval := &domain.Evaluation{ID: evalID, CourseID: courseID, NotaMinima: 70}
+	question := domain.Question{ID: questionID, EvaluationID: evalID, Tipo: domain.TipoOpcionMultiple, Puntaje: 1}
+	// Option with correcta=false → incomplete
+	opt := domain.Option{ID: uuid.New().String(), QuestionID: questionID, Correcta: false}
+
+	repo.On("GetEvaluationByCourse", mock.Anything, courseID).Return(eval, nil)
+	repo.On("ListQuestionsByEvaluation", mock.Anything, evalID).Return([]domain.Question{question}, nil)
+	repo.On("ListOptionsByQuestion", mock.Anything, questionID).Return([]domain.Option{opt}, nil)
+
+	err := svc.ValidateSubmitReady(context.Background(), courseID)
+	assert.ErrorIs(t, err, ErrNoCorrectOption,
+		"must surface ErrNoCorrectOption when evaluation has no correct option")
+	repo.AssertExpectations(t)
+}
+
+// TestValidateSubmitReady_CompleteEvaluation_ReturnsNil verifies that
+// a complete evaluation returns nil (submit gate passes).
+func TestValidateSubmitReady_CompleteEvaluation_ReturnsNil(t *testing.T) {
+	repo := &mockEvalRepo{}
+	checker := &testutil.MockCoursesChecker{}
+	svc := newSvc(repo, checker)
+
+	courseID := uuid.New().String()
+	evalID := uuid.New().String()
+	questionID := uuid.New().String()
+
+	eval := &domain.Evaluation{ID: evalID, CourseID: courseID, NotaMinima: 70}
+	question := domain.Question{ID: questionID, EvaluationID: evalID, Tipo: domain.TipoOpcionMultiple, Puntaje: 1}
+	// Option with correcta=true → complete
+	opt := domain.Option{ID: uuid.New().String(), QuestionID: questionID, Correcta: true}
+
+	repo.On("GetEvaluationByCourse", mock.Anything, courseID).Return(eval, nil)
+	repo.On("ListQuestionsByEvaluation", mock.Anything, evalID).Return([]domain.Question{question}, nil)
+	repo.On("ListOptionsByQuestion", mock.Anything, questionID).Return([]domain.Option{opt}, nil)
+
+	err := svc.ValidateSubmitReady(context.Background(), courseID)
+	assert.NoError(t, err, "must return nil for a complete evaluation")
+	repo.AssertExpectations(t)
+}
+
 // ── helpers ────────────────────────────────────────────────────────────────────
 
 func ptrInt(v int) *int    { return &v }

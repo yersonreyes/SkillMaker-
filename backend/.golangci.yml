@@ -84,3 +84,40 @@ issues:
     - linters:
         - misspell
       text: "rechazado"
+    # Spanish vocabulary for approvals module (C4.1).
+    - linters:
+        - misspell
+      text: "revisiones"
+    - linters:
+        - misspell
+      text: "aprobacion"
+    - linters:
+        - misspell
+      text: "Aprobacion"
+    - linters:
+        - misspell
+      text: "revision"
+    - linters:
+        - misspell
+      text: "propietario"
+    - linters:
+        - misspell
+      text: "administrador"
+    - linters:
+        - misspell
+      text: "comentario"
+    - linters:
+        - misspell
+      text: "Comentario"
+    - linters:
+        - misspell
+      text: "Rechazar"
+    - linters:
+        - misspell
+      text: "Aprobar"
+    - linters:
+        - misspell
+      text: "auditoria"
+    - linters:
+        - misspell
+      text: "Accessible"

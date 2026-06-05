@@ -31,6 +31,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/yersonreyes/SkillMaker-/backend/internal/middleware"
+	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/approvals"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/auth"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/evaluations"
@@ -106,7 +107,13 @@ func main() {
 	evaluations.RegisterRoutes(creatorGrp, evaluationsSvc)
 	// C3.2: student attempt lifecycle on the JWT-only protected group (no RequireRole restriction).
 	evaluations.RegisterStudentRoutes(protected, evaluationsSvc)
-	// Additional modules (approvals, certificates, reporting) will be wired here.
+
+	// Approvals module (C4.1) — coursesSvc satisfies CourseStateManager, evaluationsSvc satisfies EvaluationValidator (both structural).
+	approvalsRepo := approvals.NewRepository(db)
+	approvalsSvc := approvals.NewService(approvalsRepo, coursesSvc, evaluationsSvc)
+	approvals.RegisterCreatorRoutes(creatorGrp, approvalsSvc) // POST /courses/:courseId/submit
+	approvals.RegisterAdminRoutes(adminGrp, approvalsSvc)     // GET /approvals/pending, POST approve/reject
+	approvals.RegisterHistoryRoutes(protected, approvalsSvc)  // GET /courses/:id/approvals (owner-or-admin)
 
 	srv := httpserver.NewServer(cfg.Port, router)
 

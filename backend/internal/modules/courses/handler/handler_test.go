@@ -192,6 +192,23 @@ func (m *mockCourseSvc) GetCourseOwnership(ctx context.Context, courseID string)
 	return args.String(0), args.String(1), args.Error(2)
 }
 
+// ── C4.1 additions ────────────────────────────────────────────────────────────
+
+// SetEstado satisfies the CourseStateManager seam added in C4.1.
+func (m *mockCourseSvc) SetEstado(ctx context.Context, courseID, estado string) error {
+	args := m.Called(ctx, courseID, estado)
+	return args.Error(0)
+}
+
+// ListByEstado satisfies the CourseStateManager seam added in C4.1.
+func (m *mockCourseSvc) ListByEstado(ctx context.Context, estado string) ([]service.CourseSummary, error) {
+	args := m.Called(ctx, estado)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]service.CourseSummary), args.Error(1)
+}
+
 // ── Fixtures ───────────────────────────────────────────────────────────────────
 
 func courseModel(id, creadorID string) *service.CourseModel {

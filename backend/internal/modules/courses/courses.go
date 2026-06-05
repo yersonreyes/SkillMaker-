@@ -24,6 +24,11 @@ type (
 	CourseModel   = service.CourseModel
 	CreateRequest = service.CreateRequest
 	UpdateRequest = service.UpdateRequest
+
+	// CourseSummary is the cross-module read model for the approvals seam (C4.1).
+	// Re-exported so approvals can declare its CourseStateManager interface
+	// returning []courses.CourseSummary without importing courses internals.
+	CourseSummary = service.CourseSummary
 )
 
 // ErrCourseNotFound is the sentinel returned by GetCourseOwnership when no course

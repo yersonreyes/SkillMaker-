@@ -116,7 +116,7 @@ db-seed: ## Pobla la BD con datos iniciales (ej: roles)
 .PHONY: swagger
 swagger: ## Regenera el OpenAPI desde anotaciones (swaggo/swag)
 	@command -v swag >/dev/null 2>&1 || { echo "swag no esta en PATH. Ejecuta: go install github.com/swaggo/swag/cmd/swag@latest"; exit 1; }
-	cd backend && swag init -g cmd/api/main.go -o docs
+	cd backend && swag init -g cmd/api/main.go -o docs --parseDependency
 
 ## ---------- Tipos ----------
 .PHONY: types
