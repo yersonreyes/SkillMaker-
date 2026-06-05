@@ -19,7 +19,7 @@ import { Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { PaginatorModule } from 'primeng/paginator';
+import { PaginatorModule, PaginatorState } from 'primeng/paginator';
 import { SkeletonModule } from 'primeng/skeleton';
 
 import { CourseCatalogService } from '@core/services/courseCatalogService/course-catalog.service';
@@ -76,10 +76,11 @@ export class CatalogComponent implements OnInit {
   }
 
   /** Called from PrimeNG Paginator's (onPageChange) event. */
-  onPageChange(event: { page: number; rows: number }): void {
-    // PrimeNG Paginator emits 0-indexed page; we use 1-indexed API.
-    this.page.set(event.page + 1);
-    this.size.set(event.rows);
+  onPageChange(event: PaginatorState): void {
+    // PrimeNG Paginator emits 0-indexed page (optional in PaginatorState);
+    // we use a 1-indexed API and fall back to current values if absent.
+    this.page.set((event.page ?? 0) + 1);
+    this.size.set(event.rows ?? this.size());
     void this.load();
   }
 
