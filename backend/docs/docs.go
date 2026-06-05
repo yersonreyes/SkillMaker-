@@ -3555,13 +3555,13 @@ const docTemplate = `{
                 "attempts": {
                     "type": "integer"
                 },
+                "courseId": {
+                    "type": "string"
+                },
                 "enrollments": {
                     "type": "integer"
                 },
                 "estado": {
-                    "type": "string"
-                },
-                "id": {
                     "type": "string"
                 },
                 "titulo": {

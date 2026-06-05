@@ -69,10 +69,11 @@ export class PlatformLayoutComponent implements OnInit {
   ];
 
   protected adminItems: NavItem[] = [
-    { label: 'Aprobaciones',     icon: 'pi pi-check-square',  route: '/platform/admin/approvals' },
-    { label: 'Gestion usuarios', icon: 'pi pi-users',          route: '/platform/admin/user-management' },
-    { label: 'Supervision',      icon: 'pi pi-sitemap',        route: '/platform/admin/supervision' },
-    { label: 'Reportes',         icon: 'pi pi-chart-bar',      route: '/platform/admin/reports' },
+    { label: 'Aprobaciones',      icon: 'pi pi-check-square',  route: '/platform/admin/approvals' },
+    { label: 'Gestion usuarios',  icon: 'pi pi-users',          route: '/platform/admin/user-management' },
+    { label: 'Supervision',       icon: 'pi pi-sitemap',        route: '/platform/admin/supervision' },
+    { label: 'Reportes',          icon: 'pi pi-chart-bar',      route: '/platform/admin/reports' },
+    { label: 'Reportes por curso', icon: 'pi pi-table',         route: '/platform/admin/course-reports' },
   ];
 
   ngOnInit(): void {}

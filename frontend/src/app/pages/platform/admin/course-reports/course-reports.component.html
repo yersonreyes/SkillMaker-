@@ -1,0 +1,58 @@
+<div class="page">
+
+  <header class="page__head">
+    <p class="page__eyebrow">Administracion</p>
+    <h1 class="page__title">
+      Reportes por <em>curso</em><span class="tk-dot">.</span>
+    </h1>
+    <p class="page__lede">
+      Estadisticas de inscripcion, intentos y tasa de aprobacion para todos los cursos.
+    </p>
+  </header>
+
+  <!-- Loading -->
+  @if (loading()) {
+    <div class="panel">
+      <div class="panel__body">
+        <p-skeleton height="3rem" />
+        <p-skeleton height="3rem" styleClass="mt-2" />
+        <p-skeleton height="3rem" styleClass="mt-2" />
+      </div>
+    </div>
+  }
+
+  <!-- Empty state -->
+  @if (!loading() && courses().length === 0) {
+    <div class="empty">
+      <i class="pi pi-chart-bar"></i>
+      <p>No hay cursos disponibles para reportar.</p>
+    </div>
+  }
+
+  <!-- Table -->
+  @if (!loading() && courses().length > 0) {
+    <p-table [value]="courses()" [tableStyle]="{ 'min-width': '50rem' }">
+      <ng-template pTemplate="header">
+        <tr>
+          <th>Curso</th>
+          <th>Estado</th>
+          <th>Inscripciones</th>
+          <th>Intentos</th>
+          <th>Tasa de aprobacion</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-row>
+        <tr>
+          <td>{{ row.titulo }}</td>
+          <td>
+            <span class="tag">{{ row.estado }}</span>
+          </td>
+          <td>{{ row.enrollments }}</td>
+          <td>{{ row.attempts }}</td>
+          <td>{{ (row.approvalRate * 100) | number:'1.0-1' }}%</td>
+        </tr>
+      </ng-template>
+    </p-table>
+  }
+
+</div>

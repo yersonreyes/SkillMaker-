@@ -1,0 +1,54 @@
+<div class="page">
+
+  <header class="page__head">
+    <p class="page__eyebrow">Supervisor</p>
+    <h1 class="page__title">
+      Avance del <em>equipo</em><span class="tk-dot">.</span>
+    </h1>
+    <p class="page__lede">
+      Consulta el progreso de los empleados que supervisas: inscripciones, cursos completados y ultimo intento.
+    </p>
+  </header>
+
+  <!-- Loading -->
+  @if (loading()) {
+    <div class="panel">
+      <div class="panel__body">
+        <p-skeleton height="3rem" />
+        <p-skeleton height="3rem" styleClass="mt-2" />
+        <p-skeleton height="3rem" styleClass="mt-2" />
+      </div>
+    </div>
+  }
+
+  <!-- Empty state -->
+  @if (!loading() && team().length === 0) {
+    <div class="empty">
+      <i class="pi pi-users"></i>
+      <p>No tienes empleados asignados aun.</p>
+    </div>
+  }
+
+  <!-- Table -->
+  @if (!loading() && team().length > 0) {
+    <p-table [value]="team()" [tableStyle]="{ 'min-width': '45rem' }">
+      <ng-template pTemplate="header">
+        <tr>
+          <th>Empleado</th>
+          <th>Inscrito en</th>
+          <th>Completados</th>
+          <th>Ultimo intento</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-row>
+        <tr>
+          <td>{{ row.empleadoNombre }}</td>
+          <td>{{ row.enrolledCount }}</td>
+          <td>{{ row.completedCount }}</td>
+          <td>{{ formatDate(row.lastAttemptDate) }}</td>
+        </tr>
+      </ng-template>
+    </p-table>
+  }
+
+</div>

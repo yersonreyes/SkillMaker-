@@ -1,0 +1,108 @@
+<div class="page">
+
+  <header class="page__head">
+    <p class="page__eyebrow">Administracion</p>
+    <h1 class="page__title">
+      Reportes <em>globales</em><span class="tk-dot">.</span>
+    </h1>
+    <p class="page__lede">
+      Metricas del sistema en tiempo real: usuarios, cursos, intentos y certificaciones.
+    </p>
+  </header>
+
+  <!-- Loading -->
+  @if (loading()) {
+    <div class="panel">
+      <div class="panel__body">
+        <p-skeleton height="6rem" />
+        <p-skeleton height="6rem" styleClass="mt-2" />
+      </div>
+    </div>
+  }
+
+  @if (!loading() && report()) {
+
+    <!-- Metric cards -->
+    <div class="global-reports__metrics">
+      <div class="panel">
+        <div class="panel__body">
+          <p class="global-reports__metric-label">Usuarios activos</p>
+          <p class="global-reports__metric-value">{{ report()!.activeUsers }}</p>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel__body">
+          <p class="global-reports__metric-label">Total intentos</p>
+          <p class="global-reports__metric-value">{{ report()!.totalAttempts }}</p>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel__body">
+          <p class="global-reports__metric-label">Certificados emitidos</p>
+          <p class="global-reports__metric-value">{{ report()!.certificatesIssued }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Courses by estado -->
+    <div class="panel">
+      <div class="panel__body">
+        <h2 class="global-reports__section-title">Cursos por estado</h2>
+        <div class="global-reports__estado-list">
+          @for (item of coursesByEstado; track item.estado) {
+            <div class="global-reports__estado-item">
+              <span class="tag">{{ item.estado }}</span>
+              <span class="global-reports__estado-count">{{ item.total }}</span>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="global-reports__charts">
+
+      <div class="panel">
+        <div class="panel__body">
+          <h2 class="global-reports__section-title">Usuarios por mes</h2>
+          <div class="global-reports__chart-wrap">
+            <p-chart type="line" [data]="usersChartData" [options]="chartOptions" />
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel__body">
+          <h2 class="global-reports__section-title">Cursos aprobados por mes</h2>
+          <div class="global-reports__chart-wrap">
+            <p-chart type="bar" [data]="coursesChartData" [options]="chartOptions" />
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Top creators -->
+    <div class="panel">
+      <div class="panel__body">
+        <h2 class="global-reports__section-title">Top creadores</h2>
+        @if (topCreators.length === 0) {
+          <div class="empty">
+            <i class="pi pi-users"></i>
+            <p>No hay creadores con cursos aprobados aun.</p>
+          </div>
+        }
+        <ol class="global-reports__creators-list">
+          @for (creator of topCreators; track creator.nombre) {
+            <li class="global-reports__creator-item">
+              <span class="global-reports__creator-name">{{ creator.nombre }}</span>
+              <span class="global-reports__creator-count">{{ creator.total }} cursos</span>
+            </li>
+          }
+        </ol>
+      </div>
+    </div>
+
+  }
+
+</div>

@@ -45,7 +45,7 @@ type MonthCountItem struct {
 // CourseReportItem is one item in the GET /api/reports/courses response (bare array).
 // @Description Per-course aggregate stats.
 type CourseReportItem struct {
-	ID           string  `json:"id"`
+	ID           string  `json:"courseId"`
 	Titulo       string  `json:"titulo"`
 	Estado       string  `json:"estado"`
 	Enrollments  int64   `json:"enrollments"`

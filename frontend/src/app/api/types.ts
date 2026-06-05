@@ -1836,9 +1836,9 @@ export interface definitions {
     /** @description range [0.0, 1.0]; frontend renders as % */
     approvalRate?: number;
     attempts?: number;
+    courseId?: string;
     enrollments?: number;
     estado?: string;
-    id?: string;
     titulo?: string;
   };
   /** @description Course count by estado. */

@@ -32,10 +32,20 @@ export const ADMIN_ROUTES: Routes = [
   {
     path: 'reports',
     loadComponent: () =>
-      import('@shared/components/pending-view/pending-view.component').then(
-        m => m.PendingViewComponent,
+      import('./global-reports/global-reports.component').then(
+        m => m.GlobalReportsComponent,
       ),
-    data: { title: 'Reportes globales' },
+    canActivate: [roleGuard],
+    data: { title: 'Reportes globales', roles: ['administrador'] },
+  },
+  {
+    path: 'course-reports',
+    loadComponent: () =>
+      import('./course-reports/course-reports.component').then(
+        m => m.CourseReportsComponent,
+      ),
+    canActivate: [roleGuard],
+    data: { title: 'Reportes por curso', roles: ['administrador'] },
   },
   { path: '', redirectTo: 'approvals', pathMatch: 'full' },
 ];
