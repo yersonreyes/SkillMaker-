@@ -1,12 +1,13 @@
-<article class="course-card panel">
+<article class="course-card">
   <div class="course-card__body">
+    <p class="course-card__eyebrow">{{ card.creadorNombre }}</p>
     <h3 class="course-card__titulo">{{ card.titulo }}</h3>
-    <p class="course-card__autor">{{ card.creadorNombre }}</p>
     <p class="course-card__desc">{{ card.descripcion }}</p>
   </div>
   <footer class="course-card__footer">
-    <button type="button" class="btn btn--cyan" (click)="onOpen()">
+    <button type="button" class="course-card__cta" (click)="onOpen()">
       Ver detalle
+      <i class="pi pi-arrow-right" aria-hidden="true"></i>
     </button>
   </footer>
 </article>
