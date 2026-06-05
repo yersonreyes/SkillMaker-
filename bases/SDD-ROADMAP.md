@@ -35,7 +35,7 @@
 > Esta seccion es el "punto de partida". Cualquier change posterior parte de este estado.
 > Actualizar cuando se archive un change importante.
 
-**Fecha del snapshot:** 2026-06-04 (actualizado tras C3.1 archive)
+**Fecha del snapshot:** 2026-06-05 (actualizado tras C3.2 archive)
 **Commits totales del scaffold:** 16 (+ 3 chained PRs para C1.1) (+ 2 PRs para C2.1) (+ 2 PRs para C2.2) (+ 2 PRs para C2.3) (+ 3 PRs para C3.1 incl. UI polish) (+ post-merge fixes)
 **LOC totales (Go + TS + SQL):** ~2700 (+ ~900 LOC en C1.1) (+ ~1100 LOC en C2.1) (+ ~900 LOC en C2.2) (+ ~900 LOC en C2.3) (+ ~1200 LOC en C3.1)
 
@@ -46,7 +46,7 @@
 | `auth` | ✅ Completo | `refresh_token` |
 | `users` | ✅ Completo (C1.1: list, roles, supervision, soft-delete, last-admin guard) | `user`, `role`, `user_role`, `supervision` |
 | `courses` | 🟡 En progreso (C2.1: dominio + CRUD; C2.2: secciones/videos embebidos; C2.3: material adjunto) | `course`, `section`, `video`, `material`, `enrollment` (schema + C2.2 + C2.3 columns) |
-| `evaluations` | 🟡 En progreso (C3.1: diseño de examen — evaluacion/preguntas/opciones; schema + endpoints + editor frontend; C3.2 pendiente) | `evaluation`, `question`, `question_option`, `attempt`, `answer` (schema + C3.1 columns) |
+| `evaluations` | 🟡 En progreso (C3.1: diseño de examen — evaluacion/preguntas/opciones; C3.2: rendición de examen — intentos/respuestas/puntaje) | `evaluation`, `question`, `question_option`, `attempt`, `answer` (schema + C3.1 + C3.2 columns) |
 | `approvals` | ❌ No existe | ninguna |
 | `certificates` | ❌ No existe | ninguna |
 | `reporting` | ❌ No existe | — (read-only) |
@@ -64,6 +64,7 @@
 | `pages/platform/creator/mi-contenido` | ✅ Funcional (C2.1: lazy Table paginated + estado badge + create dialog) |
 | `pages/platform/creator/curso-editar/:id` | ✅ Funcional (C2.1: form titulo/descripcion, Save, disabled "Enviar a revisión"; C2.2: secciones + videos + reorder; C2.3: material adjunto con uploader + tabla; Cyanotype Workshop design; C3.1: "Definir evaluación" nav button) |
 | `pages/platform/creator/evaluacion-editar/:courseId` | ✅ Funcional (C3.1: evaluation form, question list + modal, opcion_multiple dynamic options, verdadero_falso radio selector, client validation) |
+| `pages/platform/evaluacion-tomar/:id` | ✅ Funcional (C3.2: student exam-taking UI — start → answer (save-on-change) → submit → result with puntaje/aprobado) |
 | `pages/platform/admin/user-management` | ✅ Funcional (C1.1: lazy Table, role/active filters, edit dialog) |
 | `pages/platform/admin/supervision` | ✅ Funcional (C1.1: list, assign supervisor-employee, remove) |
 | `pages/platform/admin/{approvals,reports}` | 🟡 Routes → `PendingViewComponent` |
@@ -484,39 +485,44 @@ Frontend (PR-B: 2e91a48) + UI polish (859bc81):
 
 ---
 
-#### C3.2 — `module-evaluations-attempts`
+#### C3.2 — `module-evaluations-attempts` ✅ ARCHIVED (2026-06-05)
 
-**Por que:** RF-13 exige que el alumno pueda rendir. Este change cierra el flujo de aprendizaje.
+**Estado:** COMPLETE — 2 chained PRs (backend + frontend) + focused UX fix merged to dev. Manual smoke test PASSED. Forward seams (enrollment, certificates) are nil-safe, ready for wiring.
 
-**Scope IN:**
+**Delivered:**
 
-Backend:
-- Endpoints:
-  - `POST /api/evaluations/:id/attempts` — inicia intento. Valida `intentos_max` no excedido para ese user. Crea fila `attempt` con `iniciado_en=now`, `numero=N+1`
-  - `GET /api/attempts/:id` — devuelve estado + preguntas (sin las respuestas correctas, eso es post-finalizacion)
-  - `POST /api/attempts/:id/answers` — body `{ questionId, optionId }` registra una respuesta (UQ por attempt+question)
-  - `POST /api/attempts/:id/submit` — finaliza: setea `finalizado_en`, calcula `puntaje` y `aprobado` segun `nota_minima`. Si `aprobado=true`, llama a `courses.MarkEnrollmentCompleted(...)` y a `certificates.IssueOnPass(...)` (interface call cross-modulo).
-- Calculo de puntaje: suma de `puntaje` de las preguntas donde la respuesta es `correcta=true`, dividido por suma total * 100. Aprobado si >= `nota_minima`.
+Backend (PR-A: 837b1de):
+- Migration `0007_answer_unique.up.sql` adds UNIQUE(attempt_id, question_id) for upsert.
+- Modulo `evaluations/` extended: 7 new repo methods, 4 new service methods (StartAttempt/GetAttempt/SaveAnswer/SubmitAttempt), Go-composed scoring (earned/total*100 rounded to int).
+- **Forward seams**: `EnrollmentCompleter.MarkEnrollmentCompleted(ctx, userID, courseID)` + `CertificateIssuer.IssueOnPass(ctx, userID, courseID)` — nil in C3.2, wired by C2.4/C5.1. Functional-options pattern keeps existing 2-arg `New()` compiling.
+- Endpoints (all protected JWT-only):
+  - `POST /api/evaluations/:id/attempts` — start attempt (resume-on-start if open exists, no error); enforce intentos_max (0=unlimited)
+  - `GET /api/attempts/:id` — state + questions WITHOUT correcta while in-progress; puntaje+aprobado post-submit (still no correcta revealed)
+  - `POST /api/attempts/:id/answers` — upsert via UNIQUE; snapshot correcta at save time
+  - `POST /api/attempts/:id/submit` — compute puntaje, set aprobado, invoke seams on pass (non-fatal errors)
+- Tests: 183 service/handler tests pass (exit 0), integration migration round-trip clean, mock seams prove invocation, 76.3% service coverage.
 
-Frontend:
-- Service `AttemptService`
-- Page `evaluation/:courseId`:
-  - Step 1: confirmacion "Iniciar intento N de M"
-  - Step 2: una pregunta a la vez (o todas, decidir por UX)
-  - Radio buttons para opciones
-  - Boton "Siguiente" / "Finalizar"
-  - Al finalizar: muestra puntaje + estado (aprobado/desaprobado) + boton "Volver al curso"
+Frontend (PR-B: bf0baa7):
+- `AttemptService` (startAttempt, getAttempt, saveAnswer, submitAttempt) + LOCAL AttemptStateOption type (NO correcta field — compile-time guarantee).
+- Page `evaluacion-tomar/:id` (replaces stub): standalone + zoneless + signals. Flow: start card → all questions on scrollable form (radio options) → save-on-change → submit confirm dialog → result screen (puntaje + aprobado/desaprobado). Cyanotype Workshop primitives. Pre-populates savedAnswers from state on resume-on-start.
+- Tests: 181 total (158 baseline + 23 new PR-B). LOAD-BEARING: no-correcta verified across 4 layers (type, service, component, template); 3 adversarial probes caught injected leaks.
 
-**Scope OUT:**
-- Timer para limitar duracion del intento (no esta en RFs)
-- Mostrar respuestas correctas tras desaprobar (decidir UX)
-- Save & resume (si el alumno cierra sin submitir, el attempt queda abierto)
+Focused Fix (af0a32e):
+- **Problem**: StartAttempt blocked with ErrAttemptOpen when open attempt existed → dead-end UX (can't start, can't resume).
+- **Solution**: StartAttempt now RESUMES the open attempt (returns it, no new attempt, no intentos_max consumption). Frontend pre-populates answers. Discovered + applied during manual smoke test.
+- **Scope**: seams nil, answer.correcta snapshot, intentos_max (0=unlimited), ownership (404 on mismatch), scoring (integer %, total==0 guard), upsert-answers before-submit, ErrAttemptAlreadySubmitted after-submit, resume-on-start.
 
-**Acceptance:**
-- Alumno inicia attempt → ve preguntas
-- Alumno responde todas → submit → recibe puntaje
-- Si aprobado, su `enrollment.completado` queda en true Y se le emite certificado (cross-modulo con C5.1)
-- Si intentos_max alcanzado, el endpoint `POST /attempts` devuelve 409
+**Acceptance:** ✅
+- Alumno inicia attempt → ve preguntas (no correcta visible)
+- Alumno responde todas (save-on-change) → submit → recibe puntaje + aprobado/desaprobado
+- Si aprobado, seams invoked (via mock proven; real enrollment/certificates wired later by C2.4/C5.1)
+- Si intentos_max alcanzado, POST /attempts → 409 ErrMaxAttemptsReached
+- Re-submit → 409 ErrAttemptAlreadySubmitted
+- Open attempt → resume on next start (UX fix discovery, no error)
+
+**Unblocks:**
+- C5.1 certificates (CertificateIssuer seam ready)
+- C2.4 enrollment completion (EnrollmentCompleter seam ready)
 
 ---
 
