@@ -264,7 +264,7 @@ describe('EvaluacionTomarComponent', () => {
     for (const q of questions) {
       for (const opt of q.options) {
         expect(Object.prototype.hasOwnProperty.call(opt, 'correcta')).toBe(false);
-        expect((opt as Record<string, unknown>)['correcta']).toBeUndefined();
+        expect((opt as unknown as Record<string, unknown>)['correcta']).toBeUndefined();
       }
     }
   });
@@ -282,7 +282,7 @@ describe('EvaluacionTomarComponent', () => {
     // Questions state still present in result phase — options must still have no correcta
     for (const q of comp.questions()) {
       for (const opt of q.options) {
-        expect((opt as Record<string, unknown>)['correcta']).toBeUndefined();
+        expect((opt as unknown as Record<string, unknown>)['correcta']).toBeUndefined();
       }
     }
   });

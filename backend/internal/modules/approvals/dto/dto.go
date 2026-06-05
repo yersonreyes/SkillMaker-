@@ -27,9 +27,9 @@ type RejectRequest struct {
 
 // ── Response DTOs ─────────────────────────────────────────────────────────────
 
-// SubmitResponse is returned by POST /courses/:courseId/submit.
+// SubmitReviewResponse is returned by POST /courses/:courseId/submit.
 // Estado reflects the new state (en_revision).
-type SubmitResponse struct {
+type SubmitReviewResponse struct {
 	CourseID string `json:"courseId"`
 	Estado   string `json:"estado"`
 }

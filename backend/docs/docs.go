@@ -36,14 +36,14 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_approvals_dto.PendingItemDTO"
+                                "$ref": "#/definitions/dto.PendingItemDTO"
                             }
                         }
                     },
                     "403": {
                         "description": "no es administrador",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -77,13 +77,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AttemptStateResponse"
+                            "$ref": "#/definitions/dto.AttemptStateResponse"
                         }
                     },
                     "404": {
                         "description": "intento no encontrado o no pertenece al usuario",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -118,7 +118,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AnswerRequest"
+                            "$ref": "#/definitions/dto.AnswerRequest"
                         }
                     }
                 ],
@@ -129,19 +129,19 @@ const docTemplate = `{
                     "400": {
                         "description": "opcion o pregunta invalida",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "intento no encontrado",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "409": {
                         "description": "intento ya finalizado",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -175,19 +175,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.SubmitResponse"
+                            "$ref": "#/definitions/dto.SubmitResponse"
                         }
                     },
                     "404": {
                         "description": "intento no encontrado",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "409": {
                         "description": "intento ya finalizado",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -213,7 +213,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_auth_dto.GoogleLoginRequest"
+                            "$ref": "#/definitions/dto.GoogleLoginRequest"
                         }
                     }
                 ],
@@ -221,25 +221,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_auth_dto.LoginResponse"
+                            "$ref": "#/definitions/dto.LoginResponse"
                         }
                     },
                     "400": {
                         "description": "body invalido",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "401": {
                         "description": "token invalido o dominio no autorizado",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "500": {
                         "description": "error interno",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -261,7 +261,7 @@ const docTemplate = `{
                         "name": "body",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_auth_dto.RefreshRequest"
+                            "$ref": "#/definitions/dto.RefreshRequest"
                         }
                     }
                 ],
@@ -292,7 +292,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_auth_dto.RefreshRequest"
+                            "$ref": "#/definitions/dto.RefreshRequest"
                         }
                     }
                 ],
@@ -300,25 +300,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_auth_dto.LoginResponse"
+                            "$ref": "#/definitions/dto.LoginResponse"
                         }
                     },
                     "400": {
                         "description": "body invalido",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "401": {
                         "description": "token invalido, expirado o reutilizado",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "500": {
                         "description": "error interno",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -370,25 +370,25 @@ const docTemplate = `{
                     "400": {
                         "description": "creator debe ser 'me'",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "rol creador requerido",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -417,7 +417,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.CreateCourseRequest"
+                            "$ref": "#/definitions/dto.CreateCourseRequest"
                         }
                     }
                 ],
@@ -425,31 +425,31 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.CourseDetail"
+                            "$ref": "#/definitions/dto.CourseDetail"
                         }
                     },
                     "400": {
                         "description": "titulo faltante o invalido",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "rol creador requerido",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -486,7 +486,7 @@ const docTemplate = `{
                         "name": "body",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_approvals_dto.ApproveRequest"
+                            "$ref": "#/definitions/dto.ApproveRequest"
                         }
                     }
                 ],
@@ -497,19 +497,19 @@ const docTemplate = `{
                     "403": {
                         "description": "no es administrador",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "curso no encontrado",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "409": {
                         "description": "curso no en revision",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -547,7 +547,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.EvaluationCreateRequest"
+                            "$ref": "#/definitions/dto.EvaluationCreateRequest"
                         }
                     }
                 ],
@@ -555,31 +555,31 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.EvaluationResponse"
+                            "$ref": "#/definitions/dto.EvaluationResponse"
                         }
                     },
                     "400": {
                         "description": "body invalido",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "no es propietario del curso",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "curso no encontrado",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "409": {
                         "description": "ya existe evaluacion o curso no editable",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -617,7 +617,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.MaterialConfirmRequest"
+                            "$ref": "#/definitions/dto.MaterialConfirmRequest"
                         }
                     }
                 ],
@@ -625,43 +625,43 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.MaterialResponse"
+                            "$ref": "#/definitions/dto.MaterialResponse"
                         }
                     },
                     "400": {
                         "description": "clave de objeto invalida o campos faltantes",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "no es propietario del curso",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "curso no encontrado",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "409": {
                         "description": "estado no permite edicion",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "413": {
                         "description": "archivo demasiado grande",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "415": {
                         "description": "tipo de contenido no permitido",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -699,7 +699,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.MaterialPresignRequest"
+                            "$ref": "#/definitions/dto.MaterialPresignRequest"
                         }
                     }
                 ],
@@ -707,43 +707,43 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.PresignResponse"
+                            "$ref": "#/definitions/dto.PresignResponse"
                         }
                     },
                     "400": {
                         "description": "body invalido o campos faltantes",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "no es propietario del curso",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "curso no encontrado",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "409": {
                         "description": "estado no permite edicion",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "413": {
                         "description": "archivo demasiado grande",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "415": {
                         "description": "tipo de contenido no permitido",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -781,7 +781,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_approvals_dto.RejectRequest"
+                            "$ref": "#/definitions/dto.RejectRequest"
                         }
                     }
                 ],
@@ -792,25 +792,25 @@ const docTemplate = `{
                     "400": {
                         "description": "comentario requerido",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "no es administrador",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "curso no encontrado",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "409": {
                         "description": "curso no en revision",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -848,7 +848,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.SectionCreateRequest"
+                            "$ref": "#/definitions/dto.SectionCreateRequest"
                         }
                     }
                 ],
@@ -856,31 +856,31 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.SectionResponse"
+                            "$ref": "#/definitions/dto.SectionResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "no es propietario del curso",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "curso no encontrado",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "409": {
                         "description": "estado no permite edicion",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -914,31 +914,31 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_approvals_dto.SubmitResponse"
+                            "$ref": "#/definitions/dto.SubmitReviewResponse"
                         }
                     },
                     "400": {
                         "description": "request invalido",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "no es propietario del curso",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "curso no encontrado",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "409": {
                         "description": "estado invalido / sin contenido / evaluacion incompleta",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -972,31 +972,31 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.CourseDetail"
+                            "$ref": "#/definitions/dto.CourseDetail"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "rol creador requerido",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "curso no encontrado o no pertenece al caller",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -1032,7 +1032,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.UpdateCourseRequest"
+                            "$ref": "#/definitions/dto.UpdateCourseRequest"
                         }
                     }
                 ],
@@ -1040,43 +1040,43 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.CourseDetail"
+                            "$ref": "#/definitions/dto.CourseDetail"
                         }
                     },
                     "400": {
                         "description": "body invalido o sin campos",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "no es propietario del curso",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "curso no encontrado",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "409": {
                         "description": "estado no permite edicion",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -1112,20 +1112,20 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_approvals_dto.ApprovalHistoryDTO"
+                                "$ref": "#/definitions/dto.ApprovalHistoryDTO"
                             }
                         }
                     },
                     "403": {
                         "description": "no es propietario ni administrador",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "curso no encontrado",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -1159,13 +1159,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.EvaluationDetail"
+                            "$ref": "#/definitions/dto.EvaluationDetail"
                         }
                     },
                     "404": {
                         "description": "evaluacion o curso no encontrado",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -1201,32 +1201,32 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.MaterialResponse"
+                                "$ref": "#/definitions/dto.MaterialResponse"
                             }
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "rol creador requerido",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "curso no encontrado o no pertenece al caller",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -1267,25 +1267,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.DownloadResponse"
+                            "$ref": "#/definitions/dto.DownloadResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "material o curso no encontrado",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -1321,32 +1321,32 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.SectionWithVideosResponse"
+                                "$ref": "#/definitions/dto.SectionWithVideosResponse"
                             }
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "rol creador requerido",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "curso no encontrado o no pertenece al caller",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -1384,7 +1384,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.ReorderRequest"
+                            "$ref": "#/definitions/dto.ReorderRequest"
                         }
                     }
                 ],
@@ -1395,19 +1395,19 @@ const docTemplate = `{
                     "400": {
                         "description": "IDs invalidos o incompletos",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -1445,7 +1445,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.EvaluationUpdateRequest"
+                            "$ref": "#/definitions/dto.EvaluationUpdateRequest"
                         }
                     }
                 ],
@@ -1453,31 +1453,31 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.EvaluationResponse"
+                            "$ref": "#/definitions/dto.EvaluationResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -1511,19 +1511,19 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AttemptStartResponse"
+                            "$ref": "#/definitions/dto.AttemptStartResponse"
                         }
                     },
                     "404": {
                         "description": "evaluacion no encontrada",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "409": {
                         "description": "intento abierto o maximo alcanzado",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -1561,7 +1561,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.QuestionCreateRequest"
+                            "$ref": "#/definitions/dto.QuestionCreateRequest"
                         }
                     }
                 ],
@@ -1569,31 +1569,31 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.QuestionDetail"
+                            "$ref": "#/definitions/dto.QuestionDetail"
                         }
                     },
                     "400": {
                         "description": "tipo invalido",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -1627,13 +1627,13 @@ const docTemplate = `{
                     "403": {
                         "description": "no es propietario del curso",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "material no encontrado",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -1695,7 +1695,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.OptionUpdateRequest"
+                            "$ref": "#/definitions/dto.OptionUpdateRequest"
                         }
                     }
                 ],
@@ -1703,7 +1703,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.OptionResponse"
+                            "$ref": "#/definitions/dto.OptionResponse"
                         }
                     }
                 }
@@ -1736,13 +1736,13 @@ const docTemplate = `{
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -1777,7 +1777,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.QuestionUpdateRequest"
+                            "$ref": "#/definitions/dto.QuestionUpdateRequest"
                         }
                     }
                 ],
@@ -1785,7 +1785,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.QuestionResponse"
+                            "$ref": "#/definitions/dto.QuestionResponse"
                         }
                     }
                 }
@@ -1822,7 +1822,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.OptionCreateRequest"
+                            "$ref": "#/definitions/dto.OptionCreateRequest"
                         }
                     }
                 ],
@@ -1830,13 +1830,13 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.OptionResponse"
+                            "$ref": "#/definitions/dto.OptionResponse"
                         }
                     },
                     "400": {
                         "description": "tipo incorrecto (verdadero_falso no permite agregar opciones)",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -1870,19 +1870,19 @@ const docTemplate = `{
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -1918,7 +1918,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.SectionUpdateRequest"
+                            "$ref": "#/definitions/dto.SectionUpdateRequest"
                         }
                     }
                 ],
@@ -1926,31 +1926,31 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.SectionResponse"
+                            "$ref": "#/definitions/dto.SectionResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "seccion no encontrada",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -1988,7 +1988,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.VideoCreateRequest"
+                            "$ref": "#/definitions/dto.VideoCreateRequest"
                         }
                     }
                 ],
@@ -1996,31 +1996,31 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.VideoResponse"
+                            "$ref": "#/definitions/dto.VideoResponse"
                         }
                     },
                     "400": {
                         "description": "url/proveedor invalidos",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -2047,26 +2047,26 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.SupervisionItem"
+                                "$ref": "#/definitions/dto.SupervisionItem"
                             }
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -2095,7 +2095,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.SupervisionCreateRequest"
+                            "$ref": "#/definitions/dto.SupervisionCreateRequest"
                         }
                     }
                 ],
@@ -2103,43 +2103,43 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.SupervisionItem"
+                            "$ref": "#/definitions/dto.SupervisionItem"
                         }
                     },
                     "400": {
                         "description": "auto-supervision o body invalido",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "usuario no encontrado",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "409": {
                         "description": "empleado ya tiene supervisor",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -2176,25 +2176,25 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "relacion no encontrada",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -2257,19 +2257,19 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -2294,25 +2294,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.UserDetail"
+                            "$ref": "#/definitions/dto.UserDetail"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -2346,31 +2346,31 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.UserDetail"
+                            "$ref": "#/definitions/dto.UserDetail"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -2408,7 +2408,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.ActivePatchRequest"
+                            "$ref": "#/definitions/dto.ActivePatchRequest"
                         }
                     }
                 ],
@@ -2416,43 +2416,43 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.UserDetail"
+                            "$ref": "#/definitions/dto.UserDetail"
                         }
                     },
                     "400": {
                         "description": "body invalido",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "409": {
                         "description": "ultimo administrador activo",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -2490,7 +2490,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.RolesPatchRequest"
+                            "$ref": "#/definitions/dto.RolesPatchRequest"
                         }
                     }
                 ],
@@ -2498,43 +2498,43 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.UserDetail"
+                            "$ref": "#/definitions/dto.UserDetail"
                         }
                     },
                     "400": {
                         "description": "rol invalido, conflicto add/remove, o body invalido",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "409": {
                         "description": "ultimo administrador activo",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -2568,13 +2568,13 @@ const docTemplate = `{
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -2610,7 +2610,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.VideoUpdateRequest"
+                            "$ref": "#/definitions/dto.VideoUpdateRequest"
                         }
                     }
                 ],
@@ -2618,31 +2618,31 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.VideoResponse"
+                            "$ref": "#/definitions/dto.VideoResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error"
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     }
                 }
@@ -2650,7 +2650,33 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_approvals_dto.ApprovalHistoryDTO": {
+        "dto.ActivePatchRequest": {
+            "type": "object",
+            "required": [
+                "active"
+            ],
+            "properties": {
+                "active": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "dto.AnswerRequest": {
+            "type": "object",
+            "required": [
+                "optionId",
+                "questionId"
+            ],
+            "properties": {
+                "optionId": {
+                    "type": "string"
+                },
+                "questionId": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ApprovalHistoryDTO": {
             "type": "object",
             "properties": {
                 "adminId": {
@@ -2670,7 +2696,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_approvals_dto.ApproveRequest": {
+        "dto.ApproveRequest": {
             "type": "object",
             "properties": {
                 "comentario": {
@@ -2678,106 +2704,98 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_approvals_dto.PendingItemDTO": {
+        "dto.AttemptAnswerView": {
             "type": "object",
             "properties": {
-                "creadorId": {
+                "optionId": {
                     "type": "string"
                 },
-                "estado": {
+                "questionId": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.AttemptStartResponse": {
+            "type": "object",
+            "properties": {
+                "attemptId": {
                     "type": "string"
                 },
-                "fechaEnvio": {
-                    "description": "OQ-3: UpdatedAt would be ideal; using CreatedAt as proxy in C4.1",
+                "iniciadoEn": {
+                    "type": "string"
+                },
+                "numero": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.AttemptStateOptionResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "texto": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.AttemptStateQuestionResponse": {
+            "type": "object",
+            "properties": {
+                "enunciado": {
                     "type": "string"
                 },
                 "id": {
                     "type": "string"
                 },
-                "titulo": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_approvals_dto.RejectRequest": {
-            "type": "object",
-            "properties": {
-                "comentario": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_approvals_dto.SubmitResponse": {
-            "type": "object",
-            "properties": {
-                "courseId": {
-                    "type": "string"
-                },
-                "estado": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_auth_dto.GoogleLoginRequest": {
-            "type": "object",
-            "required": [
-                "idToken"
-            ],
-            "properties": {
-                "idToken": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_auth_dto.LoginResponse": {
-            "type": "object",
-            "properties": {
-                "access_token": {
-                    "type": "string"
-                },
-                "expires_at": {
-                    "type": "string"
-                },
-                "refresh_token": {
-                    "type": "string"
-                },
-                "user": {
-                    "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_auth_dto.UserDTO"
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_auth_dto.RefreshRequest": {
-            "type": "object",
-            "required": [
-                "refreshToken"
-            ],
-            "properties": {
-                "refreshToken": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_auth_dto.UserDTO": {
-            "type": "object",
-            "properties": {
-                "email": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "nombre": {
-                    "type": "string"
-                },
-                "roles": {
+                "options": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/dto.AttemptStateOptionResponse"
                     }
+                },
+                "puntaje": {
+                    "type": "integer"
+                },
+                "tipo": {
+                    "type": "string"
                 }
             }
         },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.CourseDetail": {
+        "dto.AttemptStateResponse": {
+            "type": "object",
+            "properties": {
+                "answers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.AttemptAnswerView"
+                    }
+                },
+                "aprobado": {
+                    "type": "boolean"
+                },
+                "attemptId": {
+                    "type": "string"
+                },
+                "numero": {
+                    "type": "integer"
+                },
+                "puntaje": {
+                    "type": "integer"
+                },
+                "questions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.AttemptStateQuestionResponse"
+                    }
+                },
+                "submitted": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "dto.CourseDetail": {
             "type": "object",
             "properties": {
                 "creadorId": {
@@ -2806,7 +2824,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.CreateCourseRequest": {
+        "dto.CreateCourseRequest": {
             "type": "object",
             "required": [
                 "titulo"
@@ -2823,7 +2841,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.DownloadResponse": {
+        "dto.DownloadResponse": {
             "type": "object",
             "properties": {
                 "expiresAt": {
@@ -2834,7 +2852,106 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.MaterialConfirmRequest": {
+        "dto.EvaluationCreateRequest": {
+            "type": "object",
+            "properties": {
+                "intentosMax": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "notaMinima": {
+                    "type": "integer",
+                    "maximum": 100,
+                    "minimum": 0
+                }
+            }
+        },
+        "dto.EvaluationDetail": {
+            "type": "object",
+            "properties": {
+                "courseId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "intentosMax": {
+                    "type": "integer"
+                },
+                "notaMinima": {
+                    "type": "integer"
+                },
+                "questions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.QuestionDetail"
+                    }
+                }
+            }
+        },
+        "dto.EvaluationResponse": {
+            "type": "object",
+            "properties": {
+                "courseId": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "intentosMax": {
+                    "type": "integer"
+                },
+                "notaMinima": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.EvaluationUpdateRequest": {
+            "type": "object",
+            "properties": {
+                "intentosMax": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "notaMinima": {
+                    "type": "integer",
+                    "maximum": 100,
+                    "minimum": 0
+                }
+            }
+        },
+        "dto.GoogleLoginRequest": {
+            "type": "object",
+            "required": [
+                "idToken"
+            ],
+            "properties": {
+                "idToken": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.LoginResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "refresh_token": {
+                    "type": "string"
+                },
+                "user": {
+                    "$ref": "#/definitions/dto.UserDTO"
+                }
+            }
+        },
+        "dto.MaterialConfirmRequest": {
             "type": "object",
             "required": [
                 "contentType",
@@ -2860,7 +2977,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.MaterialPresignRequest": {
+        "dto.MaterialPresignRequest": {
             "type": "object",
             "required": [
                 "contentType",
@@ -2882,7 +2999,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.MaterialResponse": {
+        "dto.MaterialResponse": {
             "type": "object",
             "properties": {
                 "createdAt": {
@@ -2903,378 +3020,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.PresignResponse": {
-            "type": "object",
-            "properties": {
-                "expiresAt": {
-                    "type": "string"
-                },
-                "key": {
-                    "type": "string"
-                },
-                "uploadUrl": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.ReorderRequest": {
-            "type": "object",
-            "required": [
-                "ids"
-            ],
-            "properties": {
-                "ids": {
-                    "type": "array",
-                    "minItems": 1,
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.SectionCreateRequest": {
-            "type": "object",
-            "required": [
-                "titulo"
-            ],
-            "properties": {
-                "titulo": {
-                    "type": "string",
-                    "maxLength": 200,
-                    "minLength": 1
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.SectionResponse": {
-            "type": "object",
-            "properties": {
-                "courseId": {
-                    "type": "string"
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "orden": {
-                    "type": "integer"
-                },
-                "titulo": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.SectionUpdateRequest": {
-            "type": "object",
-            "properties": {
-                "titulo": {
-                    "type": "string",
-                    "maxLength": 200,
-                    "minLength": 1
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.SectionWithVideosResponse": {
-            "type": "object",
-            "properties": {
-                "courseId": {
-                    "type": "string"
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "orden": {
-                    "type": "integer"
-                },
-                "titulo": {
-                    "type": "string"
-                },
-                "videos": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.VideoResponse"
-                    }
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.UpdateCourseRequest": {
-            "type": "object",
-            "properties": {
-                "descripcion": {
-                    "type": "string",
-                    "maxLength": 5000
-                },
-                "titulo": {
-                    "type": "string",
-                    "maxLength": 200,
-                    "minLength": 3
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.VideoCreateRequest": {
-            "type": "object",
-            "required": [
-                "proveedor",
-                "titulo",
-                "url"
-            ],
-            "properties": {
-                "duracionS": {
-                    "type": "integer",
-                    "minimum": 0
-                },
-                "proveedor": {
-                    "type": "string",
-                    "enum": [
-                        "youtube",
-                        "vimeo"
-                    ]
-                },
-                "titulo": {
-                    "type": "string",
-                    "maxLength": 200,
-                    "minLength": 1
-                },
-                "url": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.VideoResponse": {
-            "type": "object",
-            "properties": {
-                "createdAt": {
-                    "type": "string"
-                },
-                "duracionS": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "orden": {
-                    "type": "integer"
-                },
-                "proveedor": {
-                    "type": "string"
-                },
-                "sectionId": {
-                    "type": "string"
-                },
-                "titulo": {
-                    "type": "string"
-                },
-                "url": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.VideoUpdateRequest": {
-            "type": "object",
-            "properties": {
-                "duracionS": {
-                    "type": "integer",
-                    "minimum": 0
-                },
-                "proveedor": {
-                    "type": "string",
-                    "enum": [
-                        "youtube",
-                        "vimeo"
-                    ]
-                },
-                "titulo": {
-                    "type": "string",
-                    "maxLength": 200,
-                    "minLength": 1
-                },
-                "url": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AnswerRequest": {
-            "type": "object",
-            "required": [
-                "optionId",
-                "questionId"
-            ],
-            "properties": {
-                "optionId": {
-                    "type": "string"
-                },
-                "questionId": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AttemptAnswerView": {
-            "type": "object",
-            "properties": {
-                "optionId": {
-                    "type": "string"
-                },
-                "questionId": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AttemptStartResponse": {
-            "type": "object",
-            "properties": {
-                "attemptId": {
-                    "type": "string"
-                },
-                "iniciadoEn": {
-                    "type": "string"
-                },
-                "numero": {
-                    "type": "integer"
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AttemptStateOptionResponse": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "string"
-                },
-                "texto": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AttemptStateQuestionResponse": {
-            "type": "object",
-            "properties": {
-                "enunciado": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "options": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AttemptStateOptionResponse"
-                    }
-                },
-                "puntaje": {
-                    "type": "integer"
-                },
-                "tipo": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AttemptStateResponse": {
-            "type": "object",
-            "properties": {
-                "answers": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AttemptAnswerView"
-                    }
-                },
-                "aprobado": {
-                    "type": "boolean"
-                },
-                "attemptId": {
-                    "type": "string"
-                },
-                "numero": {
-                    "type": "integer"
-                },
-                "puntaje": {
-                    "type": "integer"
-                },
-                "questions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AttemptStateQuestionResponse"
-                    }
-                },
-                "submitted": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.EvaluationCreateRequest": {
-            "type": "object",
-            "properties": {
-                "intentosMax": {
-                    "type": "integer",
-                    "minimum": 0
-                },
-                "notaMinima": {
-                    "type": "integer",
-                    "maximum": 100,
-                    "minimum": 0
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.EvaluationDetail": {
-            "type": "object",
-            "properties": {
-                "courseId": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "intentosMax": {
-                    "type": "integer"
-                },
-                "notaMinima": {
-                    "type": "integer"
-                },
-                "questions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.QuestionDetail"
-                    }
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.EvaluationResponse": {
-            "type": "object",
-            "properties": {
-                "courseId": {
-                    "type": "string"
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "intentosMax": {
-                    "type": "integer"
-                },
-                "notaMinima": {
-                    "type": "integer"
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.EvaluationUpdateRequest": {
-            "type": "object",
-            "properties": {
-                "intentosMax": {
-                    "type": "integer",
-                    "minimum": 0
-                },
-                "notaMinima": {
-                    "type": "integer",
-                    "maximum": 100,
-                    "minimum": 0
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.OptionCreateRequest": {
+        "dto.OptionCreateRequest": {
             "type": "object",
             "required": [
                 "texto"
@@ -3290,7 +3036,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.OptionResponse": {
+        "dto.OptionResponse": {
             "type": "object",
             "properties": {
                 "correcta": {
@@ -3310,7 +3056,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.OptionUpdateRequest": {
+        "dto.OptionUpdateRequest": {
             "type": "object",
             "properties": {
                 "correcta": {
@@ -3323,7 +3069,42 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.QuestionCreateRequest": {
+        "dto.PendingItemDTO": {
+            "type": "object",
+            "properties": {
+                "creadorId": {
+                    "type": "string"
+                },
+                "estado": {
+                    "type": "string"
+                },
+                "fechaEnvio": {
+                    "description": "OQ-3: UpdatedAt would be ideal; using CreatedAt as proxy in C4.1",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "titulo": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.PresignResponse": {
+            "type": "object",
+            "properties": {
+                "expiresAt": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "uploadUrl": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.QuestionCreateRequest": {
             "type": "object",
             "required": [
                 "enunciado",
@@ -3348,7 +3129,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.QuestionDetail": {
+        "dto.QuestionDetail": {
             "type": "object",
             "properties": {
                 "enunciado": {
@@ -3363,7 +3144,7 @@ const docTemplate = `{
                 "options": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.OptionResponse"
+                        "$ref": "#/definitions/dto.OptionResponse"
                     }
                 },
                 "orden": {
@@ -3377,7 +3158,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.QuestionResponse": {
+        "dto.QuestionResponse": {
             "type": "object",
             "properties": {
                 "enunciado": {
@@ -3400,7 +3181,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.QuestionUpdateRequest": {
+        "dto.QuestionUpdateRequest": {
             "type": "object",
             "properties": {
                 "enunciado": {
@@ -3418,29 +3199,41 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.SubmitResponse": {
-            "type": "object",
-            "properties": {
-                "aprobado": {
-                    "type": "boolean"
-                },
-                "puntaje": {
-                    "type": "integer"
-                }
-            }
-        },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.ActivePatchRequest": {
+        "dto.RefreshRequest": {
             "type": "object",
             "required": [
-                "active"
+                "refreshToken"
             ],
             "properties": {
-                "active": {
-                    "type": "boolean"
+                "refreshToken": {
+                    "type": "string"
                 }
             }
         },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.RolesPatchRequest": {
+        "dto.RejectRequest": {
+            "type": "object",
+            "properties": {
+                "comentario": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ReorderRequest": {
+            "type": "object",
+            "required": [
+                "ids"
+            ],
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "dto.RolesPatchRequest": {
             "type": "object",
             "required": [
                 "add",
@@ -3461,7 +3254,98 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.SupervisionCreateRequest": {
+        "dto.SectionCreateRequest": {
+            "type": "object",
+            "required": [
+                "titulo"
+            ],
+            "properties": {
+                "titulo": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "minLength": 1
+                }
+            }
+        },
+        "dto.SectionResponse": {
+            "type": "object",
+            "properties": {
+                "courseId": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "orden": {
+                    "type": "integer"
+                },
+                "titulo": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.SectionUpdateRequest": {
+            "type": "object",
+            "properties": {
+                "titulo": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "minLength": 1
+                }
+            }
+        },
+        "dto.SectionWithVideosResponse": {
+            "type": "object",
+            "properties": {
+                "courseId": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "orden": {
+                    "type": "integer"
+                },
+                "titulo": {
+                    "type": "string"
+                },
+                "videos": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.VideoResponse"
+                    }
+                }
+            }
+        },
+        "dto.SubmitResponse": {
+            "type": "object",
+            "properties": {
+                "aprobado": {
+                    "type": "boolean"
+                },
+                "puntaje": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.SubmitReviewResponse": {
+            "type": "object",
+            "properties": {
+                "courseId": {
+                    "type": "string"
+                },
+                "estado": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.SupervisionCreateRequest": {
             "type": "object",
             "required": [
                 "empleadoId",
@@ -3476,7 +3360,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.SupervisionItem": {
+        "dto.SupervisionItem": {
             "type": "object",
             "properties": {
                 "creadoEn": {
@@ -3493,7 +3377,41 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.UserDetail": {
+        "dto.UpdateCourseRequest": {
+            "type": "object",
+            "properties": {
+                "descripcion": {
+                    "type": "string",
+                    "maxLength": 5000
+                },
+                "titulo": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "minLength": 3
+                }
+            }
+        },
+        "dto.UserDTO": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "nombre": {
+                    "type": "string"
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "dto.UserDetail": {
             "type": "object",
             "properties": {
                 "activo": {
@@ -3522,7 +3440,89 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error": {
+        "dto.VideoCreateRequest": {
+            "type": "object",
+            "required": [
+                "proveedor",
+                "titulo",
+                "url"
+            ],
+            "properties": {
+                "duracionS": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "proveedor": {
+                    "type": "string",
+                    "enum": [
+                        "youtube",
+                        "vimeo"
+                    ]
+                },
+                "titulo": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "minLength": 1
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.VideoResponse": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "duracionS": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "orden": {
+                    "type": "integer"
+                },
+                "proveedor": {
+                    "type": "string"
+                },
+                "sectionId": {
+                    "type": "string"
+                },
+                "titulo": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.VideoUpdateRequest": {
+            "type": "object",
+            "properties": {
+                "duracionS": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "proveedor": {
+                    "type": "string",
+                    "enum": [
+                        "youtube",
+                        "vimeo"
+                    ]
+                },
+                "titulo": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "minLength": 1
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "httperr.Error": {
             "type": "object",
             "properties": {
                 "code": {

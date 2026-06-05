@@ -6,7 +6,7 @@
  * Fake timers via vi.useFakeTimers().
  */
 import { TestBed } from '@angular/core/testing';
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import {
   createAuthServiceHarness,

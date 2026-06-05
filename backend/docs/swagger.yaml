@@ -1,6 +1,23 @@
 basePath: /api
 definitions:
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_approvals_dto.ApprovalHistoryDTO:
+  dto.ActivePatchRequest:
+    properties:
+      active:
+        type: boolean
+    required:
+    - active
+    type: object
+  dto.AnswerRequest:
+    properties:
+      optionId:
+        type: string
+      questionId:
+        type: string
+    required:
+    - optionId
+    - questionId
+    type: object
+  dto.ApprovalHistoryDTO:
     properties:
       adminId:
         type: string
@@ -13,77 +30,71 @@ definitions:
       resultado:
         type: string
     type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_approvals_dto.ApproveRequest:
+  dto.ApproveRequest:
     properties:
       comentario:
         type: string
     type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_approvals_dto.PendingItemDTO:
+  dto.AttemptAnswerView:
     properties:
-      creadorId:
+      optionId:
         type: string
-      estado:
+      questionId:
         type: string
-      fechaEnvio:
-        description: 'OQ-3: UpdatedAt would be ideal; using CreatedAt as proxy in
-          C4.1'
+    type: object
+  dto.AttemptStartResponse:
+    properties:
+      attemptId:
+        type: string
+      iniciadoEn:
+        type: string
+      numero:
+        type: integer
+    type: object
+  dto.AttemptStateOptionResponse:
+    properties:
+      id:
+        type: string
+      texto:
+        type: string
+    type: object
+  dto.AttemptStateQuestionResponse:
+    properties:
+      enunciado:
         type: string
       id:
         type: string
-      titulo:
-        type: string
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_approvals_dto.RejectRequest:
-    properties:
-      comentario:
-        type: string
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_approvals_dto.SubmitResponse:
-    properties:
-      courseId:
-        type: string
-      estado:
-        type: string
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_auth_dto.GoogleLoginRequest:
-    properties:
-      idToken:
-        type: string
-    required:
-    - idToken
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_auth_dto.LoginResponse:
-    properties:
-      access_token:
-        type: string
-      expires_at:
-        type: string
-      refresh_token:
-        type: string
-      user:
-        $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_auth_dto.UserDTO'
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_auth_dto.RefreshRequest:
-    properties:
-      refreshToken:
-        type: string
-    required:
-    - refreshToken
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_auth_dto.UserDTO:
-    properties:
-      email:
-        type: string
-      id:
-        type: string
-      nombre:
-        type: string
-      roles:
+      options:
         items:
-          type: string
+          $ref: '#/definitions/dto.AttemptStateOptionResponse'
         type: array
+      puntaje:
+        type: integer
+      tipo:
+        type: string
     type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.CourseDetail:
+  dto.AttemptStateResponse:
+    properties:
+      answers:
+        items:
+          $ref: '#/definitions/dto.AttemptAnswerView'
+        type: array
+      aprobado:
+        type: boolean
+      attemptId:
+        type: string
+      numero:
+        type: integer
+      puntaje:
+        type: integer
+      questions:
+        items:
+          $ref: '#/definitions/dto.AttemptStateQuestionResponse'
+        type: array
+      submitted:
+        type: boolean
+    type: object
+  dto.CourseDetail:
     properties:
       creadorId:
         type: string
@@ -102,7 +113,7 @@ definitions:
       updatedAt:
         type: string
     type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.CreateCourseRequest:
+  dto.CreateCourseRequest:
     properties:
       descripcion:
         maxLength: 5000
@@ -114,14 +125,80 @@ definitions:
     required:
     - titulo
     type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.DownloadResponse:
+  dto.DownloadResponse:
     properties:
       expiresAt:
         type: string
       url:
         type: string
     type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.MaterialConfirmRequest:
+  dto.EvaluationCreateRequest:
+    properties:
+      intentosMax:
+        minimum: 0
+        type: integer
+      notaMinima:
+        maximum: 100
+        minimum: 0
+        type: integer
+    type: object
+  dto.EvaluationDetail:
+    properties:
+      courseId:
+        type: string
+      id:
+        type: string
+      intentosMax:
+        type: integer
+      notaMinima:
+        type: integer
+      questions:
+        items:
+          $ref: '#/definitions/dto.QuestionDetail'
+        type: array
+    type: object
+  dto.EvaluationResponse:
+    properties:
+      courseId:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: string
+      intentosMax:
+        type: integer
+      notaMinima:
+        type: integer
+    type: object
+  dto.EvaluationUpdateRequest:
+    properties:
+      intentosMax:
+        minimum: 0
+        type: integer
+      notaMinima:
+        maximum: 100
+        minimum: 0
+        type: integer
+    type: object
+  dto.GoogleLoginRequest:
+    properties:
+      idToken:
+        type: string
+    required:
+    - idToken
+    type: object
+  dto.LoginResponse:
+    properties:
+      access_token:
+        type: string
+      expires_at:
+        type: string
+      refresh_token:
+        type: string
+      user:
+        $ref: '#/definitions/dto.UserDTO'
+    type: object
+  dto.MaterialConfirmRequest:
     properties:
       contentType:
         type: string
@@ -140,7 +217,7 @@ definitions:
     - nombre
     - tamanoBytes
     type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.MaterialPresignRequest:
+  dto.MaterialPresignRequest:
     properties:
       contentType:
         type: string
@@ -156,7 +233,7 @@ definitions:
     - nombre
     - tamanoBytes
     type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.MaterialResponse:
+  dto.MaterialResponse:
     properties:
       createdAt:
         type: string
@@ -170,7 +247,55 @@ definitions:
       tamanoBytes:
         type: integer
     type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.PresignResponse:
+  dto.OptionCreateRequest:
+    properties:
+      correcta:
+        type: boolean
+      texto:
+        maxLength: 500
+        minLength: 1
+        type: string
+    required:
+    - texto
+    type: object
+  dto.OptionResponse:
+    properties:
+      correcta:
+        type: boolean
+      id:
+        type: string
+      orden:
+        type: integer
+      questionId:
+        type: string
+      texto:
+        type: string
+    type: object
+  dto.OptionUpdateRequest:
+    properties:
+      correcta:
+        type: boolean
+      texto:
+        maxLength: 500
+        minLength: 1
+        type: string
+    type: object
+  dto.PendingItemDTO:
+    properties:
+      creadorId:
+        type: string
+      estado:
+        type: string
+      fechaEnvio:
+        description: 'OQ-3: UpdatedAt would be ideal; using CreatedAt as proxy in
+          C4.1'
+        type: string
+      id:
+        type: string
+      titulo:
+        type: string
+    type: object
+  dto.PresignResponse:
     properties:
       expiresAt:
         type: string
@@ -179,7 +304,84 @@ definitions:
       uploadUrl:
         type: string
     type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.ReorderRequest:
+  dto.QuestionCreateRequest:
+    properties:
+      enunciado:
+        maxLength: 1000
+        minLength: 1
+        type: string
+      puntaje:
+        minimum: 1
+        type: integer
+      tipo:
+        enum:
+        - opcion_multiple
+        - verdadero_falso
+        type: string
+    required:
+    - enunciado
+    - tipo
+    type: object
+  dto.QuestionDetail:
+    properties:
+      enunciado:
+        type: string
+      evaluationId:
+        type: string
+      id:
+        type: string
+      options:
+        items:
+          $ref: '#/definitions/dto.OptionResponse'
+        type: array
+      orden:
+        type: integer
+      puntaje:
+        type: integer
+      tipo:
+        type: string
+    type: object
+  dto.QuestionResponse:
+    properties:
+      enunciado:
+        type: string
+      evaluationId:
+        type: string
+      id:
+        type: string
+      orden:
+        type: integer
+      puntaje:
+        type: integer
+      tipo:
+        type: string
+    type: object
+  dto.QuestionUpdateRequest:
+    properties:
+      enunciado:
+        maxLength: 1000
+        minLength: 1
+        type: string
+      orden:
+        minimum: 0
+        type: integer
+      puntaje:
+        minimum: 1
+        type: integer
+    type: object
+  dto.RefreshRequest:
+    properties:
+      refreshToken:
+        type: string
+    required:
+    - refreshToken
+    type: object
+  dto.RejectRequest:
+    properties:
+      comentario:
+        type: string
+    type: object
+  dto.ReorderRequest:
     properties:
       ids:
         items:
@@ -189,7 +391,21 @@ definitions:
     required:
     - ids
     type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.SectionCreateRequest:
+  dto.RolesPatchRequest:
+    properties:
+      add:
+        items:
+          type: string
+        type: array
+      remove:
+        items:
+          type: string
+        type: array
+    required:
+    - add
+    - remove
+    type: object
+  dto.SectionCreateRequest:
     properties:
       titulo:
         maxLength: 200
@@ -198,7 +414,7 @@ definitions:
     required:
     - titulo
     type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.SectionResponse:
+  dto.SectionResponse:
     properties:
       courseId:
         type: string
@@ -211,14 +427,14 @@ definitions:
       titulo:
         type: string
     type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.SectionUpdateRequest:
+  dto.SectionUpdateRequest:
     properties:
       titulo:
         maxLength: 200
         minLength: 1
         type: string
     type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.SectionWithVideosResponse:
+  dto.SectionWithVideosResponse:
     properties:
       courseId:
         type: string
@@ -232,10 +448,45 @@ definitions:
         type: string
       videos:
         items:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.VideoResponse'
+          $ref: '#/definitions/dto.VideoResponse'
         type: array
     type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.UpdateCourseRequest:
+  dto.SubmitResponse:
+    properties:
+      aprobado:
+        type: boolean
+      puntaje:
+        type: integer
+    type: object
+  dto.SubmitReviewResponse:
+    properties:
+      courseId:
+        type: string
+      estado:
+        type: string
+    type: object
+  dto.SupervisionCreateRequest:
+    properties:
+      empleadoId:
+        type: string
+      supervisorId:
+        type: string
+    required:
+    - empleadoId
+    - supervisorId
+    type: object
+  dto.SupervisionItem:
+    properties:
+      creadoEn:
+        type: string
+      empleadoId:
+        type: string
+      id:
+        type: string
+      supervisorId:
+        type: string
+    type: object
+  dto.UpdateCourseRequest:
     properties:
       descripcion:
         maxLength: 5000
@@ -245,7 +496,39 @@ definitions:
         minLength: 3
         type: string
     type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.VideoCreateRequest:
+  dto.UserDTO:
+    properties:
+      email:
+        type: string
+      id:
+        type: string
+      nombre:
+        type: string
+      roles:
+        items:
+          type: string
+        type: array
+    type: object
+  dto.UserDetail:
+    properties:
+      activo:
+        type: boolean
+      createdAt:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      nombre:
+        type: string
+      roles:
+        items:
+          type: string
+        type: array
+      updatedAt:
+        type: string
+    type: object
+  dto.VideoCreateRequest:
     properties:
       duracionS:
         minimum: 0
@@ -266,7 +549,7 @@ definitions:
     - titulo
     - url
     type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.VideoResponse:
+  dto.VideoResponse:
     properties:
       createdAt:
         type: string
@@ -285,7 +568,7 @@ definitions:
       url:
         type: string
     type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.VideoUpdateRequest:
+  dto.VideoUpdateRequest:
     properties:
       duracionS:
         minimum: 0
@@ -302,290 +585,7 @@ definitions:
       url:
         type: string
     type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AnswerRequest:
-    properties:
-      optionId:
-        type: string
-      questionId:
-        type: string
-    required:
-    - optionId
-    - questionId
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AttemptAnswerView:
-    properties:
-      optionId:
-        type: string
-      questionId:
-        type: string
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AttemptStartResponse:
-    properties:
-      attemptId:
-        type: string
-      iniciadoEn:
-        type: string
-      numero:
-        type: integer
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AttemptStateOptionResponse:
-    properties:
-      id:
-        type: string
-      texto:
-        type: string
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AttemptStateQuestionResponse:
-    properties:
-      enunciado:
-        type: string
-      id:
-        type: string
-      options:
-        items:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AttemptStateOptionResponse'
-        type: array
-      puntaje:
-        type: integer
-      tipo:
-        type: string
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AttemptStateResponse:
-    properties:
-      answers:
-        items:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AttemptAnswerView'
-        type: array
-      aprobado:
-        type: boolean
-      attemptId:
-        type: string
-      numero:
-        type: integer
-      puntaje:
-        type: integer
-      questions:
-        items:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AttemptStateQuestionResponse'
-        type: array
-      submitted:
-        type: boolean
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.EvaluationCreateRequest:
-    properties:
-      intentosMax:
-        minimum: 0
-        type: integer
-      notaMinima:
-        maximum: 100
-        minimum: 0
-        type: integer
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.EvaluationDetail:
-    properties:
-      courseId:
-        type: string
-      id:
-        type: string
-      intentosMax:
-        type: integer
-      notaMinima:
-        type: integer
-      questions:
-        items:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.QuestionDetail'
-        type: array
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.EvaluationResponse:
-    properties:
-      courseId:
-        type: string
-      createdAt:
-        type: string
-      id:
-        type: string
-      intentosMax:
-        type: integer
-      notaMinima:
-        type: integer
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.EvaluationUpdateRequest:
-    properties:
-      intentosMax:
-        minimum: 0
-        type: integer
-      notaMinima:
-        maximum: 100
-        minimum: 0
-        type: integer
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.OptionCreateRequest:
-    properties:
-      correcta:
-        type: boolean
-      texto:
-        maxLength: 500
-        minLength: 1
-        type: string
-    required:
-    - texto
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.OptionResponse:
-    properties:
-      correcta:
-        type: boolean
-      id:
-        type: string
-      orden:
-        type: integer
-      questionId:
-        type: string
-      texto:
-        type: string
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.OptionUpdateRequest:
-    properties:
-      correcta:
-        type: boolean
-      texto:
-        maxLength: 500
-        minLength: 1
-        type: string
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.QuestionCreateRequest:
-    properties:
-      enunciado:
-        maxLength: 1000
-        minLength: 1
-        type: string
-      puntaje:
-        minimum: 1
-        type: integer
-      tipo:
-        enum:
-        - opcion_multiple
-        - verdadero_falso
-        type: string
-    required:
-    - enunciado
-    - tipo
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.QuestionDetail:
-    properties:
-      enunciado:
-        type: string
-      evaluationId:
-        type: string
-      id:
-        type: string
-      options:
-        items:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.OptionResponse'
-        type: array
-      orden:
-        type: integer
-      puntaje:
-        type: integer
-      tipo:
-        type: string
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.QuestionResponse:
-    properties:
-      enunciado:
-        type: string
-      evaluationId:
-        type: string
-      id:
-        type: string
-      orden:
-        type: integer
-      puntaje:
-        type: integer
-      tipo:
-        type: string
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.QuestionUpdateRequest:
-    properties:
-      enunciado:
-        maxLength: 1000
-        minLength: 1
-        type: string
-      orden:
-        minimum: 0
-        type: integer
-      puntaje:
-        minimum: 1
-        type: integer
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.SubmitResponse:
-    properties:
-      aprobado:
-        type: boolean
-      puntaje:
-        type: integer
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.ActivePatchRequest:
-    properties:
-      active:
-        type: boolean
-    required:
-    - active
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.RolesPatchRequest:
-    properties:
-      add:
-        items:
-          type: string
-        type: array
-      remove:
-        items:
-          type: string
-        type: array
-    required:
-    - add
-    - remove
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.SupervisionCreateRequest:
-    properties:
-      empleadoId:
-        type: string
-      supervisorId:
-        type: string
-    required:
-    - empleadoId
-    - supervisorId
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.SupervisionItem:
-    properties:
-      creadoEn:
-        type: string
-      empleadoId:
-        type: string
-      id:
-        type: string
-      supervisorId:
-        type: string
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.UserDetail:
-    properties:
-      activo:
-        type: boolean
-      createdAt:
-        type: string
-      email:
-        type: string
-      id:
-        type: string
-      nombre:
-        type: string
-      roles:
-        items:
-          type: string
-        type: array
-      updatedAt:
-        type: string
-    type: object
-  github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error:
+  httperr.Error:
     properties:
       code:
         type: string
@@ -613,12 +613,12 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_approvals_dto.PendingItemDTO'
+              $ref: '#/definitions/dto.PendingItemDTO'
             type: array
         "403":
           description: no es administrador
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Lista cursos en revision
@@ -640,11 +640,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AttemptStateResponse'
+            $ref: '#/definitions/dto.AttemptStateResponse'
         "404":
           description: intento no encontrado o no pertenece al usuario
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Obtiene el estado de un intento
@@ -667,22 +667,22 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AnswerRequest'
+          $ref: '#/definitions/dto.AnswerRequest'
       responses:
         "204":
           description: No Content
         "400":
           description: opcion o pregunta invalida
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: intento no encontrado
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "409":
           description: intento ya finalizado
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Guarda la respuesta de una pregunta
@@ -703,15 +703,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.SubmitResponse'
+            $ref: '#/definitions/dto.SubmitResponse'
         "404":
           description: intento no encontrado
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "409":
           description: intento ya finalizado
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Finaliza y califica un intento
@@ -731,26 +731,26 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_auth_dto.GoogleLoginRequest'
+          $ref: '#/definitions/dto.GoogleLoginRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_auth_dto.LoginResponse'
+            $ref: '#/definitions/dto.LoginResponse'
         "400":
           description: body invalido
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "401":
           description: token invalido o dominio no autorizado
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "500":
           description: error interno
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       summary: Login con Google Workspace
       tags:
       - auth
@@ -767,7 +767,7 @@ paths:
         in: body
         name: body
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_auth_dto.RefreshRequest'
+          $ref: '#/definitions/dto.RefreshRequest'
       responses:
         "204":
           description: No Content
@@ -787,26 +787,26 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_auth_dto.RefreshRequest'
+          $ref: '#/definitions/dto.RefreshRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_auth_dto.LoginResponse'
+            $ref: '#/definitions/dto.LoginResponse'
         "400":
           description: body invalido
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "401":
           description: token invalido, expirado o reutilizado
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "500":
           description: error interno
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       summary: Renueva el access token rotando el refresh token
       tags:
       - auth
@@ -837,19 +837,19 @@ paths:
         "400":
           description: creator debe ser 'me'
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: rol creador requerido
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Lista mis cursos (paginado)
@@ -866,30 +866,30 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.CreateCourseRequest'
+          $ref: '#/definitions/dto.CreateCourseRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.CourseDetail'
+            $ref: '#/definitions/dto.CourseDetail'
         "400":
           description: titulo faltante o invalido
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: rol creador requerido
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Crea un curso (borrador)
@@ -911,7 +911,7 @@ paths:
         in: body
         name: body
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_approvals_dto.ApproveRequest'
+          $ref: '#/definitions/dto.ApproveRequest'
       produces:
       - application/json
       responses:
@@ -920,15 +920,15 @@ paths:
         "403":
           description: no es administrador
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: curso no encontrado
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "409":
           description: curso no en revision
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Aprobar un curso
@@ -951,30 +951,30 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.EvaluationCreateRequest'
+          $ref: '#/definitions/dto.EvaluationCreateRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.EvaluationResponse'
+            $ref: '#/definitions/dto.EvaluationResponse'
         "400":
           description: body invalido
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: no es propietario del curso
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: curso no encontrado
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "409":
           description: ya existe evaluacion o curso no editable
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Crea una evaluacion para un curso
@@ -997,38 +997,38 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.MaterialConfirmRequest'
+          $ref: '#/definitions/dto.MaterialConfirmRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.MaterialResponse'
+            $ref: '#/definitions/dto.MaterialResponse'
         "400":
           description: clave de objeto invalida o campos faltantes
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: no es propietario del curso
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: curso no encontrado
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "409":
           description: estado no permite edicion
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "413":
           description: archivo demasiado grande
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "415":
           description: tipo de contenido no permitido
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Confirma la subida de un material (crea la fila en DB)
@@ -1051,38 +1051,38 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.MaterialPresignRequest'
+          $ref: '#/definitions/dto.MaterialPresignRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.PresignResponse'
+            $ref: '#/definitions/dto.PresignResponse'
         "400":
           description: body invalido o campos faltantes
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: no es propietario del curso
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: curso no encontrado
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "409":
           description: estado no permite edicion
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "413":
           description: archivo demasiado grande
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "415":
           description: tipo de contenido no permitido
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Genera URL presignada para subir un archivo
@@ -1104,7 +1104,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_approvals_dto.RejectRequest'
+          $ref: '#/definitions/dto.RejectRequest'
       produces:
       - application/json
       responses:
@@ -1113,19 +1113,19 @@ paths:
         "400":
           description: comentario requerido
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: no es administrador
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: curso no encontrado
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "409":
           description: curso no en revision
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Rechazar un curso
@@ -1148,30 +1148,30 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.SectionCreateRequest'
+          $ref: '#/definitions/dto.SectionCreateRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.SectionResponse'
+            $ref: '#/definitions/dto.SectionResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: no es propietario del curso
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: curso no encontrado
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "409":
           description: estado no permite edicion
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Crea una seccion en un curso
@@ -1193,23 +1193,23 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_approvals_dto.SubmitResponse'
+            $ref: '#/definitions/dto.SubmitReviewResponse'
         "400":
           description: request invalido
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: no es propietario del curso
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: curso no encontrado
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "409":
           description: estado invalido / sin contenido / evaluacion incompleta
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Enviar curso a revision
@@ -1231,23 +1231,23 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.CourseDetail'
+            $ref: '#/definitions/dto.CourseDetail'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: rol creador requerido
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: curso no encontrado o no pertenece al caller
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Detalle de curso por ID (solo owner)
@@ -1268,38 +1268,38 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.UpdateCourseRequest'
+          $ref: '#/definitions/dto.UpdateCourseRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.CourseDetail'
+            $ref: '#/definitions/dto.CourseDetail'
         "400":
           description: body invalido o sin campos
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: no es propietario del curso
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: curso no encontrado
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "409":
           description: estado no permite edicion
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Actualiza un curso (PATCH parcial, solo owner)
@@ -1322,16 +1322,16 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_approvals_dto.ApprovalHistoryDTO'
+              $ref: '#/definitions/dto.ApprovalHistoryDTO'
             type: array
         "403":
           description: no es propietario ni administrador
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: curso no encontrado
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Historial de revisiones de un curso
@@ -1353,11 +1353,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.EvaluationDetail'
+            $ref: '#/definitions/dto.EvaluationDetail'
         "404":
           description: evaluacion o curso no encontrado
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Obtiene la evaluacion de un curso (arbol anidado)
@@ -1380,24 +1380,24 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.MaterialResponse'
+              $ref: '#/definitions/dto.MaterialResponse'
             type: array
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: rol creador requerido
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: curso no encontrado o no pertenece al caller
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Lista los materiales de un curso
@@ -1424,19 +1424,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.DownloadResponse'
+            $ref: '#/definitions/dto.DownloadResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: material o curso no encontrado
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Genera URL presignada para descargar un material
@@ -1459,24 +1459,24 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.SectionWithVideosResponse'
+              $ref: '#/definitions/dto.SectionWithVideosResponse'
             type: array
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: rol creador requerido
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: curso no encontrado o no pertenece al caller
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Lista las secciones de un curso con sus videos anidados
@@ -1499,7 +1499,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.ReorderRequest'
+          $ref: '#/definitions/dto.ReorderRequest'
       produces:
       - application/json
       responses:
@@ -1508,15 +1508,15 @@ paths:
         "400":
           description: IDs invalidos o incompletos
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Reordena las secciones de un curso
@@ -1539,30 +1539,30 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.EvaluationUpdateRequest'
+          $ref: '#/definitions/dto.EvaluationUpdateRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.EvaluationResponse'
+            $ref: '#/definitions/dto.EvaluationResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Actualiza una evaluacion (PATCH parcial)
@@ -1583,15 +1583,15 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.AttemptStartResponse'
+            $ref: '#/definitions/dto.AttemptStartResponse'
         "404":
           description: evaluacion no encontrada
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "409":
           description: intento abierto o maximo alcanzado
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Inicia un nuevo intento de evaluacion
@@ -1614,30 +1614,30 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.QuestionCreateRequest'
+          $ref: '#/definitions/dto.QuestionCreateRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.QuestionDetail'
+            $ref: '#/definitions/dto.QuestionDetail'
         "400":
           description: tipo invalido
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Crea una pregunta en una evaluacion
@@ -1659,11 +1659,11 @@ paths:
         "403":
           description: no es propietario del curso
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: material no encontrado
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Elimina un material
@@ -1699,14 +1699,14 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.OptionUpdateRequest'
+          $ref: '#/definitions/dto.OptionUpdateRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.OptionResponse'
+            $ref: '#/definitions/dto.OptionResponse'
       security:
       - BearerAuth: []
       summary: Actualiza una opcion (PATCH parcial)
@@ -1726,11 +1726,11 @@ paths:
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Elimina una pregunta (y sus opciones en cascada)
@@ -1750,14 +1750,14 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.QuestionUpdateRequest'
+          $ref: '#/definitions/dto.QuestionUpdateRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.QuestionResponse'
+            $ref: '#/definitions/dto.QuestionResponse'
       security:
       - BearerAuth: []
       summary: Actualiza una pregunta (PATCH parcial)
@@ -1778,18 +1778,18 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.OptionCreateRequest'
+          $ref: '#/definitions/dto.OptionCreateRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_evaluations_dto.OptionResponse'
+            $ref: '#/definitions/dto.OptionResponse'
         "400":
           description: tipo incorrecto (verdadero_falso no permite agregar opciones)
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Agrega una opcion a una pregunta opcion_multiple
@@ -1810,15 +1810,15 @@ paths:
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Elimina una seccion (y sus videos en cascada)
@@ -1839,30 +1839,30 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.SectionUpdateRequest'
+          $ref: '#/definitions/dto.SectionUpdateRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.SectionResponse'
+            $ref: '#/definitions/dto.SectionResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: seccion no encontrada
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Actualiza una seccion (PATCH parcial)
@@ -1885,30 +1885,30 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.VideoCreateRequest'
+          $ref: '#/definitions/dto.VideoCreateRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.VideoResponse'
+            $ref: '#/definitions/dto.VideoResponse'
         "400":
           description: url/proveedor invalidos
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Crea un video en una seccion
@@ -1924,20 +1924,20 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.SupervisionItem'
+              $ref: '#/definitions/dto.SupervisionItem'
             type: array
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Lista relaciones de supervision
@@ -1953,38 +1953,38 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.SupervisionCreateRequest'
+          $ref: '#/definitions/dto.SupervisionCreateRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.SupervisionItem'
+            $ref: '#/definitions/dto.SupervisionItem'
         "400":
           description: auto-supervision o body invalido
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: usuario no encontrado
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "409":
           description: empleado ya tiene supervisor
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Crea una relacion de supervision
@@ -2007,19 +2007,19 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: relacion no encontrada
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Elimina una relacion de supervision
@@ -2059,15 +2059,15 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Lista usuarios (paginado y filtrado)
@@ -2088,23 +2088,23 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.UserDetail'
+            $ref: '#/definitions/dto.UserDetail'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Detalle de usuario por ID
@@ -2126,38 +2126,38 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.ActivePatchRequest'
+          $ref: '#/definitions/dto.ActivePatchRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.UserDetail'
+            $ref: '#/definitions/dto.UserDetail'
         "400":
           description: body invalido
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "409":
           description: ultimo administrador activo
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Activa o desactiva un usuario (soft-delete)
@@ -2179,38 +2179,38 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.RolesPatchRequest'
+          $ref: '#/definitions/dto.RolesPatchRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.UserDetail'
+            $ref: '#/definitions/dto.UserDetail'
         "400":
           description: rol invalido, conflicto add/remove, o body invalido
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "409":
           description: ultimo administrador activo
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Asigna o revoca roles a un usuario
@@ -2226,19 +2226,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_users_dto.UserDetail'
+            $ref: '#/definitions/dto.UserDetail'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Perfil del usuario autenticado
@@ -2259,11 +2259,11 @@ paths:
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Elimina un video
@@ -2285,30 +2285,30 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.VideoUpdateRequest'
+          $ref: '#/definitions/dto.VideoUpdateRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_modules_courses_dto.VideoResponse'
+            $ref: '#/definitions/dto.VideoResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/github_com_yersonreyes_SkillMaker-_backend_internal_platform_httperr.Error'
+            $ref: '#/definitions/httperr.Error'
       security:
       - BearerAuth: []
       summary: Actualiza un video (PATCH parcial)

@@ -70,7 +70,7 @@ func RegisterHistory(protected *gin.RouterGroup, svc service.Service) {
 // @Produce     json
 // @Security    BearerAuth
 // @Param       courseId path string true "UUID del curso"
-// @Success     200 {object} dto.SubmitResponse
+// @Success     200 {object} dto.SubmitReviewResponse
 // @Failure     400 {object} httperr.Error "request invalido"
 // @Failure     403 {object} httperr.Error "no es propietario del curso"
 // @Failure     404 {object} httperr.Error "curso no encontrado"
@@ -85,7 +85,7 @@ func (h *Handler) Submit(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.SubmitResponse{
+	c.JSON(http.StatusOK, dto.SubmitReviewResponse{
 		CourseID: courseID,
 		Estado:   "en_revision",
 	})

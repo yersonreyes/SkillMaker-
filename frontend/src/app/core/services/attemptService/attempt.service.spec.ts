@@ -75,7 +75,7 @@ const MOCK_SUBMIT: SubmitResponse = {
 describe('AttemptStateOption — no correcta field', () => {
   it('LOAD-BEARING: fixture option has no correcta property', () => {
     expect(Object.prototype.hasOwnProperty.call(MOCK_OPTION, 'correcta')).toBe(false);
-    expect((MOCK_OPTION as Record<string, unknown>)['correcta']).toBeUndefined();
+    expect((MOCK_OPTION as unknown as Record<string, unknown>)['correcta']).toBeUndefined();
   });
 
   it('LOAD-BEARING: AttemptState questions options have no correcta property', () => {
@@ -83,7 +83,7 @@ describe('AttemptStateOption — no correcta field', () => {
     expect(opts).toHaveLength(2);
     for (const opt of opts) {
       expect(Object.prototype.hasOwnProperty.call(opt, 'correcta')).toBe(false);
-      expect((opt as Record<string, unknown>)['correcta']).toBeUndefined();
+      expect((opt as unknown as Record<string, unknown>)['correcta']).toBeUndefined();
     }
   });
 });
@@ -193,7 +193,7 @@ describe('AttemptService', () => {
     for (const q of result.questions) {
       for (const opt of q.options) {
         expect(Object.prototype.hasOwnProperty.call(opt, 'correcta')).toBe(false);
-        expect((opt as Record<string, unknown>)['correcta']).toBeUndefined();
+        expect((opt as unknown as Record<string, unknown>)['correcta']).toBeUndefined();
       }
     }
   });
