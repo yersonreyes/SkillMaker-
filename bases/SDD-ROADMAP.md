@@ -35,9 +35,9 @@
 > Esta seccion es el "punto de partida". Cualquier change posterior parte de este estado.
 > Actualizar cuando se archive un change importante.
 
-**Fecha del snapshot:** 2026-06-05 (actualizado tras C3.2 archive)
-**Commits totales del scaffold:** 16 (+ 3 chained PRs para C1.1) (+ 2 PRs para C2.1) (+ 2 PRs para C2.2) (+ 2 PRs para C2.3) (+ 3 PRs para C3.1 incl. UI polish) (+ post-merge fixes)
-**LOC totales (Go + TS + SQL):** ~2700 (+ ~900 LOC en C1.1) (+ ~1100 LOC en C2.1) (+ ~900 LOC en C2.2) (+ ~900 LOC en C2.3) (+ ~1200 LOC en C3.1)
+**Fecha del snapshot:** 2026-06-05 (actualizado tras C4.1 archive)
+**Commits totales del scaffold:** 16 (+ 3 chained PRs para C1.1) (+ 2 PRs para C2.1) (+ 2 PRs para C2.2) (+ 2 PRs para C2.3) (+ 3 PRs para C3.1 incl. UI polish) (+ 3 PRs para C3.2) (+ 3 PRs para C4.1 incl. swagger fix) (+ post-merge fixes)
+**LOC totales (Go + TS + SQL):** ~2700 (+ ~900 LOC en C1.1) (+ ~1100 LOC en C2.1) (+ ~900 LOC en C2.2) (+ ~900 LOC en C2.3) (+ ~1200 LOC en C3.1) (+ ~1200 LOC en C3.2) (+ ~1100 LOC en C4.1)
 
 ### Modulos del dominio (los 7 declarados en RT)
 
@@ -46,8 +46,8 @@
 | `auth` | ✅ Completo | `refresh_token` |
 | `users` | ✅ Completo (C1.1: list, roles, supervision, soft-delete, last-admin guard) | `user`, `role`, `user_role`, `supervision` |
 | `courses` | 🟡 En progreso (C2.1: dominio + CRUD; C2.2: secciones/videos embebidos; C2.3: material adjunto) | `course`, `section`, `video`, `material`, `enrollment` (schema + C2.2 + C2.3 columns) |
-| `evaluations` | 🟡 En progreso (C3.1: diseño de examen — evaluacion/preguntas/opciones; C3.2: rendición de examen — intentos/respuestas/puntaje) | `evaluation`, `question`, `question_option`, `attempt`, `answer` (schema + C3.1 + C3.2 columns) |
-| `approvals` | ❌ No existe | ninguna |
+| `evaluations` | ✅ Completo (C3.1: diseño de examen; C3.2: rendición de examen + seams de enrollment/certificates) | `evaluation`, `question`, `question_option`, `attempt`, `answer` (schema + C3.1 + C3.2 columns) |
+| `approvals` | ✅ Completo (C4.1: module-approvals — submit/approve/reject/history, 5 routes, 2 seams) | `approval` (C4.1: resultado, comentario, resuelto_en) |
 | `certificates` | ❌ No existe | ninguna |
 | `reporting` | ❌ No existe | — (read-only) |
 
@@ -67,7 +67,8 @@
 | `pages/platform/evaluacion-tomar/:id` | ✅ Funcional (C3.2: student exam-taking UI — start → answer (save-on-change) → submit → result with puntaje/aprobado) |
 | `pages/platform/admin/user-management` | ✅ Funcional (C1.1: lazy Table, role/active filters, edit dialog) |
 | `pages/platform/admin/supervision` | ✅ Funcional (C1.1: list, assign supervisor-employee, remove) |
-| `pages/platform/admin/{approvals,reports}` | 🟡 Routes → `PendingViewComponent` |
+| `pages/platform/admin/approvals` | ✅ Funcional (C4.1: pending list, approve inline, reject dialog with required comment, roleGuard) |
+| `pages/platform/admin/reports` | 🟡 Routes → `PendingViewComponent` |
 | `pages/platform/supervisor/*` | 🟡 Routes → `PendingViewComponent` |
 
 ### Infra y tooling
@@ -528,44 +529,56 @@ Focused Fix (af0a32e):
 
 ### Capa 4 — Approvals
 
-#### C4.1 — `module-approvals`
+#### C4.1 — `module-approvals` ✅ ARCHIVED (2026-06-05)
 
-**Por que:** RF-15 exige que el admin apruebe los cursos antes de que aparezcan en el catalogo. Este change desbloquea el catalogo publico.
+**Estado:** COMPLETE — 2 chained PRs + swagger collision fix merged to dev. Manual smoke test PASSED. Unblocks C2.4 catalog and C5.1 certificates.
 
-**Scope IN:**
+**Delivered:**
 
-Backend:
-- Migration `0004_add_approvals.up.sql`:
-  - `approval` (id, course_id, admin_id, resultado, comentario, resuelto_en) — `resultado IN ('aprobado','rechazado')`
-- Endpoints:
-  - `POST /api/courses/:id/submit` (creador) — cambia estado a `en_revision`. Valida que tenga al menos 1 video + 1 evaluacion (`HasContent` y `evaluations.GetByCourseID`).
-  - `GET /api/approvals/pending` (admin) — lista de cursos `estado='en_revision'`
-  - `POST /api/courses/:id/approve` (admin) — body `{ comentario? }`. Crea fila `approval` + cambia estado a `aprobado` + setea `publicado_en`
-  - `POST /api/courses/:id/reject` (admin) — body `{ comentario }` (comentario REQUERIDO en rechazo). Crea fila `approval` + cambia estado a `rechazado`
-  - `GET /api/courses/:id/approvals` — historial de revisiones (RF-17b)
-- Notificaciones: por ahora "in-app pasivo" (el creador ve el estado cambiar cuando entra a `my-content`). Email queda fuera de scope.
+Backend (PR-A: cbd6299):
+- Migration `0008_add_approvals.up.sql` (publicado_en column + approval table with CHECK constraint on resultado)
+- Modulo `approvals/` (domain, repo, service, handler, dto, facade) con 5 service methods, 2 seam interfaces (CourseStateManager, EvaluationValidator), 78.3% coverage
+- 5 endpoints: `POST /courses/:courseId/submit` (creador), `GET /approvals/pending` (admin), `POST /courses/:courseId/approve` (admin), `POST /courses/:courseId/reject` (admin), `GET /courses/:id/approvals` (admin + owner)
+- Cross-module seams: courses.SetEstado (stamps publicado_en on aprobado), courses.ListByEstado, evaluations.ValidateSubmitReady
+- Two-write ordering (approval row → SetEstado) mitigates partial-failure risk; documented as R1 follow-up
+- 26 tasks complete; 11 unit tests PASS, integration tests PASS, 7 adversarial probes RED-confirmed, routes boot-test confirms no Gin panic
 
-Frontend:
-- Service `ApprovalService`
-- Page `admin/approvals`:
-  - Tabla de cursos pendientes con preview (titulo, creador, fecha submit)
-  - Click → drawer/detail con preview completo (secciones, videos, material, evaluacion)
-  - Botones "Aprobar" (confirm) / "Rechazar" (modal con comentario obligatorio)
-- Page `creator/my-content`:
-  - Boton "Enviar a revision" cuando estado es `borrador` o `rechazado`
-  - Si estado `rechazado`, mostrar el ultimo comentario del admin
-  - Historial colapsable de revisiones
+Frontend (PR-B: bb39758):
+- `ApprovalService` (5 methods: submitToReview, listPending, approve, reject, history) + 12 tests
+- curso-editar: submitDisabled computed fixed (drops `|| true`), submit button wired, rejection banner + comment display
+- AprovacionesComponent: replaces PendingViewComponent stub, pending list + approve inline + reject dialog with mandatory comment + roleGuard
+- 8 tasks complete; 209/209 vitest PASS, lint clean; 2 adversarial probes RED-confirmed
 
-**Scope OUT:**
-- Sistema de notificaciones email (RF-17 menciona canal "por definir")
-- Aprobacion por consenso (multiple admins votan) — RF-15 dice "cualquier admin disponible"
-- Re-aprobacion automatica tras edicion menor
+Bug Fix (commit 185f3d7):
+- Resolved swagger DTO short-name collision (approvals.SubmitResponse vs evaluations.SubmitResponse) by renaming → SubmitReviewResponse + reverting --parseDependency band-aid
+- Fixed pre-existing tsc errors (vi import, AttemptStateOption cast)
+- Learning: check for DTO name duplicates before adding; never use --parseDependency as it breaks all consumers; always run `tsc --noEmit` in verification
 
-**Acceptance:**
-- Creador con curso en borrador + contenido + evaluacion → submit OK
-- Admin ve el curso en bandeja → aprueba → curso aparece en catalogo
-- Admin rechaza con comentario → creador ve el comentario → puede editar + reenviar
-- Historial de revisiones queda persistido
+**Aceptacion:** ✅
+- Creador con curso en borrador + ≥1 video + evaluacion completa → submit OK → estado=en_revision
+- Admin ve el curso en /approvals/pending → aprueba → estado=aprobado + publicado_en set + approval row persisted
+- Admin rechaza con comentario → estado=rechazado + approval row persisted
+- Creador ve estado/comentario en curso-editar + historial de revisiones
+- Historial gated: admin acceso, owner acceso, non-owner 403
+- Submit y approve/reject buttons disabled appropriately per estado + role
+- Security: ownership check before content checks, comentario required pre-write on reject, adminId from JWT not body
+
+**Scope realizado:**
+- ✅ Migration 0008 (publicado_en + approval table)
+- ✅ All 5 API endpoints, approval seam pattern, history (RF-17b)
+- ✅ Frontend ApprovalService + curso-editar + AprovacionesComponent + roleGuard
+- ✅ Full test coverage (78.3% backend, 209/209 frontend vitest)
+- ✅ Acyclic dependency graph (no import cycles)
+- ✅ Manual smoke test PASSED
+
+**Scope OUT (follow-ups):**
+- Email/push notifications (RF-17 passive-only for MVP)
+- Cross-repo transactional seam (post-C4.1)
+- Multi-admin consensus (RF-15 single admin decides)
+
+**Unblocks:**
+- C2.4 module-courses-catalog (can filter estado='aprobado')
+- C5.1 module-certificates (CertificateIssuer seam ready from C3.2)
 
 ---
 
