@@ -35,9 +35,10 @@
 > Esta seccion es el "punto de partida". Cualquier change posterior parte de este estado.
 > Actualizar cuando se archive un change importante.
 
-**Fecha del snapshot:** 2026-06-05 (actualizado tras C5.1 archive)
-**Commits totales del scaffold:** 16 (+ 3 chained PRs para C1.1) (+ 2 PRs para C2.1) (+ 2 PRs para C2.2) (+ 2 PRs para C2.3) (+ 3 PRs para C3.1 incl. UI polish) (+ 3 PRs para C3.2) (+ 3 PRs para C4.1 incl. swagger fix) (+ 2 PRs para C2.4) (+ 2 PRs para C5.1 incl. bundled eval-summary slice) (+ post-merge fixes)
-**LOC totales (Go + TS + SQL):** ~2700 (+ ~900 LOC en C1.1) (+ ~1100 LOC en C2.1) (+ ~900 LOC en C2.2) (+ ~900 LOC en C2.3) (+ ~1200 LOC en C3.1) (+ ~1200 LOC en C3.2) (+ ~1100 LOC en C4.1) (+ ~1300 LOC en C2.4) (+ ~1700 LOC en C5.1 incl. bundled slice)
+**Fecha del snapshot:** 2026-06-05 (actualizado tras C6.1 archive — MVP COMPLETE)
+**Commits totales del scaffold:** 16 (+ 3 chained PRs para C1.1) (+ 2 PRs para C2.1) (+ 2 PRs para C2.2) (+ 2 PRs para C2.3) (+ 3 PRs para C3.1 incl. UI polish) (+ 3 PRs para C3.2) (+ 3 PRs para C4.1 incl. swagger fix) (+ 2 PRs para C2.4) (+ 2 PRs para C5.1 incl. bundled eval-summary slice) (+ 2 PRs para C6.1) (+ post-merge fixes)
+**LOC totales (Go + TS + SQL):** ~2700 (+ ~900 LOC en C1.1) (+ ~1100 LOC en C2.1) (+ ~900 LOC en C2.2) (+ ~900 LOC en C2.3) (+ ~1200 LOC en C3.1) (+ ~1200 LOC en C3.2) (+ ~1100 LOC en C4.1) (+ ~1300 LOC en C2.4) (+ ~1700 LOC en C5.1 incl. bundled slice) (+ ~800 LOC en C6.1)
+**HITO ALCANZADO**: ✅ **MVP FEATURE COMPLETE** — Todas las capas C1–C6 archivadas. El loop completo (register → create → approve → publish → consume → evaluate → certify → badge → rank → report) está funcional en main.
 
 ### Modulos del dominio (los 7 declarados en RT)
 
@@ -49,7 +50,7 @@
 | `evaluations` | ✅ Completo (C3.1: diseño de examen; C3.2: rendición de examen + seams de enrollment/certificates) | `evaluation`, `question`, `question_option`, `attempt`, `answer` (schema + C3.1 + C3.2 columns) |
 | `approvals` | ✅ Completo (C4.1: module-approvals — submit/approve/reject/history, 5 routes, 2 seams) | `approval` (C4.1: resultado, comentario, resuelto_en) |
 | `certificates` | ✅ Completo (C5.1: module-certificates — PDF generation, badges, ranking, seam wiring) | `certificate`, `badge`, `user_badge` (0010: UNIQUE(user_id,course_id), no attempt_id) |
-| `reporting` | ❌ No existe | — (read-only) |
+| `reporting` | ✅ Completo (C6.1: module-reporting — 4 endpoints, 3 dashboards, SQL puro, sin migration) | — (read-only, no tablas propias) |
 
 ### Frontend pages
 
@@ -71,8 +72,9 @@
 | `pages/platform/admin/user-management` | ✅ Funcional (C1.1: lazy Table, role/active filters, edit dialog) |
 | `pages/platform/admin/supervision` | ✅ Funcional (C1.1: list, assign supervisor-employee, remove) |
 | `pages/platform/admin/approvals` | ✅ Funcional (C4.1: pending list, approve inline, reject dialog with required comment, roleGuard) |
-| `pages/platform/admin/reports` | 🟡 Routes → `PendingViewComponent` |
-| `pages/platform/supervisor/*` | 🟡 Routes → `PendingViewComponent` |
+| `pages/platform/admin/global-reports` | ✅ Funcional (C6.1: metric cards + 2 charts, roleGuard administrador) |
+| `pages/platform/admin/course-reports` | ✅ Funcional (C6.1: per-course table with approvalRate, roleGuard administrador) |
+| `pages/platform/supervisor/team-progress` | ✅ Funcional (C6.1: team members table with lastAttemptDate, roleGuard supervisor) |
 
 ### Infra y tooling
 
@@ -118,12 +120,32 @@
 | C3.2 | [`module-evaluations-attempts`](#c32--module-evaluations-attempts) | 3 | ~600 | C3.1 | RF-13, RF-14, RF-20 |
 | C4.1 | [`module-approvals`](#c41--module-approvals) | 4 | ~600 | C2.1, C3.1 | RF-10, RF-15, RF-16, RF-17, RF-17b |
 | C5.1 | [`module-certificates`](#c51--module-certificates) ✅ ARCHIVED | 5 | ~700 | C3.2 | RF-21, RF-22 |
-| C6.1 | [`module-reporting`](#c61--module-reporting) | 6 | ~500 | C2.x, C3.x, C5.1 | RF-23, RF-24, RF-25 |
+| C6.1 | [`module-reporting`](#c61--module-reporting) ✅ ARCHIVED | 6 | ~800 | C2.x, C3.x, C5.1 | RF-23, RF-24, RF-25 |
 | C7.1 | [`refresh-token-tracking`](#c71--refresh-token-tracking) | 7 | ~200 | — | (hardening) |
 | C7.2 | [`pagination-policy`](#c72--pagination-policy) | 7 | ~300 | — | (escala) |
 | C7.3 | [`prod-deployment`](#c73--prod-deployment) | 7 | ~500 | — | (deploy) |
 
 **Total estimado al MVP completo (C0-C6):** ~7000 LOC en 13 changes.
+
+---
+
+## **✅ HITO ALCANZADO: MVP FEATURE COMPLETE (2026-06-05)**
+
+Todas las capas C1–C6 del roadmap están ARCHIVADAS. El MVP está 100% funcional en `origin/main` (commit e42c69a).
+
+**Loop completo verificado end-to-end:**
+- User registra (C1.1: auth + users)
+- Creator crea curso + contenido + evaluacion (C2.1–C2.3, C3.1)
+- Creator envía a review + approval (C4.1)
+- Student descubre + se inscribe + consume (C2.4)
+- Student rinde evaluacion + aprueba (C3.2)
+- Student recibe certificado + badge (C5.1)
+- Admin + Supervisor ven reportes (C6.1)
+
+**Proximos pasos (Capa 7 — Hardening):**
+- C7.1 refresh-token-tracking (IP + user-agent en sesiones)
+- C7.2 pagination-policy (cursor pagination para escala)
+- C7.3 prod-deployment (Helm, secrets, observabilidad)
 
 ---
 
@@ -671,42 +693,57 @@ Bundled Slice (student-eval-summary):
 
 ### Capa 6 — Reporting
 
-#### C6.1 — `module-reporting`
+#### C6.1 — `module-reporting` ✅ ARCHIVED (2026-06-05)
 
-**Por que:** RF-23 (admin), RF-24 (supervisor), RF-25 (reportes globales). Read-only, sin schema propio — vistas SQL agregadas.
+**Estado:** COMPLETE — 2 chained PRs (backend + frontend) merged to main. Manual smoke test PASSED. **FINAL MVP CHANGE — MVP NOW COMPLETE.**
 
-**Scope IN:**
+**Delivered:**
 
-Backend:
-- Modulo `internal/modules/reporting/` (lectura cruzada read-only, unica excepcion a la regla de no joins cross-modulo)
-- Endpoints:
-  - `GET /api/reports/global` (admin) — totales del sistema: usuarios activos, cursos por estado, intentos, certificados emitidos, top creadores
-  - `GET /api/reports/courses` (admin) — desempeno por curso: inscripciones, intentos, tasa de aprobacion
-  - `GET /api/reports/users/:id/progress` (admin o el mismo user) — progreso individual
-  - `GET /api/reports/team` (supervisor) — empleados a cargo + sus cursos + puntajes (join via `supervision`)
-- Queries: SQL puro (CTE o JOIN) para mantener performance. NO usar GORM eager loading para esto.
-- Cache opcional: si las queries son costosas, agregar Redis o materialized view. NO en MVP.
+Backend (PR-A: 119a650):
+- Modulo `internal/modules/reporting/` — read-only, SQL puro, cero migration, 8 repo methods, 4 endpoints, 38/38 tasks
+- 4 endpoints (all protegidos):
+  - `GET /api/reports/global` (admin): activeUsers, coursesByEstado (4 estados), totalAttempts, certificatesIssued, topCreators, usersPerMonth, approvedCoursesPerMonth
+  - `GET /api/reports/courses` (admin): per-course enrollments, attempts, approvalRate (0.0–1.0)
+  - `GET /api/reports/users/:id/progress` (admin-or-self in-handler): enrolledCount, completedCount, attemptsCount, passedAttemptsCount, certificatesCount
+  - `GET /api/reports/team` (supervisor, NEW group): scoped por supervisor_id (isolation invariant), includes lastAttemptDate via correlated subquery
+- Cross-module SQL coupling: repository holds `*gorm.DB`, queries document table/column deps, NO Go imports de otros modulos (SQL layer only)
+- Tests: 38 tasks complete, integration tests PASS (25 packages), handler authz matrix exhaustive, adversarial probes RED-confirmed (team-scoping isolation invariant proven)
+- Coverage: handler 73.7% / repo 87.5% / svc 80.4%
+- Verification gates: `make backend-test` PASS, `make backend-test-integration` PASS, `go list -deps` CLEAN, `ls migrations | wc -l == 20` (no new migration)
 
-Frontend:
-- Service `ReportingService`
-- Page `admin/global-reports`:
-  - Cards con metricas globales
-  - Charts con PrimeNG `Chart` (Chart.js wrapper) — usuarios por mes, cursos aprobados por mes
-- Page `admin/reports` (variante de global, mas detallado por curso)
-- Page `supervisor/team-progress`:
-  - Tabla de empleados a cargo
-  - Por empleado: cursos inscritos, completados, ultimo intento, puntaje promedio
+Frontend (PR-B: e42c69a):
+- chart.js dependency added (`npm install chart.js`)
+- 3 lazy-loaded pages:
+  - `admin/global-reports`: metric cards + 2 PrimeNG charts (line usersPerMonth, bar approvedCoursesPerMonth) + top-creators list. **SECURITY FIX**: added roleGuard [administrador]
+  - `admin/course-reports` (NEW): p-table titulo/estado/enrollments/attempts/approvalRate (%). RoleGuard [administrador]
+  - `supervisor/team-progress`: p-table empleadoNombre/enrolledCount/completedCount/lastAttemptDate (null → em-dash). RoleGuard [supervisor]
+- ReportingService (4 methods via HttpPromiseBuilderService)
+- Tests: 289 tests PASS (35 files), `ng build` PASS (p-chart template type validation gate), tsc PASS, ng lint PASS
+- Navigation: platform-layout adminItems + supervisorItems updated with absolute paths
 
-**Scope OUT:**
-- Export a Excel/CSV (post-MVP)
-- Email automatico de reporte semanal
-- Custom dashboards configurables
+**Learnings captured:**
+1. Cross-module read exception: SQL coupling only; integration tests are sole safety net
+2. Correlated subquery prevents join fan-out (critical for accurate COUNT DISTINCT)
+3. Nullable column edge case: `publicado_en IS NOT NULL` on date_trunc aggregates
+4. First zero-migration change since C1.x → no step-drift
+5. completedCount semantic (certificate count per design); document non-obvious choices
+6. lastAttemptDate field omission caught by spec (not marked deferred) → always check spec vs design
+7. ng build is MANDATORY frontend verify gate (tsc + vitest miss p-chart template errors)
+8. supervisorGrp establishes first supervisor-gated route pattern
 
-**Acceptance:**
-- Admin ve metricas globales actualizadas
-- Admin filtra reporte por curso y ve tasa de aprobacion
-- Supervisor ve solo su equipo (no otros supervisores)
-- Performance: cada endpoint < 2s con 1000 users + 100 cursos + 5000 attempts
+**Aceptacion:** ✅
+- Admin ve metricas globales actualizadas (7 campos: activeUsers, coursesByEstado, totalAttempts, certificatesIssued, topCreators, 2 charts)
+- Admin filtra reporte por curso y ve tasa de aprobacion (0.0–1.0 rango)
+- Supervisor ve solo su equipo (isolation invariant probado con adversarial probe)
+- `/users/:id/progress`: admin acceso, mismo user acceso, supervisor-de-otro 403
+- Performance: cada endpoint < 2s con 1000 users / 100 cursos / 5000 attempts
+- **FINAL MVP**: register → create → approve → publish → consume → evaluate → certify → badge → rank → **report** ✅
+
+**Scope OUT (C7+):**
+- Excel/CSV export
+- Email/push notifications
+- Report caching (Redis)
+- Perf indexes cert(course_id)/attempt(aprobado)
 
 ---
 
