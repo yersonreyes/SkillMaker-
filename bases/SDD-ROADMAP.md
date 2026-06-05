@@ -35,9 +35,9 @@
 > Esta seccion es el "punto de partida". Cualquier change posterior parte de este estado.
 > Actualizar cuando se archive un change importante.
 
-**Fecha del snapshot:** 2026-06-05 (actualizado tras C2.4 archive)
-**Commits totales del scaffold:** 16 (+ 3 chained PRs para C1.1) (+ 2 PRs para C2.1) (+ 2 PRs para C2.2) (+ 2 PRs para C2.3) (+ 3 PRs para C3.1 incl. UI polish) (+ 3 PRs para C3.2) (+ 3 PRs para C4.1 incl. swagger fix) (+ 2 PRs para C2.4) (+ post-merge fixes)
-**LOC totales (Go + TS + SQL):** ~2700 (+ ~900 LOC en C1.1) (+ ~1100 LOC en C2.1) (+ ~900 LOC en C2.2) (+ ~900 LOC en C2.3) (+ ~1200 LOC en C3.1) (+ ~1200 LOC en C3.2) (+ ~1100 LOC en C4.1) (+ ~1300 LOC en C2.4)
+**Fecha del snapshot:** 2026-06-05 (actualizado tras C5.1 archive)
+**Commits totales del scaffold:** 16 (+ 3 chained PRs para C1.1) (+ 2 PRs para C2.1) (+ 2 PRs para C2.2) (+ 2 PRs para C2.3) (+ 3 PRs para C3.1 incl. UI polish) (+ 3 PRs para C3.2) (+ 3 PRs para C4.1 incl. swagger fix) (+ 2 PRs para C2.4) (+ 2 PRs para C5.1 incl. bundled eval-summary slice) (+ post-merge fixes)
+**LOC totales (Go + TS + SQL):** ~2700 (+ ~900 LOC en C1.1) (+ ~1100 LOC en C2.1) (+ ~900 LOC en C2.2) (+ ~900 LOC en C2.3) (+ ~1200 LOC en C3.1) (+ ~1200 LOC en C3.2) (+ ~1100 LOC en C4.1) (+ ~1300 LOC en C2.4) (+ ~1700 LOC en C5.1 incl. bundled slice)
 
 ### Modulos del dominio (los 7 declarados en RT)
 
@@ -48,7 +48,7 @@
 | `courses` | ✅ Completo (C2.1: dominio + CRUD; C2.2: secciones/videos; C2.3: material; C2.4: catalog + enrollment) | `course`, `section`, `video`, `material`, `enrollment` (schema + C2.2 + C2.3 + C2.4 columns) |
 | `evaluations` | ✅ Completo (C3.1: diseño de examen; C3.2: rendición de examen + seams de enrollment/certificates) | `evaluation`, `question`, `question_option`, `attempt`, `answer` (schema + C3.1 + C3.2 columns) |
 | `approvals` | ✅ Completo (C4.1: module-approvals — submit/approve/reject/history, 5 routes, 2 seams) | `approval` (C4.1: resultado, comentario, resuelto_en) |
-| `certificates` | ❌ No existe | ninguna |
+| `certificates` | ✅ Completo (C5.1: module-certificates — PDF generation, badges, ranking, seam wiring) | `certificate`, `badge`, `user_badge` (0010: UNIQUE(user_id,course_id), no attempt_id) |
 | `reporting` | ❌ No existe | — (read-only) |
 
 ### Frontend pages
@@ -60,8 +60,10 @@
 | `pages/platform/catalog` | ✅ Funcional (C2.4: grid + debounced search + PrimeNG Paginator) |
 | `pages/platform/my-courses` | ✅ Funcional (C2.4: table + Completado badge + Continuar nav) |
 | `pages/platform/profile` | ✅ Funcional (read-only desde JWT) |
-| `pages/platform/courses/:id` | ✅ Funcional (C2.4: preview/enrolled discriminator + VideoEmbed) |
-| `pages/platform/{certificates,badges,evaluations/:id}` | 🟡 Routes → `PendingViewComponent` |
+| `pages/platform/courses/:id` | ✅ Funcional (C2.4: preview/enrolled discriminator + VideoEmbed; C5.1: "Mi certificado" + "Rendir evaluación" buttons bundled) |
+| `pages/platform/certificates` | ✅ Funcional (C5.1: grid de tarjetas con descarga PDF) |
+| `pages/platform/badges` | ✅ Funcional (C5.1: grid de insignias + tabla ranking) |
+| `pages/platform/evaluaciones/:id` | 🟡 Routes → `PendingViewComponent` |
 | `pages/platform/creator/mi-contenido` | ✅ Funcional (C2.1: lazy Table paginated + estado badge + create dialog) |
 | `pages/platform/creator/curso-editar/:id` | ✅ Funcional (C2.1: form titulo/descripcion, Save, disabled "Enviar a revisión"; C2.2: secciones + videos + reorder; C2.3: material adjunto con uploader + tabla; Cyanotype Workshop design; C3.1: "Definir evaluación" nav button) |
 | `pages/platform/creator/evaluacion-editar/:courseId` | ✅ Funcional (C3.1: evaluation form, question list + modal, opcion_multiple dynamic options, verdadero_falso radio selector, client validation) |
@@ -115,7 +117,7 @@
 | C3.1 | [`module-evaluations-design`](#c31--module-evaluations-design) | 3 | ~700 | C2.1 | RF-08, RF-11, RF-12 |
 | C3.2 | [`module-evaluations-attempts`](#c32--module-evaluations-attempts) | 3 | ~600 | C3.1 | RF-13, RF-14, RF-20 |
 | C4.1 | [`module-approvals`](#c41--module-approvals) | 4 | ~600 | C2.1, C3.1 | RF-10, RF-15, RF-16, RF-17, RF-17b |
-| C5.1 | [`module-certificates`](#c51--module-certificates) | 5 | ~700 | C3.2 | RF-21, RF-22 |
+| C5.1 | [`module-certificates`](#c51--module-certificates) ✅ ARCHIVED | 5 | ~700 | C3.2 | RF-21, RF-22 |
 | C6.1 | [`module-reporting`](#c61--module-reporting) | 6 | ~500 | C2.x, C3.x, C5.1 | RF-23, RF-24, RF-25 |
 | C7.1 | [`refresh-token-tracking`](#c71--refresh-token-tracking) | 7 | ~200 | — | (hardening) |
 | C7.2 | [`pagination-policy`](#c72--pagination-policy) | 7 | ~300 | — | (escala) |
@@ -607,49 +609,63 @@ Bug Fix (commit 185f3d7):
 
 ### Capa 5 — Certificates
 
-#### C5.1 — `module-certificates`
+#### C5.1 — `module-certificates` ✅ ARCHIVED (2026-06-05)
 
-**Por que:** RF-21 (certificado descargable) + RF-22 (insignias + ranking). Cierra el ciclo de gamificacion del LMS.
+**Estado:** COMPLETE — 2 chained PRs (backend + frontend stacked) + bundled student-eval-summary slice merged to dev/main. Manual smoke test PASSED end-to-end. Closes gamification loop and C3.2 CertificateIssuer seam.
 
-**Scope IN:**
+**Delivered:**
 
-Backend:
-- Migration `0005_add_certificates.up.sql`:
-  - `certificate` (id, user_id, attempt_id UQ, course_id, codigo UQ, emitido_en, storage_key opcional)
-  - `badge` (id, nombre UQ, descripcion, icono_key)
-  - `user_badge` (user_id, badge_id, otorgado_en) — PK compuesta
-- Seed de badges iniciales (ejemplo: "Primer curso completado", "5 cursos completados", "Top 10 del ranking")
-- Endpoints:
-  - `GET /api/certificates/me` — listado del user
-  - `GET /api/certificates/:id` — detalle (incluye URL prefirmada al PDF)
-  - `GET /api/certificates/:id/download` — devuelve URL prefirmada GET al PDF
-  - `GET /api/badges/me` — insignias del user
-  - `GET /api/badges/ranking` — top N por cantidad de certificados (o badges) — query agregada
-- Service:
-  - `IssueOnPass(ctx, attemptID)` llamado por `evaluations.SubmitAttempt`. Genera PDF, guarda en MinIO, persiste fila en `certificate`. Idempotente: si ya existe certificate para ese attempt, no duplicar.
-  - PDF generation con `github.com/go-pdf/fpdf` o `github.com/jung-kurt/gofpdf`. Template simple: logo, nombre del user, nombre del curso, fecha, codigo de verificacion.
-  - `EvaluateBadges(ctx, userID)` evalua si gano nuevas badges (lazy, llamado tras emit certificate).
+Backend (PR-A: 7ade0d6):
+- Migration `0010_add_certificates.up.sql` (3 tables: certificate, badge, user_badge; UNIQUE(user_id,course_id) — **no attempt_id** per frozen seam; 3-badge seed: "Primer curso completado" (≥1), "5 cursos completados" (≥5), "10 cursos completados" (≥10))
+- Modulo `certificates/` (domain, repo 8 methods, service 6 methods, handler 5 routes, dto 5 types, facade)
+- Cross-module seams: `UserNameReader` (users facade), `CourseTituloReader.GetCourseTitulo` (new on courses.Service)
+- Endpoints: GET /api/certificates/me, /:id, /:id/download, GET /api/badges/me, /badges/ranking — all JWT-protected
+- Service: `IssueOnPass(ctx, userID, courseID)` idempotent seam (FROZEN signature, no attemptID), non-fatal to attempt submission
+- PDF via go-pdf/fpdf (typographic A4 landscape, no logo for MVP)
+- Tests: 72.5% coverage (service+pdf combined), 5 adversarial probes RED-confirmed, seam e2e integration test with real Postgres
+- Storage extension: storage.Client.PutObject new method (server-side upload) rippled to all stubs
 
-Frontend:
-- Service `CertificateService` y `BadgeService`
-- Page `certificates` (reemplaza stub):
-  - Grid de tarjetas: nombre del curso, fecha, codigo, boton "Descargar PDF"
-- Page `badges` (reemplaza stub):
-  - Grid de insignias ganadas + tabla del ranking top N
-- En `course-detail` de un curso completado, mostrar boton "Mi certificado" si existe
+Frontend (PR-B: c52084b):
+- CertificateService + BadgeService (HttpPromiseBuilderService pattern)
+- CertificatesComponent (grid cards + window.open PDF download)
+- BadgesComponent (earned grid + ranking table top 10)
+- course-detail enhancement: "Mi certificado" button (C5.1) + "Rendir evaluación" button (bundled student-eval-summary slice)
+- Tests: 23 new vitest (262/262 total); 3 adversarial probes RED-confirmed
+- Styles: --page-* tokens only (Cyanotype Atelier pattern)
 
-**Scope OUT:**
-- Verificacion publica de certificado por codigo (endpoint publico `/verify/:codigo` — post-MVP)
-- Compartir en redes sociales
-- NFTs / blockchain (no, gracias)
-- Personalizacion del template PDF por curso
+Bundled Slice (student-eval-summary):
+- Backend: GET /api/courses/:id/evaluation/summary (aprobado-only, no-leak security)
+- Frontend: evaluation.service.ts + course-detail "Rendir evaluación" button
+- Closes UX gap: students can now discover and take exams (was missing from C3.2)
 
-**Acceptance:**
-- Alumno aprueba evaluacion → `certificate` aparece en su listado con codigo unico
-- Descarga PDF → archivo abre correctamente con nombre + curso + fecha + codigo
-- Re-submitir el mismo attempt no duplica certificados
-- Badge "Primer curso completado" aparece automaticamente
-- Ranking muestra top 10 con cantidad de certificados
+**Aceptacion:** ✅
+- Alumno aprueba evaluacion → `certificate` aparece con codigo unico
+- Descarga PDF → abre correctamente (nombre usuario, titulo curso, fecha, codigo)
+- Re-submit no duplica (UNIQUE(user_id, course_id) en DB)
+- Badge "Primer curso completado" automático
+- Ranking top 10 por cantidad de certificados
+- "Rendir evaluación" button visible en curso inscrito
+- "Mi certificado" button visible en curso completado
+- Storage/PDF error non-fatal → attempt submit still succeeds
+
+**Scope realizado:**
+- ✅ Migration 0010 (3 tables, 3-badge seed, step-drift +1 applied to 5 tests)
+- ✅ storage.Client.PutObject extension + all stubs (noopStorage, mockStorageClient, new test doubles)
+- ✅ courses.Service.GetCourseTitulo seam + mock ripple (3 mocks updated)
+- ✅ All 5 API endpoints, PDF generation, badge thresholds
+- ✅ Frontend 2 pages + 2 services + course-detail enhancements
+- ✅ Full test coverage (72.5% backend, 262/262 vitest frontend)
+- ✅ Bundled student-eval-summary slice (closes C3.2 UX gap)
+- ✅ Manual smoke test PASSED (full happy path: enroll → take exam → certificate issued → PDF download → badge awarded → ranking updated)
+
+**Scope OUT (post-MVP):**
+- Public verify-by-code endpoint (`/api/certificates/verify/:codigo`)
+- Badge icons + asset infrastructure (iconoKey intentionally dropped from MVP — deferred)
+- PDF logo branding / custom templates per course
+- Social sharing, NFTs
+
+**Unblocks:**
+- C6.1 module-reporting (read-only aggregate queries across all modules)
 
 ---
 
