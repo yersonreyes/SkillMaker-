@@ -2234,6 +2234,169 @@ const docTemplate = `{
                 }
             }
         },
+        "/reports/courses": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retorna estadísticas por curso para todos los cursos. Solo administradores.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reporting"
+                ],
+                "summary": "Reporte de cursos",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dto.CourseReportItem"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "sin autenticación",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "no es administrador",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/reports/global": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retorna métricas agregadas del sistema. Solo administradores.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reporting"
+                ],
+                "summary": "Reporte global del sistema",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GlobalReportResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "sin autenticación",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "no es administrador",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/reports/team": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retorna los empleados supervisados por el caller con sus métricas de progreso. Solo supervisors.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reporting"
+                ],
+                "summary": "Avance del equipo supervisado",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dto.TeamReportItem"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "sin autenticación",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "no es supervisor",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/reports/users/{id}/progress": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retorna las métricas de progreso de un usuario. Accesible para el propio usuario o un administrador.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reporting"
+                ],
+                "summary": "Progreso de un usuario",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID del usuario",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.UserProgressResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "sin autenticación",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "no es el usuario ni administrador",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/sections/{id}": {
             "delete": {
                 "security": [
@@ -3381,6 +3544,43 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.CourseReportItem": {
+            "description": "Per-course aggregate stats.",
+            "type": "object",
+            "properties": {
+                "approvalRate": {
+                    "description": "range [0.0, 1.0]; frontend renders as %",
+                    "type": "number"
+                },
+                "attempts": {
+                    "type": "integer"
+                },
+                "enrollments": {
+                    "type": "integer"
+                },
+                "estado": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "titulo": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.CoursesByEstadoItem": {
+            "description": "Course count by estado.",
+            "type": "object",
+            "properties": {
+                "estado": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "dto.CreateCourseRequest": {
             "type": "object",
             "required": [
@@ -3519,6 +3719,45 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.GlobalReportResponse": {
+            "description": "System-wide aggregate metrics.",
+            "type": "object",
+            "properties": {
+                "activeUsers": {
+                    "type": "integer"
+                },
+                "approvedCoursesPerMonth": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.MonthCountItem"
+                    }
+                },
+                "certificatesIssued": {
+                    "type": "integer"
+                },
+                "coursesByEstado": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.CoursesByEstadoItem"
+                    }
+                },
+                "topCreators": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.TopCreatorItem"
+                    }
+                },
+                "totalAttempts": {
+                    "type": "integer"
+                },
+                "usersPerMonth": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.MonthCountItem"
+                    }
+                }
+            }
+        },
         "dto.GoogleLoginRequest": {
             "type": "object",
             "required": [
@@ -3634,6 +3873,19 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "tamanoBytes": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.MonthCountItem": {
+            "description": "Month bucket with count.",
+            "type": "object",
+            "properties": {
+                "month": {
+                    "description": "ISO \"2006-01\"",
+                    "type": "string"
+                },
+                "total": {
                     "type": "integer"
                 }
             }
@@ -4043,6 +4295,39 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.TeamReportItem": {
+            "description": "Team member progress entry.",
+            "type": "object",
+            "properties": {
+                "completedCount": {
+                    "type": "integer"
+                },
+                "empleadoId": {
+                    "type": "string"
+                },
+                "empleadoNombre": {
+                    "type": "string"
+                },
+                "enrolledCount": {
+                    "type": "integer"
+                },
+                "lastAttemptDate": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.TopCreatorItem": {
+            "description": "Creator ranked by aprobado course count.",
+            "type": "object",
+            "properties": {
+                "nombre": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "dto.UpdateCourseRequest": {
             "type": "object",
             "properties": {
@@ -4103,6 +4388,27 @@ const docTemplate = `{
                 },
                 "updatedAt": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.UserProgressResponse": {
+            "description": "User progress aggregate.",
+            "type": "object",
+            "properties": {
+                "attemptsCount": {
+                    "type": "integer"
+                },
+                "certificatesCount": {
+                    "type": "integer"
+                },
+                "completedCount": {
+                    "type": "integer"
+                },
+                "enrolledCount": {
+                    "type": "integer"
+                },
+                "passedAttemptsCount": {
+                    "type": "integer"
                 }
             }
         },

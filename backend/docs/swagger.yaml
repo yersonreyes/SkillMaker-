@@ -202,6 +202,31 @@ definitions:
       titulo:
         type: string
     type: object
+  dto.CourseReportItem:
+    description: Per-course aggregate stats.
+    properties:
+      approvalRate:
+        description: range [0.0, 1.0]; frontend renders as %
+        type: number
+      attempts:
+        type: integer
+      enrollments:
+        type: integer
+      estado:
+        type: string
+      id:
+        type: string
+      titulo:
+        type: string
+    type: object
+  dto.CoursesByEstadoItem:
+    description: Course count by estado.
+    properties:
+      estado:
+        type: string
+      total:
+        type: integer
+    type: object
   dto.CreateCourseRequest:
     properties:
       descripcion:
@@ -295,6 +320,32 @@ definitions:
         minimum: 0
         type: integer
     type: object
+  dto.GlobalReportResponse:
+    description: System-wide aggregate metrics.
+    properties:
+      activeUsers:
+        type: integer
+      approvedCoursesPerMonth:
+        items:
+          $ref: '#/definitions/dto.MonthCountItem'
+        type: array
+      certificatesIssued:
+        type: integer
+      coursesByEstado:
+        items:
+          $ref: '#/definitions/dto.CoursesByEstadoItem'
+        type: array
+      topCreators:
+        items:
+          $ref: '#/definitions/dto.TopCreatorItem'
+        type: array
+      totalAttempts:
+        type: integer
+      usersPerMonth:
+        items:
+          $ref: '#/definitions/dto.MonthCountItem'
+        type: array
+    type: object
   dto.GoogleLoginRequest:
     properties:
       idToken:
@@ -374,6 +425,15 @@ definitions:
         description: mapped from MaterialModel.Titulo
         type: string
       tamanoBytes:
+        type: integer
+    type: object
+  dto.MonthCountItem:
+    description: Month bucket with count.
+    properties:
+      month:
+        description: ISO "2006-01"
+        type: string
+      total:
         type: integer
     type: object
   dto.MyCourseItem:
@@ -647,6 +707,28 @@ definitions:
       supervisorId:
         type: string
     type: object
+  dto.TeamReportItem:
+    description: Team member progress entry.
+    properties:
+      completedCount:
+        type: integer
+      empleadoId:
+        type: string
+      empleadoNombre:
+        type: string
+      enrolledCount:
+        type: integer
+      lastAttemptDate:
+        type: string
+    type: object
+  dto.TopCreatorItem:
+    description: Creator ranked by aprobado course count.
+    properties:
+      nombre:
+        type: string
+      total:
+        type: integer
+    type: object
   dto.UpdateCourseRequest:
     properties:
       descripcion:
@@ -688,6 +770,20 @@ definitions:
         type: array
       updatedAt:
         type: string
+    type: object
+  dto.UserProgressResponse:
+    description: User progress aggregate.
+    properties:
+      attemptsCount:
+        type: integer
+      certificatesCount:
+        type: integer
+      completedCount:
+        type: integer
+      enrolledCount:
+        type: integer
+      passedAttemptsCount:
+        type: integer
     type: object
   dto.VideoCreateRequest:
     properties:
@@ -2210,6 +2306,110 @@ paths:
       summary: Agrega una opcion a una pregunta opcion_multiple
       tags:
       - options
+  /reports/courses:
+    get:
+      description: Retorna estadísticas por curso para todos los cursos. Solo administradores.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.CourseReportItem'
+            type: array
+        "401":
+          description: sin autenticación
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: no es administrador
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Reporte de cursos
+      tags:
+      - reporting
+  /reports/global:
+    get:
+      description: Retorna métricas agregadas del sistema. Solo administradores.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.GlobalReportResponse'
+        "401":
+          description: sin autenticación
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: no es administrador
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Reporte global del sistema
+      tags:
+      - reporting
+  /reports/team:
+    get:
+      description: Retorna los empleados supervisados por el caller con sus métricas
+        de progreso. Solo supervisors.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.TeamReportItem'
+            type: array
+        "401":
+          description: sin autenticación
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: no es supervisor
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Avance del equipo supervisado
+      tags:
+      - reporting
+  /reports/users/{id}/progress:
+    get:
+      description: Retorna las métricas de progreso de un usuario. Accesible para
+        el propio usuario o un administrador.
+      parameters:
+      - description: UUID del usuario
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.UserProgressResponse'
+        "401":
+          description: sin autenticación
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: no es el usuario ni administrador
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Progreso de un usuario
+      tags:
+      - reporting
   /sections/{id}:
     delete:
       description: Elimina la seccion y todos sus videos. Requiere ser propietario.

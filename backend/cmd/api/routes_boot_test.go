@@ -27,6 +27,8 @@ import (
 	coursesService "github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses/service"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/evaluations"
 	evalService "github.com/yersonreyes/SkillMaker-/backend/internal/modules/evaluations/service"
+	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/reporting"
+	reportingService "github.com/yersonreyes/SkillMaker-/backend/internal/modules/reporting/service"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/platform/pagination"
 )
 
@@ -193,6 +195,23 @@ func (n *nilApprovalSvc) ListHistory(_ context.Context, _, _ string, _ bool) ([]
 	return nil, nil
 }
 
+// nilReportingSvc is a nil-safe stub for reporting.Service (C6.1).
+// Implements all 4 Service methods. Never called during boot registration.
+type nilReportingSvc struct{}
+
+func (n *nilReportingSvc) GlobalReport(_ context.Context) (*reportingService.GlobalReportModel, error) {
+	return nil, nil
+}
+func (n *nilReportingSvc) CourseReport(_ context.Context) ([]reportingService.CourseStatModel, error) {
+	return nil, nil
+}
+func (n *nilReportingSvc) UserProgressReport(_ context.Context, _ string) (reportingService.UserProgressModel, error) {
+	return reportingService.UserProgressModel{}, nil
+}
+func (n *nilReportingSvc) TeamReport(_ context.Context, _ string) ([]reportingService.TeamMemberModel, error) {
+	return nil, nil
+}
+
 // ── Boot test ─────────────────────────────────────────────────────────────────
 
 // TestRouteBoot_AllModules_NoPanic registers ALL module routes (courses + evaluations + approvals + catalog)
@@ -205,6 +224,7 @@ func TestRouteBoot_AllModules_NoPanic(t *testing.T) {
 	evalSvc := &nilEvalSvc{}
 	approvalSvc := &nilApprovalSvc{}
 	certSvc := &nilCertSvc{}
+	reportingSvc := &nilReportingSvc{}
 
 	assert.NotPanics(t, func() {
 		r := gin.New()
@@ -213,6 +233,8 @@ func TestRouteBoot_AllModules_NoPanic(t *testing.T) {
 		protected := api.Group("", middleware.JWT("test-secret"))
 		adminGrp := protected.Group("", middleware.RequireRole("administrador"))
 		creatorGrp := protected.Group("", middleware.RequireRole("creador"))
+		// C6.1: first use of supervisorGrp.
+		supervisorGrp := protected.Group("", middleware.RequireRole("supervisor"))
 
 		// Register all module routes (same order as main.go).
 		courses.RegisterRoutes(creatorGrp, courseSvc)
@@ -228,6 +250,11 @@ func TestRouteBoot_AllModules_NoPanic(t *testing.T) {
 
 		// Certificates routes (C5.1) — JWT-only, no RequireRole.
 		certificates.RegisterRoutes(protected, certSvc)
+
+		// Reporting routes (C6.1) — read-only, no migration.
+		reporting.RegisterAdminRoutes(adminGrp, reportingSvc)
+		reporting.RegisterSupervisorRoutes(supervisorGrp, reportingSvc)
+		reporting.RegisterSelfRoutes(protected, reportingSvc)
 
 		// Verify all routes are registered.
 		routes := r.Routes()
@@ -273,6 +300,16 @@ func TestRouteBoot_AllModules_NoPanic(t *testing.T) {
 			"[C5.1] GET /api/badges/me must be registered without panic")
 		assert.True(t, routeMap["GET /api/badges/ranking"],
 			"[C5.1] GET /api/badges/ranking must be registered without panic")
+
+		// C6.1 reporting routes.
+		assert.True(t, routeMap["GET /api/reports/global"],
+			"[C6.1] GET /api/reports/global must be registered without panic")
+		assert.True(t, routeMap["GET /api/reports/courses"],
+			"[C6.1] GET /api/reports/courses must be registered without panic")
+		assert.True(t, routeMap["GET /api/reports/team"],
+			"[C6.1] GET /api/reports/team must be registered without panic")
+		assert.True(t, routeMap["GET /api/reports/users/:id/progress"],
+			"[C6.1] GET /api/reports/users/:id/progress must be registered without panic")
 	}, "registering all module routes must not panic (no Gin param-tree conflict)")
 
 	_ = time.Now() // suppress unused import

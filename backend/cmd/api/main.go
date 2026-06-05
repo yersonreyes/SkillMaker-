@@ -36,6 +36,7 @@ import (
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/certificates"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/evaluations"
+	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/reporting"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/users"
 	usersService "github.com/yersonreyes/SkillMaker-/backend/internal/modules/users/service"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/platform/config"
@@ -138,6 +139,15 @@ func main() {
 
 	// Certificates module routes (C5.1) — JWT-only, no RequireRole.
 	certificates.RegisterRoutes(protected, certsSvc)
+
+	// Reporting module (C6.1) — pure-SQL read-only, no migration.
+	reportingRepo := reporting.NewRepository(db)
+	reportingSvc := reporting.NewService(reportingRepo)
+	// First supervisor-gated group.
+	supervisorGrp := protected.Group("", middleware.RequireRole("supervisor"))
+	reporting.RegisterAdminRoutes(adminGrp, reportingSvc)           // GET /reports/global, /reports/courses
+	reporting.RegisterSupervisorRoutes(supervisorGrp, reportingSvc) // GET /reports/team
+	reporting.RegisterSelfRoutes(protected, reportingSvc)           // GET /reports/users/:id/progress (admin-or-self)
 
 	srv := httpserver.NewServer(cfg.Port, router)
 

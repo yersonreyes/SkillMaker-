@@ -1186,6 +1186,88 @@ export interface paths {
       };
     };
   };
+  "/reports/courses": {
+    /** Retorna estadísticas por curso para todos los cursos. Solo administradores. */
+    get: {
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.CourseReportItem"][];
+        };
+        /** sin autenticación */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** no es administrador */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/reports/global": {
+    /** Retorna métricas agregadas del sistema. Solo administradores. */
+    get: {
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.GlobalReportResponse"];
+        };
+        /** sin autenticación */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** no es administrador */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/reports/team": {
+    /** Retorna los empleados supervisados por el caller con sus métricas de progreso. Solo supervisors. */
+    get: {
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.TeamReportItem"][];
+        };
+        /** sin autenticación */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** no es supervisor */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/reports/users/{id}/progress": {
+    /** Retorna las métricas de progreso de un usuario. Accesible para el propio usuario o un administrador. */
+    get: {
+      parameters: {
+        path: {
+          /** UUID del usuario */
+          id: string;
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.UserProgressResponse"];
+        };
+        /** sin autenticación */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** no es el usuario ni administrador */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
   "/sections/{id}": {
     /** Elimina la seccion y todos sus videos. Requiere ser propietario. */
     delete: {
@@ -1749,6 +1831,21 @@ export interface definitions {
     id?: string;
     titulo?: string;
   };
+  /** @description Per-course aggregate stats. */
+  "dto.CourseReportItem": {
+    /** @description range [0.0, 1.0]; frontend renders as % */
+    approvalRate?: number;
+    attempts?: number;
+    enrollments?: number;
+    estado?: string;
+    id?: string;
+    titulo?: string;
+  };
+  /** @description Course count by estado. */
+  "dto.CoursesByEstadoItem": {
+    estado?: string;
+    total?: number;
+  };
   "dto.CreateCourseRequest": {
     descripcion?: string;
     titulo: string;
@@ -1795,6 +1892,16 @@ export interface definitions {
     intentosMax?: number;
     notaMinima?: number;
   };
+  /** @description System-wide aggregate metrics. */
+  "dto.GlobalReportResponse": {
+    activeUsers?: number;
+    approvedCoursesPerMonth?: definitions["dto.MonthCountItem"][];
+    certificatesIssued?: number;
+    coursesByEstado?: definitions["dto.CoursesByEstadoItem"][];
+    topCreators?: definitions["dto.TopCreatorItem"][];
+    totalAttempts?: number;
+    usersPerMonth?: definitions["dto.MonthCountItem"][];
+  };
   "dto.GoogleLoginRequest": {
     idToken: string;
   };
@@ -1828,6 +1935,12 @@ export interface definitions {
     /** @description mapped from MaterialModel.Titulo */
     nombre?: string;
     tamanoBytes?: number;
+  };
+  /** @description Month bucket with count. */
+  "dto.MonthCountItem": {
+    /** @description ISO "2006-01" */
+    month?: string;
+    total?: number;
   };
   "dto.MyCourseItem": {
     completado?: boolean;
@@ -1955,6 +2068,19 @@ export interface definitions {
     id?: string;
     supervisorId?: string;
   };
+  /** @description Team member progress entry. */
+  "dto.TeamReportItem": {
+    completedCount?: number;
+    empleadoId?: string;
+    empleadoNombre?: string;
+    enrolledCount?: number;
+    lastAttemptDate?: string;
+  };
+  /** @description Creator ranked by aprobado course count. */
+  "dto.TopCreatorItem": {
+    nombre?: string;
+    total?: number;
+  };
   "dto.UpdateCourseRequest": {
     descripcion?: string;
     titulo?: string;
@@ -1973,6 +2099,14 @@ export interface definitions {
     nombre?: string;
     roles?: string[];
     updatedAt?: string;
+  };
+  /** @description User progress aggregate. */
+  "dto.UserProgressResponse": {
+    attemptsCount?: number;
+    certificatesCount?: number;
+    completedCount?: number;
+    enrolledCount?: number;
+    passedAttemptsCount?: number;
   };
   "dto.VideoCreateRequest": {
     duracionS?: number;
