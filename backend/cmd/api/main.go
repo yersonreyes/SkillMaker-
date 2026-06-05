@@ -33,6 +33,7 @@ import (
 	"github.com/yersonreyes/SkillMaker-/backend/internal/middleware"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/auth"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses"
+	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/evaluations"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/users"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/platform/config"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/platform/database"
@@ -97,8 +98,12 @@ func main() {
 	// Courses module — creador-only routes.
 	creatorGrp := protected.Group("", middleware.RequireRole("creador"))
 	courses.RegisterRoutes(creatorGrp, coursesSvc)
-	// Additional modules (evaluations, approvals, certificates,
-	// reporting) will be wired here as they are implemented in subsequent changes.
+
+	// Evaluations module (C3.1) — coursesSvc satisfies evaluations.CoursesChecker structurally.
+	evaluationsRepo := evaluations.NewRepository(db)
+	evaluationsSvc := evaluations.NewService(evaluationsRepo, coursesSvc)
+	evaluations.RegisterRoutes(creatorGrp, evaluationsSvc)
+	// Additional modules (approvals, certificates, reporting) will be wired here.
 
 	srv := httpserver.NewServer(cfg.Port, router)
 

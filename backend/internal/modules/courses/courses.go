@@ -26,6 +26,11 @@ type (
 	UpdateRequest = service.UpdateRequest
 )
 
+// ErrCourseNotFound is the sentinel returned by GetCourseOwnership when no course
+// with the requested ID exists. Re-exported here so cross-module consumers (e.g.
+// evaluations) can use errors.Is instead of fragile string matching.
+var ErrCourseNotFound = service.ErrCourseNotFound
+
 // NewRepository constructs a GORM-backed Repository.
 func NewRepository(db *gorm.DB) Repository {
 	return repository.New(db)

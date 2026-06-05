@@ -186,6 +186,12 @@ func (m *mockCourseSvc) DeleteMaterial(ctx context.Context, materialID, creadorI
 	return args.Error(0)
 }
 
+// GetCourseOwnership satisfies the cross-module seam added in C3.1.
+func (m *mockCourseSvc) GetCourseOwnership(ctx context.Context, courseID string) (creadorID, estado string, err error) {
+	args := m.Called(ctx, courseID)
+	return args.String(0), args.String(1), args.Error(2)
+}
+
 // ── Fixtures ───────────────────────────────────────────────────────────────────
 
 func courseModel(id, creadorID string) *service.CourseModel {

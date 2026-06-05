@@ -246,6 +246,14 @@ type Service interface {
 	// Owner-gated (write): returns ErrNotOwner (→ 403) for non-owners.
 	// If the storage delete fails, the error is logged and swallowed (D5).
 	DeleteMaterial(ctx context.Context, materialID, creadorID string) error
+
+	// ── Cross-module seam (C3.1) ─────────────────────────────────────────────────
+
+	// GetCourseOwnership returns the creadorID and estado (as plain string) for the course.
+	// This is the narrow read seam for cross-module callers (evaluations).
+	// evaluations defines a local CoursesChecker interface that this method satisfies structurally.
+	// Returns ErrCourseNotFound if no course with that id exists.
+	GetCourseOwnership(ctx context.Context, courseID string) (creadorID, estado string, err error)
 }
 
 // ── concrete implementation ────────────────────────────────────────────────────
@@ -618,6 +626,19 @@ func (s *serviceImpl) HasContent(ctx context.Context, courseID, creadorID string
 		return false, ErrNotOwner
 	}
 	return s.repo.HasContent(ctx, courseID)
+}
+
+// ── Cross-module seam (C3.1) ───────────────────────────────────────────────────
+
+// GetCourseOwnership returns the creadorID and estado (as plain string) for the course.
+// It is the narrow read seam consumed by the evaluations module via the CoursesChecker interface.
+// Returns ErrCourseNotFound if no course with that id exists.
+func (s *serviceImpl) GetCourseOwnership(ctx context.Context, courseID string) (creadorID, estado string, err error) {
+	c, e := s.repo.GetByID(ctx, courseID)
+	if e != nil {
+		return "", "", wrapNotFound(e) // repository.ErrCourseNotFound → service.ErrCourseNotFound
+	}
+	return c.CreadorID, string(c.Estado), nil
 }
 
 // ── Private helpers ────────────────────────────────────────────────────────────

@@ -156,6 +156,43 @@ export interface paths {
       };
     };
   };
+  "/courses/{courseId}/evaluation": {
+    /** Crea una evaluacion (1-1 por curso). El curso debe estar en borrador o rechazado. */
+    post: {
+      parameters: {
+        path: {
+          /** UUID del curso */
+          courseId: string;
+        };
+        body: {
+          /** Datos de la evaluacion */
+          body: definitions["dto.EvaluationCreateRequest"];
+        };
+      };
+      responses: {
+        /** Created */
+        201: {
+          schema: definitions["dto.EvaluationResponse"];
+        };
+        /** body invalido */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** no es propietario del curso */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** curso no encontrado */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** ya existe evaluacion o curso no editable */
+        409: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
   "/courses/{courseId}/materials": {
     /** Persiste el material tras un PUT presignado exitoso. Re-valida tamano y MIME. */
     post: {
@@ -359,6 +396,27 @@ export interface paths {
       };
     };
   };
+  "/courses/{id}/evaluation": {
+    /** Retorna la evaluacion con sus preguntas y opciones. Solo el propietario del curso. */
+    get: {
+      parameters: {
+        path: {
+          /** UUID del curso */
+          id: string;
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.EvaluationDetail"];
+        };
+        /** evaluacion o curso no encontrado */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
   "/courses/{id}/materials": {
     /** Retorna todos los materiales del curso ordenados por fecha de creacion ASC. Solo el propietario. */
     get: {
@@ -487,6 +545,80 @@ export interface paths {
       };
     };
   };
+  "/evaluations/{id}": {
+    /** Actualiza notaMinima y/o intentosMax. El curso debe estar en borrador o rechazado. */
+    patch: {
+      parameters: {
+        path: {
+          /** UUID de la evaluacion */
+          id: string;
+        };
+        body: {
+          /** Campos a actualizar */
+          body: definitions["dto.EvaluationUpdateRequest"];
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.EvaluationResponse"];
+        };
+        /** Bad Request */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Forbidden */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Not Found */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Conflict */
+        409: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/evaluations/{id}/questions": {
+    /** Para verdadero_falso auto-crea 2 opciones. Para opcion_multiple empieza vacia. */
+    post: {
+      parameters: {
+        path: {
+          /** UUID de la evaluacion */
+          id: string;
+        };
+        body: {
+          /** Datos de la pregunta */
+          body: definitions["dto.QuestionCreateRequest"];
+        };
+      };
+      responses: {
+        /** Created */
+        201: {
+          schema: definitions["dto.QuestionDetail"];
+        };
+        /** tipo invalido */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Forbidden */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Not Found */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Conflict */
+        409: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
   "/materials/{id}": {
     /** Elimina la fila de material y hace un best-effort delete del objeto en storage. */
     delete: {
@@ -505,6 +637,102 @@ export interface paths {
         };
         /** material no encontrado */
         404: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/options/{id}": {
+    delete: {
+      parameters: {
+        path: {
+          /** UUID de la opcion */
+          id: string;
+        };
+      };
+      responses: {
+        /** No Content */
+        204: never;
+      };
+    };
+    patch: {
+      parameters: {
+        path: {
+          /** UUID de la opcion */
+          id: string;
+        };
+        body: {
+          /** Campos a actualizar */
+          body: definitions["dto.OptionUpdateRequest"];
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.OptionResponse"];
+        };
+      };
+    };
+  };
+  "/questions/{id}": {
+    delete: {
+      parameters: {
+        path: {
+          /** UUID de la pregunta */
+          id: string;
+        };
+      };
+      responses: {
+        /** No Content */
+        204: never;
+        /** Forbidden */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Not Found */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+    patch: {
+      parameters: {
+        path: {
+          /** UUID de la pregunta */
+          id: string;
+        };
+        body: {
+          /** Campos a actualizar */
+          body: definitions["dto.QuestionUpdateRequest"];
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.QuestionResponse"];
+        };
+      };
+    };
+  };
+  "/questions/{id}/options": {
+    post: {
+      parameters: {
+        path: {
+          /** UUID de la pregunta */
+          id: string;
+        };
+        body: {
+          /** Datos de la opcion */
+          body: definitions["dto.OptionCreateRequest"];
+        };
+      };
+      responses: {
+        /** Created */
+        201: {
+          schema: definitions["dto.OptionResponse"];
+        };
+        /** tipo incorrecto (verdadero_falso no permite agregar opciones) */
+        400: {
           schema: definitions["httperr.Error"];
         };
       };
@@ -967,6 +1195,28 @@ export interface definitions {
     expiresAt?: string;
     url?: string;
   };
+  "dto.EvaluationCreateRequest": {
+    intentosMax?: number;
+    notaMinima?: number;
+  };
+  "dto.EvaluationDetail": {
+    courseId?: string;
+    id?: string;
+    intentosMax?: number;
+    notaMinima?: number;
+    questions?: definitions["dto.QuestionDetail"][];
+  };
+  "dto.EvaluationResponse": {
+    courseId?: string;
+    createdAt?: string;
+    id?: string;
+    intentosMax?: number;
+    notaMinima?: number;
+  };
+  "dto.EvaluationUpdateRequest": {
+    intentosMax?: number;
+    notaMinima?: number;
+  };
   "dto.GoogleLoginRequest": {
     idToken: string;
   };
@@ -995,10 +1245,53 @@ export interface definitions {
     nombre?: string;
     tamanoBytes?: number;
   };
+  "dto.OptionCreateRequest": {
+    correcta?: boolean;
+    texto: string;
+  };
+  "dto.OptionResponse": {
+    correcta?: boolean;
+    id?: string;
+    orden?: number;
+    questionId?: string;
+    texto?: string;
+  };
+  "dto.OptionUpdateRequest": {
+    correcta?: boolean;
+    texto?: string;
+  };
   "dto.PresignResponse": {
     expiresAt?: string;
     key?: string;
     uploadUrl?: string;
+  };
+  "dto.QuestionCreateRequest": {
+    enunciado: string;
+    puntaje?: number;
+    /** @enum {string} */
+    tipo: "opcion_multiple" | "verdadero_falso";
+  };
+  "dto.QuestionDetail": {
+    enunciado?: string;
+    evaluationId?: string;
+    id?: string;
+    options?: definitions["dto.OptionResponse"][];
+    orden?: number;
+    puntaje?: number;
+    tipo?: string;
+  };
+  "dto.QuestionResponse": {
+    enunciado?: string;
+    evaluationId?: string;
+    id?: string;
+    orden?: number;
+    puntaje?: number;
+    tipo?: string;
+  };
+  "dto.QuestionUpdateRequest": {
+    enunciado?: string;
+    orden?: number;
+    puntaje?: number;
   };
   "dto.RefreshRequest": {
     refreshToken: string;

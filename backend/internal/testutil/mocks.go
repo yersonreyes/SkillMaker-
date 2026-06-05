@@ -147,3 +147,16 @@ func ValidateTokenStub(payload *idtoken.Payload, err error) func(ctx context.Con
 		return payload, err
 	}
 }
+
+// MockCoursesChecker is a testify/mock implementation of the evaluations.CoursesChecker interface.
+// Used in evaluations service unit tests to avoid importing the courses module.
+// Mirrors MockUsersService — a narrow single-method mock for the cross-module seam (C3.1, ADR-9).
+type MockCoursesChecker struct {
+	mock.Mock
+}
+
+// GetCourseOwnership returns the mocked creadorID, estado, and error for a courseID.
+func (m *MockCoursesChecker) GetCourseOwnership(ctx context.Context, courseID string) (creadorID, estado string, err error) {
+	args := m.Called(ctx, courseID)
+	return args.String(0), args.String(1), args.Error(2)
+}

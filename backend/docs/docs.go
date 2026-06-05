@@ -277,6 +277,76 @@ const docTemplate = `{
                 }
             }
         },
+        "/courses/{courseId}/evaluation": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Crea una evaluacion (1-1 por curso). El curso debe estar en borrador o rechazado.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "evaluations"
+                ],
+                "summary": "Crea una evaluacion para un curso",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID del curso",
+                        "name": "courseId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Datos de la evaluacion",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.EvaluationCreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/dto.EvaluationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "body invalido",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "no es propietario del curso",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "curso no encontrado",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "ya existe evaluacion o curso no editable",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/courses/{courseId}/materials": {
             "post": {
                 "security": [
@@ -649,6 +719,46 @@ const docTemplate = `{
                 }
             }
         },
+        "/courses/{id}/evaluation": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retorna la evaluacion con sus preguntas y opciones. Solo el propietario del curso.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "evaluations"
+                ],
+                "summary": "Obtiene la evaluacion de un curso (arbol anidado)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID del curso",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.EvaluationDetail"
+                        }
+                    },
+                    "404": {
+                        "description": "evaluacion o curso no encontrado",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/courses/{id}/materials": {
             "get": {
                 "security": [
@@ -891,6 +1001,146 @@ const docTemplate = `{
                 }
             }
         },
+        "/evaluations/{id}": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Actualiza notaMinima y/o intentosMax. El curso debe estar en borrador o rechazado.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "evaluations"
+                ],
+                "summary": "Actualiza una evaluacion (PATCH parcial)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID de la evaluacion",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Campos a actualizar",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.EvaluationUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.EvaluationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/evaluations/{id}/questions": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Para verdadero_falso auto-crea 2 opciones. Para opcion_multiple empieza vacia.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "questions"
+                ],
+                "summary": "Crea una pregunta en una evaluacion",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID de la evaluacion",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Datos de la pregunta",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.QuestionCreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/dto.QuestionDetail"
+                        }
+                    },
+                    "400": {
+                        "description": "tipo invalido",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/materials/{id}": {
             "delete": {
                 "security": [
@@ -924,6 +1174,209 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "material no encontrado",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/options/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "options"
+                ],
+                "summary": "Elimina una opcion",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID de la opcion",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "options"
+                ],
+                "summary": "Actualiza una opcion (PATCH parcial)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID de la opcion",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Campos a actualizar",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.OptionUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.OptionResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/questions/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "questions"
+                ],
+                "summary": "Elimina una pregunta (y sus opciones en cascada)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID de la pregunta",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "questions"
+                ],
+                "summary": "Actualiza una pregunta (PATCH parcial)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID de la pregunta",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Campos a actualizar",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.QuestionUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.QuestionResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/questions/{id}/options": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "options"
+                ],
+                "summary": "Agrega una opcion a una pregunta opcion_multiple",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID de la pregunta",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Datos de la opcion",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.OptionCreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/dto.OptionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "tipo incorrecto (verdadero_falso no permite agregar opciones)",
                         "schema": {
                             "$ref": "#/definitions/httperr.Error"
                         }
@@ -1807,6 +2260,77 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.EvaluationCreateRequest": {
+            "type": "object",
+            "properties": {
+                "intentosMax": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "notaMinima": {
+                    "type": "integer",
+                    "maximum": 100,
+                    "minimum": 0
+                }
+            }
+        },
+        "dto.EvaluationDetail": {
+            "type": "object",
+            "properties": {
+                "courseId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "intentosMax": {
+                    "type": "integer"
+                },
+                "notaMinima": {
+                    "type": "integer"
+                },
+                "questions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.QuestionDetail"
+                    }
+                }
+            }
+        },
+        "dto.EvaluationResponse": {
+            "type": "object",
+            "properties": {
+                "courseId": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "intentosMax": {
+                    "type": "integer"
+                },
+                "notaMinima": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.EvaluationUpdateRequest": {
+            "type": "object",
+            "properties": {
+                "intentosMax": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "notaMinima": {
+                    "type": "integer",
+                    "maximum": 100,
+                    "minimum": 0
+                }
+            }
+        },
         "dto.GoogleLoginRequest": {
             "type": "object",
             "required": [
@@ -1904,6 +2428,55 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.OptionCreateRequest": {
+            "type": "object",
+            "required": [
+                "texto"
+            ],
+            "properties": {
+                "correcta": {
+                    "type": "boolean"
+                },
+                "texto": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "minLength": 1
+                }
+            }
+        },
+        "dto.OptionResponse": {
+            "type": "object",
+            "properties": {
+                "correcta": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "orden": {
+                    "type": "integer"
+                },
+                "questionId": {
+                    "type": "string"
+                },
+                "texto": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.OptionUpdateRequest": {
+            "type": "object",
+            "properties": {
+                "correcta": {
+                    "type": "boolean"
+                },
+                "texto": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "minLength": 1
+                }
+            }
+        },
         "dto.PresignResponse": {
             "type": "object",
             "properties": {
@@ -1915,6 +2488,101 @@ const docTemplate = `{
                 },
                 "uploadUrl": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.QuestionCreateRequest": {
+            "type": "object",
+            "required": [
+                "enunciado",
+                "tipo"
+            ],
+            "properties": {
+                "enunciado": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "minLength": 1
+                },
+                "puntaje": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "tipo": {
+                    "type": "string",
+                    "enum": [
+                        "opcion_multiple",
+                        "verdadero_falso"
+                    ]
+                }
+            }
+        },
+        "dto.QuestionDetail": {
+            "type": "object",
+            "properties": {
+                "enunciado": {
+                    "type": "string"
+                },
+                "evaluationId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.OptionResponse"
+                    }
+                },
+                "orden": {
+                    "type": "integer"
+                },
+                "puntaje": {
+                    "type": "integer"
+                },
+                "tipo": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.QuestionResponse": {
+            "type": "object",
+            "properties": {
+                "enunciado": {
+                    "type": "string"
+                },
+                "evaluationId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "orden": {
+                    "type": "integer"
+                },
+                "puntaje": {
+                    "type": "integer"
+                },
+                "tipo": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.QuestionUpdateRequest": {
+            "type": "object",
+            "properties": {
+                "enunciado": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "minLength": 1
+                },
+                "orden": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "puntaje": {
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },

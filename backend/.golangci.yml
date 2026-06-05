@@ -53,3 +53,34 @@ issues:
     - linters:
         - misspell
       text: "Materiales"
+    # Spanish vocabulary for evaluations module (C3.1).
+    - linters:
+        - misspell
+      text: "evaluacion"
+    - linters:
+        - misspell
+      text: "Evaluacion"
+    - linters:
+        - misspell
+      text: "pregunta"
+    - linters:
+        - misspell
+      text: "opcion"
+    - linters:
+        - misspell
+      text: "notaMinima"
+    - linters:
+        - misspell
+      text: "intentosMax"
+    - linters:
+        - misspell
+      text: "enunciado"
+    - linters:
+        - misspell
+      text: "puntaje"
+    - linters:
+        - misspell
+      text: "borrador"
+    - linters:
+        - misspell
+      text: "rechazado"

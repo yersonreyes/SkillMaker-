@@ -45,6 +45,54 @@ definitions:
       url:
         type: string
     type: object
+  dto.EvaluationCreateRequest:
+    properties:
+      intentosMax:
+        minimum: 0
+        type: integer
+      notaMinima:
+        maximum: 100
+        minimum: 0
+        type: integer
+    type: object
+  dto.EvaluationDetail:
+    properties:
+      courseId:
+        type: string
+      id:
+        type: string
+      intentosMax:
+        type: integer
+      notaMinima:
+        type: integer
+      questions:
+        items:
+          $ref: '#/definitions/dto.QuestionDetail'
+        type: array
+    type: object
+  dto.EvaluationResponse:
+    properties:
+      courseId:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: string
+      intentosMax:
+        type: integer
+      notaMinima:
+        type: integer
+    type: object
+  dto.EvaluationUpdateRequest:
+    properties:
+      intentosMax:
+        minimum: 0
+        type: integer
+      notaMinima:
+        maximum: 100
+        minimum: 0
+        type: integer
+    type: object
   dto.GoogleLoginRequest:
     properties:
       idToken:
@@ -112,6 +160,39 @@ definitions:
       tamanoBytes:
         type: integer
     type: object
+  dto.OptionCreateRequest:
+    properties:
+      correcta:
+        type: boolean
+      texto:
+        maxLength: 500
+        minLength: 1
+        type: string
+    required:
+    - texto
+    type: object
+  dto.OptionResponse:
+    properties:
+      correcta:
+        type: boolean
+      id:
+        type: string
+      orden:
+        type: integer
+      questionId:
+        type: string
+      texto:
+        type: string
+    type: object
+  dto.OptionUpdateRequest:
+    properties:
+      correcta:
+        type: boolean
+      texto:
+        maxLength: 500
+        minLength: 1
+        type: string
+    type: object
   dto.PresignResponse:
     properties:
       expiresAt:
@@ -120,6 +201,71 @@ definitions:
         type: string
       uploadUrl:
         type: string
+    type: object
+  dto.QuestionCreateRequest:
+    properties:
+      enunciado:
+        maxLength: 1000
+        minLength: 1
+        type: string
+      puntaje:
+        minimum: 1
+        type: integer
+      tipo:
+        enum:
+        - opcion_multiple
+        - verdadero_falso
+        type: string
+    required:
+    - enunciado
+    - tipo
+    type: object
+  dto.QuestionDetail:
+    properties:
+      enunciado:
+        type: string
+      evaluationId:
+        type: string
+      id:
+        type: string
+      options:
+        items:
+          $ref: '#/definitions/dto.OptionResponse'
+        type: array
+      orden:
+        type: integer
+      puntaje:
+        type: integer
+      tipo:
+        type: string
+    type: object
+  dto.QuestionResponse:
+    properties:
+      enunciado:
+        type: string
+      evaluationId:
+        type: string
+      id:
+        type: string
+      orden:
+        type: integer
+      puntaje:
+        type: integer
+      tipo:
+        type: string
+    type: object
+  dto.QuestionUpdateRequest:
+    properties:
+      enunciado:
+        maxLength: 1000
+        minLength: 1
+        type: string
+      orden:
+        minimum: 0
+        type: integer
+      puntaje:
+        minimum: 1
+        type: integer
     type: object
   dto.RefreshRequest:
     properties:
@@ -514,6 +660,52 @@ paths:
       summary: Crea un curso (borrador)
       tags:
       - courses
+  /courses/{courseId}/evaluation:
+    post:
+      consumes:
+      - application/json
+      description: Crea una evaluacion (1-1 por curso). El curso debe estar en borrador
+        o rechazado.
+      parameters:
+      - description: UUID del curso
+        in: path
+        name: courseId
+        required: true
+        type: string
+      - description: Datos de la evaluacion
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.EvaluationCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.EvaluationResponse'
+        "400":
+          description: body invalido
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: no es propietario del curso
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: curso no encontrado
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "409":
+          description: ya existe evaluacion o curso no editable
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Crea una evaluacion para un curso
+      tags:
+      - evaluations
   /courses/{courseId}/materials:
     post:
       consumes:
@@ -758,6 +950,32 @@ paths:
       summary: Actualiza un curso (PATCH parcial, solo owner)
       tags:
       - courses
+  /courses/{id}/evaluation:
+    get:
+      description: Retorna la evaluacion con sus preguntas y opciones. Solo el propietario
+        del curso.
+      parameters:
+      - description: UUID del curso
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.EvaluationDetail'
+        "404":
+          description: evaluacion o curso no encontrado
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Obtiene la evaluacion de un curso (arbol anidado)
+      tags:
+      - evaluations
   /courses/{id}/materials:
     get:
       description: Retorna todos los materiales del curso ordenados por fecha de creacion
@@ -917,6 +1135,98 @@ paths:
       summary: Reordena las secciones de un curso
       tags:
       - sections
+  /evaluations/{id}:
+    patch:
+      consumes:
+      - application/json
+      description: Actualiza notaMinima y/o intentosMax. El curso debe estar en borrador
+        o rechazado.
+      parameters:
+      - description: UUID de la evaluacion
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Campos a actualizar
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.EvaluationUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.EvaluationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Actualiza una evaluacion (PATCH parcial)
+      tags:
+      - evaluations
+  /evaluations/{id}/questions:
+    post:
+      consumes:
+      - application/json
+      description: Para verdadero_falso auto-crea 2 opciones. Para opcion_multiple
+        empieza vacia.
+      parameters:
+      - description: UUID de la evaluacion
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Datos de la pregunta
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.QuestionCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.QuestionDetail'
+        "400":
+          description: tipo invalido
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Crea una pregunta en una evaluacion
+      tags:
+      - questions
   /materials/{id}:
     delete:
       description: Elimina la fila de material y hace un best-effort delete del objeto
@@ -943,6 +1253,132 @@ paths:
       summary: Elimina un material
       tags:
       - materials
+  /options/{id}:
+    delete:
+      parameters:
+      - description: UUID de la opcion
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - BearerAuth: []
+      summary: Elimina una opcion
+      tags:
+      - options
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: UUID de la opcion
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Campos a actualizar
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.OptionUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.OptionResponse'
+      security:
+      - BearerAuth: []
+      summary: Actualiza una opcion (PATCH parcial)
+      tags:
+      - options
+  /questions/{id}:
+    delete:
+      parameters:
+      - description: UUID de la pregunta
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Elimina una pregunta (y sus opciones en cascada)
+      tags:
+      - questions
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: UUID de la pregunta
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Campos a actualizar
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.QuestionUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.QuestionResponse'
+      security:
+      - BearerAuth: []
+      summary: Actualiza una pregunta (PATCH parcial)
+      tags:
+      - questions
+  /questions/{id}/options:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: UUID de la pregunta
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Datos de la opcion
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.OptionCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.OptionResponse'
+        "400":
+          description: tipo incorrecto (verdadero_falso no permite agregar opciones)
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Agrega una opcion a una pregunta opcion_multiple
+      tags:
+      - options
   /sections/{id}:
     delete:
       description: Elimina la seccion y todos sus videos. Requiere ser propietario.

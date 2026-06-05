@@ -1468,3 +1468,39 @@ func TestSanitizeFilename(t *testing.T) {
 		assert.Equal(t, tc.want, got, "sanitizeFilename(%q) = %q, want %q", tc.input, got, tc.want)
 	}
 }
+
+// ── GetCourseOwnership tests (C3.1 cross-module seam) ────────────────────────
+
+// TestGetCourseOwnership_HappyPath verifies the seam returns creadorID and estado as string.
+// Spec: CMO-1-A structural satisfaction.
+func TestGetCourseOwnership_HappyPath(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	ownerID := uuid.New().String()
+	c := courseWith(ownerID, domain.EstadoBorrador)
+	repo.On("GetByID", mock.Anything, c.ID).Return(c, nil)
+
+	creadorID, estado, err := svc.GetCourseOwnership(context.Background(), c.ID)
+
+	assert.NoError(t, err)
+	assert.Equal(t, ownerID, creadorID, "GetCourseOwnership must return the correct creadorID")
+	assert.Equal(t, "borrador", estado, "GetCourseOwnership must return estado as plain string")
+	repo.AssertExpectations(t)
+}
+
+// TestGetCourseOwnership_NotFound_ReturnsErrCourseNotFound verifies sentinel wrapping.
+// Spec: CMO-1-A, ADR-1.
+func TestGetCourseOwnership_NotFound_ReturnsErrCourseNotFound(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	courseID := uuid.New().String()
+	repo.On("GetByID", mock.Anything, courseID).Return(nil, repository.ErrCourseNotFound)
+
+	_, _, err := svc.GetCourseOwnership(context.Background(), courseID)
+
+	assert.ErrorIs(t, err, ErrCourseNotFound,
+		"GetCourseOwnership must wrap repository.ErrCourseNotFound → service.ErrCourseNotFound")
+	repo.AssertExpectations(t)
+}
