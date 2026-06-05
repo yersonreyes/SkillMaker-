@@ -1,0 +1,176 @@
+// evaluacion-tomar.component.sass — Student attempt page (Cyanotype Workshop)
+// Reuses global primitives: .panel, .panel__head, .panel__body, .btn, .empty, .field
+
+.tomar
+  padding: 36px 48px 64px
+  max-width: 860px
+  margin: 0 auto
+
+  @media (max-width: 720px)
+    padding: 24px 20px 48px
+
+// ── Header ──────────────────────────────────────────────────────────────────
+.tomar__head
+  margin-bottom: 32px
+
+.tomar__title
+  font-family: var(--font-display)
+  font-style: italic
+  font-weight: 400
+  font-size: clamp(28px, 4vw, 44px)
+  line-height: 1.05
+  letter-spacing: -0.02em
+  color: var(--page-ink)
+  margin: 0
+
+  .tk-dot
+    color: var(--page-cyan)
+    font-style: normal
+
+// ── Start / blocked card ────────────────────────────────────────────────────
+.tomar__start, .tomar__blocked
+  max-width: 560px
+
+.tomar__lede
+  font-size: 14px
+  color: var(--page-ink-soft)
+  line-height: 1.6
+  margin: 0 0 20px
+
+.tomar__actions
+  display: flex
+  gap: 12px
+  flex-wrap: wrap
+
+// ── Taking phase ─────────────────────────────────────────────────────────────
+.tomar__taking
+  display: flex
+  flex-direction: column
+  gap: 18px
+
+.tomar__progress-bar
+  display: flex
+  align-items: center
+  margin-bottom: 4px
+
+.tomar__intento-label
+  font-family: var(--font-mono)
+  font-size: 11px
+  letter-spacing: 0.18em
+  text-transform: uppercase
+  color: var(--page-cyan)
+  margin: 0
+
+.tomar__q-num
+  font-family: var(--font-mono)
+  font-size: 12px
+  font-weight: 600
+  color: var(--page-cyan)
+  flex-shrink: 0
+
+.tomar__q-enunciado
+  flex: 1
+  font-size: 14px
+  color: var(--page-ink)
+  line-height: 1.45
+
+.tomar__q-puntaje
+  font-family: var(--font-mono)
+  font-size: 10.5px
+  letter-spacing: 0.14em
+  color: var(--page-ink-dim)
+  flex-shrink: 0
+
+// ── Options (radio list) ─────────────────────────────────────────────────────
+.tomar__options
+  display: flex
+  flex-direction: column
+  gap: 10px
+
+.tomar__option
+  display: flex
+  align-items: center
+  gap: 10px
+  padding: 10px 14px
+  border: 1px solid var(--page-ink-hairline)
+  border-radius: 2px
+  cursor: pointer
+  transition: border-color 0.14s ease, background 0.14s ease
+
+  &:hover
+    border-color: var(--page-cyan-edge)
+    background: var(--page-cyan-soft)
+
+  &--selected
+    border-color: var(--page-cyan)
+    background: var(--page-cyan-soft)
+
+.tomar__radio
+  accent-color: var(--page-cyan)
+  width: 16px
+  height: 16px
+  flex-shrink: 0
+  cursor: pointer
+
+.tomar__option-text
+  font-size: 14px
+  color: var(--page-ink)
+  line-height: 1.4
+
+// ── Submit row ───────────────────────────────────────────────────────────────
+.tomar__submit-row
+  display: flex
+  justify-content: flex-end
+  padding-top: 8px
+
+.tomar__submit-btn
+  min-width: 180px
+
+// ── Result phase ─────────────────────────────────────────────────────────────
+.tomar__result
+  max-width: 480px
+
+  &--pass .panel__head
+    background: rgba(14, 122, 150, 0.12)
+    color: var(--page-cyan)
+    border-bottom-color: var(--page-cyan-edge)
+
+  &--fail .panel__head
+    background: rgba(179, 64, 47, 0.08)
+    color: #b3402f
+    border-bottom-color: rgba(179, 64, 47, 0.2)
+
+.tomar__result-body
+  display: flex
+  flex-direction: column
+  align-items: center
+  gap: 16px
+  padding: 32px 24px
+  text-align: center
+
+.tomar__score
+  display: flex
+  flex-direction: column
+  align-items: center
+  gap: 4px
+
+.tomar__score-value
+  font-family: var(--font-display)
+  font-style: italic
+  font-size: 72px
+  line-height: 1
+  color: var(--page-ink)
+
+.tomar__score-label
+  font-family: var(--font-mono)
+  font-size: 11px
+  letter-spacing: 0.2em
+  text-transform: uppercase
+  color: var(--page-ink-dim)
+
+.tomar__result-msg
+  font-size: 15px
+  color: var(--page-ink-soft)
+  line-height: 1.5
+  margin: 0
+  max-width: 320px

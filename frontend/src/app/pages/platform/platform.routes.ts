@@ -25,10 +25,17 @@ export const PLATFORM_ROUTES: Routes = [
       },
 
       // Domain stubs (load PendingViewComponent)
-      { path: 'courses/:id',      component: PendingViewComponent, data: { title: 'Detalle del curso' } },
-      { path: 'evaluations/:id',  component: PendingViewComponent, data: { title: 'Evaluacion' } },
-      { path: 'certificates',     component: PendingViewComponent, data: { title: 'Certificados' } },
-      { path: 'badges',           component: PendingViewComponent, data: { title: 'Insignias' } },
+      { path: 'courses/:id',  component: PendingViewComponent, data: { title: 'Detalle del curso' } },
+      {
+        // Student attempt page — replaces the evaluations/:id stub (C3.2).
+        // :id = evaluationId. No role guard — any authenticated user may attempt.
+        path: 'evaluations/:id',
+        loadComponent: () =>
+          import('./evaluacion-tomar/evaluacion-tomar.component').then(m => m.EvaluacionTomarComponent),
+        data: { title: 'Evaluacion' },
+      },
+      { path: 'certificates', component: PendingViewComponent, data: { title: 'Certificados' } },
+      { path: 'badges',       component: PendingViewComponent, data: { title: 'Insignias' } },
 
       // Sub-routers by role
       {

@@ -1,0 +1,145 @@
+<!-- evaluacion-tomar.component.html — Student attempt page (Cyanotype Workshop) -->
+<div class="tomar">
+
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <header class="tomar__head">
+    <p class="page__eyebrow">Evaluacion</p>
+    <h1 class="tomar__title">Comenzar evaluacion<span class="tk-dot">.</span></h1>
+  </header>
+
+  <!-- ── START phase ───────────────────────────────────────────────────── -->
+  @if (phase() === 'start') {
+    @if (startBlocked()) {
+      <!-- Blocked: max attempts reached or open attempt conflict -->
+      <div class="panel tomar__blocked reveal">
+        <div class="empty">
+          <div class="empty__mark"><i class="pi pi-lock"></i></div>
+          <p class="empty__title">No puedes iniciar</p>
+          <p class="empty__lede">
+            Has alcanzado el numero maximo de intentos o ya tienes un intento en curso
+            para esta evaluacion.
+          </p>
+          <button class="btn btn--outline" type="button" (click)="goBack()">
+            <i class="pi pi-arrow-left"></i> Volver
+          </button>
+        </div>
+      </div>
+    } @else {
+      <!-- Start confirmation card -->
+      <section class="panel tomar__start reveal">
+        <div class="panel__head">
+          <i class="pi pi-play-circle"></i>
+          <span>Iniciar evaluacion</span>
+        </div>
+        <div class="panel__body">
+          <p class="tomar__lede">
+            Una vez iniciado el intento, tus respuestas se guardaran automaticamente.
+            Cuando estes listo, presiona el boton para comenzar.
+          </p>
+          <div class="tomar__actions">
+            <button
+              class="btn btn--cyan"
+              type="button"
+              [disabled]="busy()"
+              (click)="startAttempt()"
+            >
+              <i
+                class="pi"
+                [class.pi-spin]="busy()"
+                [class.pi-spinner]="busy()"
+                [class.pi-play]="!busy()"
+              ></i>
+              Iniciar intento
+            </button>
+          </div>
+        </div>
+      </section>
+    }
+  }
+
+  <!-- ── TAKING phase ──────────────────────────────────────────────────── -->
+  @if (phase() === 'taking') {
+    <section class="tomar__taking">
+      <div class="tomar__progress-bar">
+        <p class="tomar__intento-label">Intento {{ attemptNumero() }}</p>
+      </div>
+
+      @for (question of questions(); track question.id; let i = $index) {
+        <div class="panel tomar__question reveal" [style.--d]="(i * 60) + 'ms'">
+          <div class="panel__head">
+            <span class="tomar__q-num">{{ i + 1 }}.</span>
+            <span class="tomar__q-enunciado">{{ question.enunciado }}</span>
+            <span class="tomar__q-puntaje">{{ question.puntaje }} pt</span>
+          </div>
+          <div class="panel__body">
+            <div class="tomar__options">
+              @for (option of question.options; track option.id) {
+                <label
+                  class="tomar__option"
+                  [class.tomar__option--selected]="selectedAnswer(question.id) === option.id"
+                >
+                  <input
+                    type="radio"
+                    class="tomar__radio"
+                    [name]="'q-' + question.id"
+                    [value]="option.id"
+                    [checked]="selectedAnswer(question.id) === option.id"
+                    (change)="selectOption(question.id, option.id)"
+                  />
+                  <span class="tomar__option-text">{{ option.texto }}</span>
+                </label>
+              }
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- Submit button -->
+      <div class="tomar__submit-row">
+        <button
+          class="btn btn--cyan tomar__submit-btn"
+          type="button"
+          [disabled]="busy()"
+          (click)="submitAttempt()"
+        >
+          <i
+            class="pi"
+            [class.pi-spin]="busy()"
+            [class.pi-spinner]="busy()"
+            [class.pi-send]="!busy()"
+          ></i>
+          Enviar evaluacion
+        </button>
+      </div>
+    </section>
+  }
+
+  <!-- ── RESULT phase ──────────────────────────────────────────────────── -->
+  @if (phase() === 'result') {
+    <section class="panel tomar__result reveal" [class.tomar__result--pass]="isAprobado()" [class.tomar__result--fail]="!isAprobado()">
+      <div class="panel__head">
+        <i class="pi" [class.pi-check-circle]="isAprobado()" [class.pi-times-circle]="!isAprobado()"></i>
+        <span>{{ isAprobado() ? 'Aprobado' : 'Desaprobado' }}</span>
+      </div>
+      <div class="panel__body tomar__result-body">
+        <div class="tomar__score">
+          <span class="tomar__score-value">{{ puntaje() }}</span>
+          <span class="tomar__score-label">puntos</span>
+        </div>
+        <p class="tomar__result-msg">
+          @if (isAprobado()) {
+            Has aprobado esta evaluacion.
+          } @else {
+            No has alcanzado la nota minima esta vez.
+          }
+        </p>
+        <div class="tomar__actions">
+          <button class="btn btn--outline" type="button" (click)="goBack()">
+            <i class="pi pi-arrow-left"></i> Volver
+          </button>
+        </div>
+      </div>
+    </section>
+  }
+
+</div>
