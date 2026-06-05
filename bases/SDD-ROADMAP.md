@@ -35,9 +35,9 @@
 > Esta seccion es el "punto de partida". Cualquier change posterior parte de este estado.
 > Actualizar cuando se archive un change importante.
 
-**Fecha del snapshot:** 2026-06-05 (actualizado tras C4.1 archive)
-**Commits totales del scaffold:** 16 (+ 3 chained PRs para C1.1) (+ 2 PRs para C2.1) (+ 2 PRs para C2.2) (+ 2 PRs para C2.3) (+ 3 PRs para C3.1 incl. UI polish) (+ 3 PRs para C3.2) (+ 3 PRs para C4.1 incl. swagger fix) (+ post-merge fixes)
-**LOC totales (Go + TS + SQL):** ~2700 (+ ~900 LOC en C1.1) (+ ~1100 LOC en C2.1) (+ ~900 LOC en C2.2) (+ ~900 LOC en C2.3) (+ ~1200 LOC en C3.1) (+ ~1200 LOC en C3.2) (+ ~1100 LOC en C4.1)
+**Fecha del snapshot:** 2026-06-05 (actualizado tras C2.4 archive)
+**Commits totales del scaffold:** 16 (+ 3 chained PRs para C1.1) (+ 2 PRs para C2.1) (+ 2 PRs para C2.2) (+ 2 PRs para C2.3) (+ 3 PRs para C3.1 incl. UI polish) (+ 3 PRs para C3.2) (+ 3 PRs para C4.1 incl. swagger fix) (+ 2 PRs para C2.4) (+ post-merge fixes)
+**LOC totales (Go + TS + SQL):** ~2700 (+ ~900 LOC en C1.1) (+ ~1100 LOC en C2.1) (+ ~900 LOC en C2.2) (+ ~900 LOC en C2.3) (+ ~1200 LOC en C3.1) (+ ~1200 LOC en C3.2) (+ ~1100 LOC en C4.1) (+ ~1300 LOC en C2.4)
 
 ### Modulos del dominio (los 7 declarados en RT)
 
@@ -45,7 +45,7 @@
 |--------|--------|----------------------|
 | `auth` | ✅ Completo | `refresh_token` |
 | `users` | ✅ Completo (C1.1: list, roles, supervision, soft-delete, last-admin guard) | `user`, `role`, `user_role`, `supervision` |
-| `courses` | 🟡 En progreso (C2.1: dominio + CRUD; C2.2: secciones/videos embebidos; C2.3: material adjunto) | `course`, `section`, `video`, `material`, `enrollment` (schema + C2.2 + C2.3 columns) |
+| `courses` | ✅ Completo (C2.1: dominio + CRUD; C2.2: secciones/videos; C2.3: material; C2.4: catalog + enrollment) | `course`, `section`, `video`, `material`, `enrollment` (schema + C2.2 + C2.3 + C2.4 columns) |
 | `evaluations` | ✅ Completo (C3.1: diseño de examen; C3.2: rendición de examen + seams de enrollment/certificates) | `evaluation`, `question`, `question_option`, `attempt`, `answer` (schema + C3.1 + C3.2 columns) |
 | `approvals` | ✅ Completo (C4.1: module-approvals — submit/approve/reject/history, 5 routes, 2 seams) | `approval` (C4.1: resultado, comentario, resuelto_en) |
 | `certificates` | ❌ No existe | ninguna |
@@ -57,10 +57,11 @@
 |------|--------|
 | `pages/auth/login` | ✅ Funcional (GIS + JWT + retry) |
 | `pages/auth/callback` | ✅ Stub minimo (compat futuro redirect-flow) |
-| `pages/platform/catalog` | 🟡 Stub "Pendiente" |
-| `pages/platform/my-courses` | 🟡 Stub "Pendiente" |
+| `pages/platform/catalog` | ✅ Funcional (C2.4: grid + debounced search + PrimeNG Paginator) |
+| `pages/platform/my-courses` | ✅ Funcional (C2.4: table + Completado badge + Continuar nav) |
 | `pages/platform/profile` | ✅ Funcional (read-only desde JWT) |
-| `pages/platform/{certificates,badges,courses/:id,evaluations/:id}` | 🟡 Routes → `PendingViewComponent` |
+| `pages/platform/courses/:id` | ✅ Funcional (C2.4: preview/enrolled discriminator + VideoEmbed) |
+| `pages/platform/{certificates,badges,evaluations/:id}` | 🟡 Routes → `PendingViewComponent` |
 | `pages/platform/creator/mi-contenido` | ✅ Funcional (C2.1: lazy Table paginated + estado badge + create dialog) |
 | `pages/platform/creator/curso-editar/:id` | ✅ Funcional (C2.1: form titulo/descripcion, Save, disabled "Enviar a revisión"; C2.2: secciones + videos + reorder; C2.3: material adjunto con uploader + tabla; Cyanotype Workshop design; C3.1: "Definir evaluación" nav button) |
 | `pages/platform/creator/evaluacion-editar/:courseId` | ✅ Funcional (C3.1: evaluation form, question list + modal, opcion_multiple dynamic options, verdadero_falso radio selector, client validation) |
@@ -393,9 +394,31 @@ Frontend:
 
 ---
 
-#### C2.4 — `module-courses-catalog`
+#### C2.4 — `module-courses-catalog` ✅ ARCHIVED (2026-06-05)
 
-**Por que:** sin esto, los alumnos no ven los cursos. Implementa el catalogo publico + detalle + inscripcion.
+**Estado:** COMPLETE — 2 chained PRs (backend + frontend) merged to main. Manual smoke test PASSED. Closes the create→approve→**consume** loop.
+
+**Delivered:**
+
+Backend (PR-A: ee1a5aa):
+- Migration `0009_add_enrollment_completado` (completado boolean column on enrollment table)
+- 6 repo methods (ListApproved JOIN creator-name, GetApprovedDetail, CreateEnrollment idempotent, IsEnrolled, MarkCompleted, ListEnrollmentsByUser scoped)
+- 5 service methods (ListCatalog, GetCatalogDetail branches on enrollment, Enroll with aprobado-guard, ListMyCourses, MarkEnrollmentCompleted fulfills seam)
+- 4 DTOs: CoursePreviewResponse (no tree — structural no-leak), CourseDetailAlumnoResponse (with tree), CatalogCourseCard, MyCourseItem
+- 4 routes on protected group (JWT-only): GET /catalog, GET /catalog/:id, POST /catalog/:id/enroll, GET /users/me/courses
+- EnrollmentCompleter seam wired in main.go (non-vacuous end-to-end: passing attempt → completado=true)
+- Tests: 30 tasks, all green; 0 CRITICAL, 6 adversarial probes RED-confirmed
+
+Frontend (PR-B: f24c1bf + fixes):
+- CourseCatalogService (getCatalog/getDetail/enroll/getMyCourses)
+- CourseCardComponent (reusable grid card, Cyanotype design)
+- catalog page (grid + 300ms debounced search + PrimeNG Paginator)
+- course-detail page (preview/enrolled discriminator + VideoEmbed reuse)
+- my-courses page (table + Completado badge + Continuar absolute nav)
+- Tests: 16 tasks, 239 vitest all green; 0 CRITICAL, 4 probes RED-confirmed
+- Discovery: Angular template type-check gap (caught by `ng build`, not `tsc --noEmit`)
+
+**Unblocks:** C5.1 certificates (CertificateIssuer seam from C3.2 ready to wire)
 
 **Scope IN:**
 
