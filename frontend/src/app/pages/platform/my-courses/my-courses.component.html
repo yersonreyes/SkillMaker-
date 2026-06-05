@@ -11,17 +11,61 @@
     </p>
   </header>
 
-  <section class="panel" aria-label="Estado del modulo">
-    <div class="panel__head">
-      <i class="pi pi-info-circle"></i>
-      <span>BORRADOR / Pendiente de implementacion</span>
+  <!-- Loading -->
+  @if (loading()) {
+    <div class="panel">
+      <div class="panel__body">
+        <p-skeleton height="3rem" />
+        <p-skeleton height="3rem" styleClass="mt-2" />
+        <p-skeleton height="3rem" styleClass="mt-2" />
+      </div>
     </div>
-    <div class="panel__body">
-      <p>
-        El historial de inscripciones y el progreso por curso se incorporaran
-        cuando se entregue el modulo <code>enrollment</code> del backend.
-      </p>
+  }
+
+  <!-- Empty state -->
+  @if (!loading() && courses().length === 0) {
+    <div class="empty">
+      <i class="pi pi-book"></i>
+      <p>Aun no te has inscrito en ningun curso. Explora el <a href="/platform/catalog">catalogo</a>.</p>
     </div>
-  </section>
+  }
+
+  <!-- Table -->
+  @if (!loading() && courses().length > 0) {
+    <p-table [value]="courses()" [tableStyle]="{ 'min-width': '40rem' }">
+      <ng-template pTemplate="header">
+        <tr>
+          <th>Curso</th>
+          <th>Creador</th>
+          <th>Inscrito en</th>
+          <th>Estado</th>
+          <th>Accion</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-course>
+        <tr>
+          <td>{{ course.titulo }}</td>
+          <td>{{ course.creadorNombre }}</td>
+          <td>{{ course.inscritoEn | date: 'dd/MM/yyyy' }}</td>
+          <td>
+            @if (course.completado) {
+              <span class="tag tag--success">Completado</span>
+            } @else {
+              <span class="tag tag--info">En progreso</span>
+            }
+          </td>
+          <td>
+            <button
+              type="button"
+              class="btn btn--outline"
+              (click)="goToCourse(course)"
+            >
+              Continuar
+            </button>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  }
 
 </div>

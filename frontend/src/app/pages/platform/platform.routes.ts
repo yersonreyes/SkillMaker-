@@ -24,8 +24,13 @@ export const PLATFORM_ROUTES: Routes = [
           import('./profile/profile.component').then(m => m.ProfileComponent),
       },
 
-      // Domain stubs (load PendingViewComponent)
-      { path: 'courses/:id',  component: PendingViewComponent, data: { title: 'Detalle del curso' } },
+      // Course detail — alumno-facing (C2.4). Branches on enrolled flag.
+      {
+        path: 'courses/:id',
+        loadComponent: () =>
+          import('./course-detail/course-detail.component').then(m => m.CourseDetailAlumnoComponent),
+        data: { title: 'Detalle del curso' },
+      },
       {
         // Student attempt page — replaces the evaluations/:id stub (C3.2).
         // :id = evaluationId. No role guard — any authenticated user may attempt.

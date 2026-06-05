@@ -1,0 +1,83 @@
+<div class="page">
+
+  <!-- Loading state -->
+  @if (loading()) {
+    <div class="page__head">
+      <p-skeleton width="12rem" height="1.5rem" />
+      <p-skeleton width="24rem" height="2.5rem" styleClass="mt-2" />
+    </div>
+  }
+
+  <!-- Preview branch (enrolled=false) -->
+  @if (!loading() && preview()) {
+    <header class="page__head">
+      <p class="page__eyebrow">{{ preview()!.creadorNombre }}</p>
+      <h1 class="page__title">
+        {{ preview()!.titulo }}<span class="tk-dot">.</span>
+      </h1>
+      <p class="page__lede">{{ preview()!.descripcion }}</p>
+    </header>
+
+    <div class="panel course-detail__enroll-panel">
+      <div class="panel__body">
+        <p>Inscribete en este curso para acceder a todo el contenido.</p>
+        <button
+          type="button"
+          class="btn btn--cyan"
+          [disabled]="enrolling()"
+          (click)="onEnroll()"
+        >
+          {{ enrolling() ? 'Inscribiendo...' : 'Inscribirme' }}
+        </button>
+      </div>
+    </div>
+  }
+
+  <!-- Enrolled branch (enrolled=true) -->
+  @if (!loading() && enrolledDetail()) {
+    <header class="page__head">
+      <p class="page__eyebrow">{{ enrolledDetail()!.creadorNombre }}</p>
+      <h1 class="page__title">
+        {{ enrolledDetail()!.titulo }}<span class="tk-dot">.</span>
+      </h1>
+      <p class="page__lede">{{ enrolledDetail()!.descripcion }}</p>
+    </header>
+
+    <!-- Secciones con videos -->
+    @for (seccion of enrolledDetail()!.secciones; track seccion.id) {
+      <section class="panel course-detail__seccion">
+        <div class="panel__head">
+          <span>{{ seccion.titulo }}</span>
+        </div>
+        <div class="panel__body">
+          @for (video of seccion.videos; track video.id) {
+            <div class="course-detail__video">
+              <p class="course-detail__video-titulo">{{ video.titulo }}</p>
+              <app-video-embed [url]="video.url" [proveedor]="video.proveedor" />
+            </div>
+          }
+        </div>
+      </section>
+    }
+
+    <!-- Materiales -->
+    @if (enrolledDetail()!.materiales.length > 0) {
+      <section class="panel course-detail__materiales">
+        <div class="panel__head">
+          <span>Materiales de apoyo</span>
+        </div>
+        <div class="panel__body">
+          <ul class="course-detail__materiales-list">
+            @for (mat of enrolledDetail()!.materiales; track mat.id) {
+              <li class="course-detail__material-item">
+                <i class="pi pi-file"></i>
+                <span>{{ mat.nombre }}</span>
+              </li>
+            }
+          </ul>
+        </div>
+      </section>
+    }
+  }
+
+</div>

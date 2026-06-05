@@ -11,18 +11,54 @@
     </p>
   </header>
 
-  <section class="panel" aria-label="Estado del modulo">
-    <div class="panel__head">
-      <i class="pi pi-info-circle"></i>
-      <span>BORRADOR / Pendiente de implementacion</span>
+  <!-- Search -->
+  <div class="catalog__search field">
+    <input
+      class="field__input"
+      type="search"
+      placeholder="Buscar cursos..."
+      (input)="onSearchInput($any($event.target).value)"
+      aria-label="Buscar cursos"
+    />
+  </div>
+
+  <!-- Loading skeletons -->
+  @if (loading()) {
+    <div class="catalog__grid">
+      @for (_ of [1,2,3,4,5,6]; track $index) {
+        <p-skeleton height="12rem" />
+      }
     </div>
-    <div class="panel__body">
-      <p>
-        El listado real de cursos se trazara en un cambio SDD posterior cuando se
-        desarrollen los modulos <code>courses</code> y <code>enrollment</code> del
-        backend. Por ahora esta vista queda como plano vacio sobre la mesa.
-      </p>
+  }
+
+  <!-- Empty state -->
+  @if (!loading() && courses().length === 0) {
+    <div class="empty">
+      <i class="pi pi-inbox"></i>
+      <p>No hay cursos disponibles en este momento.</p>
     </div>
-  </section>
+  }
+
+  <!-- Course grid -->
+  @if (!loading() && courses().length > 0) {
+    <div class="catalog__grid">
+      @for (course of courses(); track course.id) {
+        <app-course-card
+          [card]="course"
+          (open)="openDetail(course)"
+        />
+      }
+    </div>
+  }
+
+  <!-- Paginator -->
+  @if (total() > size()) {
+    <p-paginator
+      [rows]="size()"
+      [totalRecords]="total()"
+      [first]="(page() - 1) * size()"
+      (onPageChange)="onPageChange($event)"
+    />
+  }
 
 </div>
