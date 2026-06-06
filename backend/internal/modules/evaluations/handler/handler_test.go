@@ -227,7 +227,7 @@ func (m *mockCourseSvc) ReorderSections(ctx context.Context, courseID, creadorID
 	args := m.Called(ctx, courseID, creadorID, ids)
 	return args.Error(0)
 }
-func (m *mockCourseSvc) CreateVideo(ctx context.Context, creadorID string, req coursesService.VideoCreateRequest) (*coursesService.VideoModel, error) {
+func (m *mockCourseSvc) CreateVideo(ctx context.Context, creadorID string, req coursesService.VideoCreateRequest) (*coursesService.VideoModel, error) { //nolint:gocritic
 	args := m.Called(ctx, creadorID, req)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -253,28 +253,40 @@ func (m *mockCourseSvc) HasContent(ctx context.Context, courseID, creadorID stri
 	args := m.Called(ctx, courseID, creadorID)
 	return args.Bool(0), args.Error(1)
 }
-func (m *mockCourseSvc) PresignUpload(ctx context.Context, courseID, creadorID string, req coursesService.PresignInput) (coursesService.PresignResult, error) {
-	args := m.Called(ctx, courseID, creadorID, req)
+
+// course-structure-v2: material methods updated.
+func (m *mockCourseSvc) PresignUpload(ctx context.Context, videoID, callerID string, req coursesService.PresignInput) (coursesService.PresignResult, error) {
+	args := m.Called(ctx, videoID, callerID, req)
 	return args.Get(0).(coursesService.PresignResult), args.Error(1)
 }
-func (m *mockCourseSvc) ConfirmUpload(ctx context.Context, courseID, creadorID string, req coursesService.ConfirmInput) (*coursesService.MaterialModel, error) {
-	args := m.Called(ctx, courseID, creadorID, req)
+func (m *mockCourseSvc) ConfirmUpload(ctx context.Context, videoID, callerID string, req coursesService.ConfirmInput) (*coursesService.MaterialModel, error) {
+	args := m.Called(ctx, videoID, callerID, req)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*coursesService.MaterialModel), args.Error(1)
 }
-func (m *mockCourseSvc) ListMaterials(ctx context.Context, courseID, creadorID string) ([]coursesService.MaterialModel, error) {
-	args := m.Called(ctx, courseID, creadorID)
+func (m *mockCourseSvc) ListMaterialsByVideo(ctx context.Context, videoID, callerID string) ([]coursesService.MaterialModel, error) {
+	args := m.Called(ctx, videoID, callerID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).([]coursesService.MaterialModel), args.Error(1)
 }
-func (m *mockCourseSvc) PresignDownload(ctx context.Context, courseID, materialID, creadorID string) (coursesService.DownloadResult, error) {
-	args := m.Called(ctx, courseID, materialID, creadorID)
+func (m *mockCourseSvc) PresignDownload(ctx context.Context, materialID, callerID string) (coursesService.DownloadResult, error) {
+	args := m.Called(ctx, materialID, callerID)
 	return args.Get(0).(coursesService.DownloadResult), args.Error(1)
 }
-func (m *mockCourseSvc) DeleteMaterial(ctx context.Context, materialID, creadorID string) error {
-	args := m.Called(ctx, materialID, creadorID)
+func (m *mockCourseSvc) DeleteMaterial(ctx context.Context, materialID, callerID string) error {
+	args := m.Called(ctx, materialID, callerID)
 	return args.Error(0)
+}
+func (m *mockCourseSvc) PresignThumbnail(_ context.Context, _, _ string, _ coursesService.PresignInput) (coursesService.PresignResult, error) {
+	return coursesService.PresignResult{}, nil
+}
+func (m *mockCourseSvc) ConfirmThumbnail(_ context.Context, _, _, _ string) error { return nil }
+func (m *mockCourseSvc) ListCategorias(_ context.Context) ([]coursesService.CategoriaModel, error) {
+	return nil, nil
 }
 func (m *mockCourseSvc) GetCourseOwnership(ctx context.Context, courseID string) (creadorID, estado string, err error) {
 	args := m.Called(ctx, courseID)

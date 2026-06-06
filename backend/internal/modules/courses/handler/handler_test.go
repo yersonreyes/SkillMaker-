@@ -122,7 +122,7 @@ func (m *mockCourseSvc) ReorderSections(ctx context.Context, courseID, creadorID
 	return args.Error(0)
 }
 
-func (m *mockCourseSvc) CreateVideo(ctx context.Context, creadorID string, req service.VideoCreateRequest) (*service.VideoModel, error) {
+func (m *mockCourseSvc) CreateVideo(ctx context.Context, creadorID string, req service.VideoCreateRequest) (*service.VideoModel, error) { //nolint:gocritic
 	args := m.Called(ctx, creadorID, req)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -158,32 +158,55 @@ func (m *mockCourseSvc) HasContent(ctx context.Context, courseID, creadorID stri
 	return args.Bool(0), args.Error(1)
 }
 
-func (m *mockCourseSvc) PresignUpload(ctx context.Context, courseID, creadorID string, req service.PresignInput) (service.PresignResult, error) {
-	args := m.Called(ctx, courseID, creadorID, req)
+// course-structure-v2: material methods updated to videoID-based API.
+
+func (m *mockCourseSvc) PresignUpload(ctx context.Context, videoID, callerID string, req service.PresignInput) (service.PresignResult, error) {
+	args := m.Called(ctx, videoID, callerID, req)
 	return args.Get(0).(service.PresignResult), args.Error(1)
 }
 
-func (m *mockCourseSvc) ConfirmUpload(ctx context.Context, courseID, creadorID string, req service.ConfirmInput) (*service.MaterialModel, error) {
-	args := m.Called(ctx, courseID, creadorID, req)
+func (m *mockCourseSvc) ConfirmUpload(ctx context.Context, videoID, callerID string, req service.ConfirmInput) (*service.MaterialModel, error) {
+	args := m.Called(ctx, videoID, callerID, req)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*service.MaterialModel), args.Error(1)
 }
 
-func (m *mockCourseSvc) ListMaterials(ctx context.Context, courseID, creadorID string) ([]service.MaterialModel, error) {
-	args := m.Called(ctx, courseID, creadorID)
+func (m *mockCourseSvc) ListMaterialsByVideo(ctx context.Context, videoID, callerID string) ([]service.MaterialModel, error) {
+	args := m.Called(ctx, videoID, callerID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).([]service.MaterialModel), args.Error(1)
 }
 
-func (m *mockCourseSvc) PresignDownload(ctx context.Context, courseID, materialID, creadorID string) (service.DownloadResult, error) {
-	args := m.Called(ctx, courseID, materialID, creadorID)
+func (m *mockCourseSvc) PresignDownload(ctx context.Context, materialID, callerID string) (service.DownloadResult, error) {
+	args := m.Called(ctx, materialID, callerID)
 	return args.Get(0).(service.DownloadResult), args.Error(1)
 }
 
-func (m *mockCourseSvc) DeleteMaterial(ctx context.Context, materialID, creadorID string) error {
-	args := m.Called(ctx, materialID, creadorID)
+func (m *mockCourseSvc) DeleteMaterial(ctx context.Context, materialID, callerID string) error {
+	args := m.Called(ctx, materialID, callerID)
 	return args.Error(0)
+}
+
+func (m *mockCourseSvc) PresignThumbnail(ctx context.Context, courseID, callerID string, req service.PresignInput) (service.PresignResult, error) {
+	args := m.Called(ctx, courseID, callerID, req)
+	return args.Get(0).(service.PresignResult), args.Error(1)
+}
+
+func (m *mockCourseSvc) ConfirmThumbnail(ctx context.Context, courseID, callerID, key string) error {
+	args := m.Called(ctx, courseID, callerID, key)
+	return args.Error(0)
+}
+
+func (m *mockCourseSvc) ListCategorias(ctx context.Context) ([]service.CategoriaModel, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]service.CategoriaModel), args.Error(1)
 }
 
 // GetCourseOwnership satisfies the cross-module seam added in C3.1.
@@ -908,24 +931,24 @@ func TestCreateVideo_HappyPath_Returns201(t *testing.T) {
 	svc.AssertExpectations(t)
 }
 
-// ── Material handler tests (C2.3) ─────────────────────────────────────────────
+// ── Material handler tests (course-structure-v2: videoID-based routes) ────────
 
-// TestPresignMaterial_Returns200 verifies presign endpoint returns 200 with uploadUrl + key.
-// Spec: REQ-PRESIGN happy path.
+// TestPresignMaterial_Returns200 verifies presign endpoint returns 200.
+// course-structure-v2: route is POST /videos/:id/materials/presign.
 func TestPresignMaterial_Returns200(t *testing.T) {
 	svc := &mockCourseSvc{}
 	creadorID := "creador-1"
-	courseID := "course-1"
+	videoID := "video-1"
 	engine := setupEngine(svc, creadorID, []string{"creador"})
 
-	svc.On("PresignUpload", mock.Anything, courseID, creadorID, mock.AnythingOfType("service.PresignInput")).
+	svc.On("PresignUpload", mock.Anything, videoID, creadorID, mock.AnythingOfType("service.PresignInput")).
 		Return(service.PresignResult{
 			UploadURL: "https://minio/presigned",
-			Key:       "courses/course-1/materials/uuid-doc.pdf",
+			Key:       "courses/c/videos/video-1/materials/uuid-doc.pdf",
 			ExpiresAt: time.Now().Add(15 * time.Minute),
 		}, nil)
 
-	w := do(engine, http.MethodPost, "/courses/"+courseID+"/materials/presign", map[string]any{
+	w := do(engine, http.MethodPost, "/videos/"+videoID+"/materials/presign", map[string]any{
 		"nombre":      "doc.pdf",
 		"contentType": "application/pdf",
 		"tamanoBytes": 1024,
@@ -935,18 +958,17 @@ func TestPresignMaterial_Returns200(t *testing.T) {
 	svc.AssertExpectations(t)
 }
 
-// TestPresignMaterial_FileTooLarge_Returns413 verifies 413 is returned for large files.
-// Spec: REQ-PRESIGN "File too large", AC4. REQ-ERRMAP.
+// TestPresignMaterial_FileTooLarge_Returns413 verifies 413 for large files.
 func TestPresignMaterial_FileTooLarge_Returns413(t *testing.T) {
 	svc := &mockCourseSvc{}
 	creadorID := "creador-1"
-	courseID := "course-1"
+	videoID := "video-1"
 	engine := setupEngine(svc, creadorID, []string{"creador"})
 
-	svc.On("PresignUpload", mock.Anything, courseID, creadorID, mock.AnythingOfType("service.PresignInput")).
+	svc.On("PresignUpload", mock.Anything, videoID, creadorID, mock.AnythingOfType("service.PresignInput")).
 		Return(service.PresignResult{}, service.ErrFileTooLarge)
 
-	w := do(engine, http.MethodPost, "/courses/"+courseID+"/materials/presign", map[string]any{
+	w := do(engine, http.MethodPost, "/videos/"+videoID+"/materials/presign", map[string]any{
 		"nombre":      "big.zip",
 		"contentType": "application/zip",
 		"tamanoBytes": 52_428_801,
@@ -958,17 +980,16 @@ func TestPresignMaterial_FileTooLarge_Returns413(t *testing.T) {
 }
 
 // TestPresignMaterial_MIMENotAllowed_Returns415 verifies 415 for non-whitelisted MIME.
-// Spec: REQ-PRESIGN "MIME not in whitelist", AC5. REQ-ERRMAP.
 func TestPresignMaterial_MIMENotAllowed_Returns415(t *testing.T) {
 	svc := &mockCourseSvc{}
 	creadorID := "creador-1"
-	courseID := "course-1"
+	videoID := "video-1"
 	engine := setupEngine(svc, creadorID, []string{"creador"})
 
-	svc.On("PresignUpload", mock.Anything, courseID, creadorID, mock.AnythingOfType("service.PresignInput")).
+	svc.On("PresignUpload", mock.Anything, videoID, creadorID, mock.AnythingOfType("service.PresignInput")).
 		Return(service.PresignResult{}, service.ErrMIMENotAllowed)
 
-	w := do(engine, http.MethodPost, "/courses/"+courseID+"/materials/presign", map[string]any{
+	w := do(engine, http.MethodPost, "/videos/"+videoID+"/materials/presign", map[string]any{
 		"nombre":      "malware.exe",
 		"contentType": "application/x-msdownload",
 		"tamanoBytes": 1024,
@@ -979,28 +1000,28 @@ func TestPresignMaterial_MIMENotAllowed_Returns415(t *testing.T) {
 	svc.AssertExpectations(t)
 }
 
-// TestConfirmMaterial_Returns201 verifies confirm endpoint returns 201 with MaterialResponse.
-// Spec: REQ-CONFIRM happy path.
+// TestConfirmMaterial_Returns201 verifies confirm endpoint returns 201.
+// course-structure-v2: route is POST /videos/:id/materials.
 func TestConfirmMaterial_Returns201(t *testing.T) {
 	svc := &mockCourseSvc{}
 	creadorID := "creador-1"
-	courseID := "course-1"
+	videoID := "video-1"
 	engine := setupEngine(svc, creadorID, []string{"creador"})
 
 	mat := &service.MaterialModel{
 		ID:          "mat-1",
-		CourseID:    courseID,
+		VideoID:     videoID,
 		Titulo:      "documento.pdf",
-		StorageKey:  "courses/course-1/materials/uuid-documento.pdf",
+		StorageKey:  "courses/c/videos/video-1/materials/uuid-documento.pdf",
 		MimeType:    "application/pdf",
 		TamanoBytes: 1024,
 		CreatedAt:   time.Now(),
 	}
-	svc.On("ConfirmUpload", mock.Anything, courseID, creadorID, mock.AnythingOfType("service.ConfirmInput")).
+	svc.On("ConfirmUpload", mock.Anything, videoID, creadorID, mock.AnythingOfType("service.ConfirmInput")).
 		Return(mat, nil)
 
-	w := do(engine, http.MethodPost, "/courses/"+courseID+"/materials", map[string]any{
-		"key":         "courses/course-1/materials/uuid-documento.pdf",
+	w := do(engine, http.MethodPost, "/videos/"+videoID+"/materials", map[string]any{
+		"key":         "courses/c/videos/video-1/materials/uuid-documento.pdf",
 		"nombre":      "documento.pdf",
 		"contentType": "application/pdf",
 		"tamanoBytes": 1024,
@@ -1010,14 +1031,13 @@ func TestConfirmMaterial_Returns201(t *testing.T) {
 	svc.AssertExpectations(t)
 }
 
-// TestConfirmMaterial_MissingFields_Returns400 verifies 400 when required fields are absent.
-// Spec: REQ-CONFIRM "Missing fields at confirm".
+// TestConfirmMaterial_MissingFields_Returns400 verifies 400 when required fields absent.
 func TestConfirmMaterial_MissingFields_Returns400(t *testing.T) {
 	svc := &mockCourseSvc{}
 	engine := setupEngine(svc, "creador-1", []string{"creador"})
 
 	// Missing "key" field — binding:"required" must reject this.
-	w := do(engine, http.MethodPost, "/courses/course-1/materials", map[string]any{
+	w := do(engine, http.MethodPost, "/videos/video-1/materials", map[string]any{
 		"nombre":      "doc.pdf",
 		"contentType": "application/pdf",
 		"tamanoBytes": 1024,
@@ -1027,42 +1047,41 @@ func TestConfirmMaterial_MissingFields_Returns400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-// TestListMaterials_Returns200 verifies list endpoint returns 200 with array.
-// Spec: REQ-LIST "Owner lists materials" scenario.
+// TestListMaterials_Returns200 verifies list endpoint returns 200.
+// course-structure-v2: route is GET /videos/:id/materials.
 func TestListMaterials_Returns200(t *testing.T) {
 	svc := &mockCourseSvc{}
 	creadorID := "creador-1"
-	courseID := "course-1"
+	videoID := "video-1"
 	engine := setupEngine(svc, creadorID, []string{"creador"})
 
 	mats := []service.MaterialModel{
-		{ID: "m1", CourseID: courseID, Titulo: "doc1.pdf", MimeType: "application/pdf", TamanoBytes: 512, CreatedAt: time.Now()},
-		{ID: "m2", CourseID: courseID, Titulo: "doc2.pdf", MimeType: "application/pdf", TamanoBytes: 1024, CreatedAt: time.Now()},
+		{ID: "m1", VideoID: videoID, Titulo: "doc1.pdf", MimeType: "application/pdf", TamanoBytes: 512, CreatedAt: time.Now()},
+		{ID: "m2", VideoID: videoID, Titulo: "doc2.pdf", MimeType: "application/pdf", TamanoBytes: 1024, CreatedAt: time.Now()},
 	}
-	svc.On("ListMaterials", mock.Anything, courseID, creadorID).Return(mats, nil)
+	svc.On("ListMaterialsByVideo", mock.Anything, videoID, creadorID).Return(mats, nil)
 
-	w := do(engine, http.MethodGet, "/courses/"+courseID+"/materials", nil)
+	w := do(engine, http.MethodGet, "/videos/"+videoID+"/materials", nil)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	svc.AssertExpectations(t)
 }
 
-// TestDownloadMaterial_Returns200 verifies download endpoint returns 200 with url + expiresAt.
-// Spec: REQ-DOWNLOAD "Owner downloads material" scenario.
+// TestDownloadMaterial_Returns200 verifies download endpoint returns 200.
+// course-structure-v2: route is GET /materials/:id/download.
 func TestDownloadMaterial_Returns200(t *testing.T) {
 	svc := &mockCourseSvc{}
 	creadorID := "creador-1"
-	courseID := "course-1"
 	materialID := "mat-1"
 	engine := setupEngine(svc, creadorID, []string{"creador"})
 
-	svc.On("PresignDownload", mock.Anything, courseID, materialID, creadorID).
+	svc.On("PresignDownload", mock.Anything, materialID, creadorID).
 		Return(service.DownloadResult{
 			URL:       "https://minio/presigned-get/key",
 			ExpiresAt: time.Now().Add(15 * time.Minute),
 		}, nil)
 
-	w := do(engine, http.MethodGet, "/courses/"+courseID+"/materials/"+materialID+"/download", nil)
+	w := do(engine, http.MethodGet, "/materials/"+materialID+"/download", nil)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	svc.AssertExpectations(t)
@@ -1115,6 +1134,199 @@ func TestDeleteMaterial_NonOwner_Returns403(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
 	assert.Equal(t, "NOT_OWNER", respCode(w))
+	svc.AssertExpectations(t)
+}
+
+// ── Thumbnail handler tests (course-structure-v2) ────────────────────────────
+
+// TestPresignThumbnail_Returns200 verifies thumbnail presign returns 200.
+func TestPresignThumbnail_Returns200(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	courseID := "course-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("PresignThumbnail", mock.Anything, courseID, creadorID, mock.AnythingOfType("service.PresignInput")).
+		Return(service.PresignResult{
+			UploadURL: "https://minio/thumb",
+			Key:       "courses/course-1/thumbnail/uuid-cover.jpg",
+			ExpiresAt: time.Now().Add(15 * time.Minute),
+		}, nil)
+
+	w := do(engine, http.MethodPost, "/courses/"+courseID+"/thumbnail/presign", map[string]any{
+		"nombre":      "cover.jpg",
+		"contentType": "image/jpeg",
+		"tamanoBytes": 512_000,
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	svc.AssertExpectations(t)
+}
+
+// TestConfirmThumbnail_Returns200 verifies thumbnail confirm returns 200.
+func TestConfirmThumbnail_Returns200(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	courseID := "course-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("ConfirmThumbnail", mock.Anything, courseID, creadorID,
+		"courses/course-1/thumbnail/uuid-cover.jpg").Return(nil)
+
+	w := do(engine, http.MethodPost, "/courses/"+courseID+"/thumbnail", map[string]any{
+		"key": "courses/course-1/thumbnail/uuid-cover.jpg",
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	svc.AssertExpectations(t)
+}
+
+// TestPresignThumbnail_MIMENotAllowed_Returns415 verifies 415 for non-image MIME.
+func TestPresignThumbnail_MIMENotAllowed_Returns415(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	courseID := "course-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("PresignThumbnail", mock.Anything, courseID, creadorID, mock.AnythingOfType("service.PresignInput")).
+		Return(service.PresignResult{}, service.ErrMIMENotAllowed)
+
+	w := do(engine, http.MethodPost, "/courses/"+courseID+"/thumbnail/presign", map[string]any{
+		"nombre":      "notes.pdf",
+		"contentType": "application/pdf",
+		"tamanoBytes": 1024,
+	})
+
+	assert.Equal(t, http.StatusUnsupportedMediaType, w.Code)
+	svc.AssertExpectations(t)
+}
+
+// ── FIX-3: Missing handler gate tests (WARNING-3) ────────────────────────────
+
+// TestDeleteMaterial_NonEditable_Returns409 verifies DELETE /materials/:id returns 409
+// when the course is not editable (aprobado/en_revision).
+// FIX-3: handler-level gate test was missing (WARNING-3).
+// STRICT TDD: RED → GREEN.
+func TestDeleteMaterial_NonEditable_Returns409(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	materialID := "mat-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("DeleteMaterial", mock.Anything, materialID, creadorID).Return(service.ErrInvalidTransition)
+
+	w := do(engine, http.MethodDelete, "/materials/"+materialID, nil)
+
+	assert.Equal(t, http.StatusConflict, w.Code,
+		"FIX-3: DELETE material on non-editable course must return 409 ERR_COURSE_NOT_EDITABLE")
+	assert.Equal(t, "ERR_COURSE_NOT_EDITABLE", respCode(w))
+	svc.AssertExpectations(t)
+}
+
+// TestPresignMaterial_NonOwner_Returns403 verifies POST /videos/:id/materials/presign
+// returns 403 for a non-owner caller.
+// FIX-3: handler-level non-owner test was missing (WARNING-3).
+func TestPresignMaterial_NonOwner_Returns403(t *testing.T) {
+	svc := &mockCourseSvc{}
+	foreignID := "foreign-creador"
+	videoID := "video-1"
+	engine := setupEngine(svc, foreignID, []string{"creador"})
+
+	svc.On("PresignUpload", mock.Anything, videoID, foreignID, mock.AnythingOfType("service.PresignInput")).
+		Return(service.PresignResult{}, service.ErrNotOwner)
+
+	w := do(engine, http.MethodPost, "/videos/"+videoID+"/materials/presign", map[string]any{
+		"nombre":      "doc.pdf",
+		"contentType": "application/pdf",
+		"tamanoBytes": 1024,
+	})
+
+	assert.Equal(t, http.StatusForbidden, w.Code,
+		"FIX-3: non-owner presign must return 403")
+	assert.Equal(t, "NOT_OWNER", respCode(w))
+	svc.AssertExpectations(t)
+}
+
+// TestPresignMaterial_NonEditable_Returns409 verifies POST /videos/:id/materials/presign
+// returns 409 when course is not editable.
+// FIX-3: handler-level non-editable test was missing (WARNING-3).
+func TestPresignMaterial_NonEditable_Returns409(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	videoID := "video-1"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("PresignUpload", mock.Anything, videoID, creadorID, mock.AnythingOfType("service.PresignInput")).
+		Return(service.PresignResult{}, service.ErrInvalidTransition)
+
+	w := do(engine, http.MethodPost, "/videos/"+videoID+"/materials/presign", map[string]any{
+		"nombre":      "doc.pdf",
+		"contentType": "application/pdf",
+		"tamanoBytes": 1024,
+	})
+
+	assert.Equal(t, http.StatusConflict, w.Code,
+		"FIX-3: presign on non-editable course must return 409 ERR_COURSE_NOT_EDITABLE")
+	assert.Equal(t, "ERR_COURSE_NOT_EDITABLE", respCode(w))
+	svc.AssertExpectations(t)
+}
+
+// TestDownloadMaterial_EnrolledNonOwner_Returns200 verifies GET /materials/:id/download
+// returns 200 for an enrolled non-owner (FIX-1 handler-level coverage).
+func TestDownloadMaterial_EnrolledNonOwner_Returns200(t *testing.T) {
+	svc := &mockCourseSvc{}
+	enrolledUserID := "enrolled-user"
+	materialID := "mat-1"
+	engine := setupEngine(svc, enrolledUserID, []string{"creador"})
+
+	svc.On("PresignDownload", mock.Anything, materialID, enrolledUserID).
+		Return(service.DownloadResult{
+			URL:       "https://minio/presigned-get/key",
+			ExpiresAt: time.Now().Add(15 * time.Minute),
+		}, nil)
+
+	w := do(engine, http.MethodGet, "/materials/"+materialID+"/download", nil)
+
+	assert.Equal(t, http.StatusOK, w.Code,
+		"FIX-1: enrolled non-owner must get 200 on download")
+	svc.AssertExpectations(t)
+}
+
+// TestDownloadMaterial_NonEnrolledNonOwner_Returns403 verifies GET /materials/:id/download
+// returns 403 for a non-enrolled non-owner (FIX-1 handler-level coverage).
+func TestDownloadMaterial_NonEnrolledNonOwner_Returns403(t *testing.T) {
+	svc := &mockCourseSvc{}
+	strangerID := "stranger"
+	materialID := "mat-1"
+	engine := setupEngine(svc, strangerID, []string{"creador"})
+
+	svc.On("PresignDownload", mock.Anything, materialID, strangerID).
+		Return(service.DownloadResult{}, service.ErrNotOwner)
+
+	w := do(engine, http.MethodGet, "/materials/"+materialID+"/download", nil)
+
+	assert.Equal(t, http.StatusForbidden, w.Code,
+		"FIX-1: non-enrolled non-owner must get 403 on download")
+	assert.Equal(t, "NOT_OWNER", respCode(w))
+	svc.AssertExpectations(t)
+}
+
+// TestDownloadMaterial_NotFound_Returns404 verifies GET /materials/:id/download
+// returns 404 for a non-existent material (FIX-1 handler-level coverage).
+func TestDownloadMaterial_NotFound_Returns404(t *testing.T) {
+	svc := &mockCourseSvc{}
+	creadorID := "creador-1"
+	materialID := "mat-nonexistent"
+	engine := setupEngine(svc, creadorID, []string{"creador"})
+
+	svc.On("PresignDownload", mock.Anything, materialID, creadorID).
+		Return(service.DownloadResult{}, service.ErrMaterialNotFound)
+
+	w := do(engine, http.MethodGet, "/materials/"+materialID+"/download", nil)
+
+	assert.Equal(t, http.StatusNotFound, w.Code,
+		"FIX-1: non-existent material must get 404 on download")
+	assert.Equal(t, "MATERIAL_NOT_FOUND", respCode(w))
 	svc.AssertExpectations(t)
 }
 

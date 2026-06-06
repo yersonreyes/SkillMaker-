@@ -32,6 +32,12 @@ type Handler struct {
 
 // Register mounts the courses routes onto a pre-built Gin route group.
 // The group must already carry JWT + RequireRole("creador") middleware.
+//
+// Gin wildcard rule: within a single HTTP method's radix tree, the wildcard NAME
+// at a given path position MUST be identical. Resolution (course-structure-v2):
+//   - POST tree: /videos uses :id; /courses uses :courseId (consistent with existing POST /courses/:courseId/sections)
+//   - GET tree: independent (no conflict)
+//   - PATCH/DELETE trees: unchanged :id
 func Register(creatorGrp *gin.RouterGroup, svc service.Service) {
 	h := &Handler{svc: svc}
 
@@ -53,15 +59,20 @@ func Register(creatorGrp *gin.RouterGroup, svc service.Service) {
 	creatorGrp.PATCH("/videos/:id", h.UpdateVideo)
 	creatorGrp.DELETE("/videos/:id", h.DeleteVideo)
 
-	// Material routes (C2.3).
-	// POST tree: uses :courseId (matches existing POST /courses/:courseId/sections).
-	// GET tree: uses :id (matches existing GET /courses/:id/sections).
-	// DELETE: flat /materials/:id (no conflict).
-	creatorGrp.POST("/courses/:courseId/materials/presign", h.PresignMaterial)
-	creatorGrp.POST("/courses/:courseId/materials", h.ConfirmMaterial)
-	creatorGrp.GET("/courses/:id/materials", h.ListMaterials)
-	creatorGrp.GET("/courses/:id/materials/:materialId/download", h.DownloadMaterial)
+	// Material routes (course-structure-v2: videoID-based).
+	// POST tree: uses :id for /videos/* (consistent within POST tree).
+	// GET tree: independent, uses :id.
+	// Old /courses/:courseId/materials* routes REMOVED.
+	creatorGrp.POST("/videos/:id/materials/presign", h.PresignMaterial)
+	creatorGrp.POST("/videos/:id/materials", h.ConfirmMaterial)
+	creatorGrp.GET("/videos/:id/materials", h.ListMaterials)
+	creatorGrp.GET("/materials/:id/download", h.DownloadMaterial)
 	creatorGrp.DELETE("/materials/:id", h.DeleteMaterial)
+
+	// Thumbnail routes (course-structure-v2).
+	// POST tree: uses :courseId (consistent with POST /courses/:courseId/sections).
+	creatorGrp.POST("/courses/:courseId/thumbnail/presign", h.PresignThumbnail)
+	creatorGrp.POST("/courses/:courseId/thumbnail", h.ConfirmThumbnail)
 }
 
 // ── Course handlers ────────────────────────────────────────────────────────────
@@ -94,8 +105,11 @@ func (h *Handler) Create(c *gin.Context) {
 	}
 
 	model, err := h.svc.Create(c.Request.Context(), creadorID, service.CreateRequest{
-		Titulo:      req.Titulo,
-		Descripcion: req.Descripcion,
+		Titulo:        req.Titulo,
+		Descripcion:   req.Descripcion,
+		Nivel:         req.Nivel,
+		HorasPractico: req.HorasPractico,
+		CategoriaIDs:  req.CategoriaIDs,
 	})
 	if err != nil {
 		slog.Error("courses.create: unexpected error", "err", err)
@@ -174,7 +188,7 @@ func (h *Handler) Update(c *gin.Context) {
 	}
 
 	// Reject requests with no actionable fields.
-	if req.Titulo == nil && req.Descripcion == nil {
+	if req.Titulo == nil && req.Descripcion == nil && req.Nivel == nil && req.HorasPractico == nil && req.CategoriaIDs == nil {
 		httperr.Render(c, httperr.BadRequest("NO_FIELDS", "no fields to update"))
 		return
 	}
@@ -182,8 +196,11 @@ func (h *Handler) Update(c *gin.Context) {
 	creadorID := middleware.UserIDFrom(c)
 
 	model, err := h.svc.UpdateByID(c.Request.Context(), id, creadorID, service.UpdateRequest{
-		Titulo:      req.Titulo,
-		Descripcion: req.Descripcion,
+		Titulo:        req.Titulo,
+		Descripcion:   req.Descripcion,
+		Nivel:         req.Nivel,
+		HorasPractico: req.HorasPractico,
+		CategoriaIDs:  req.CategoriaIDs,
 	})
 	if err != nil {
 		h.renderCourseErrorWrite(c, err)
@@ -420,11 +437,12 @@ func (h *Handler) CreateVideo(c *gin.Context) {
 	}
 
 	model, err := h.svc.CreateVideo(c.Request.Context(), creadorID, service.VideoCreateRequest{
-		SectionID: sectionID,
-		Titulo:    req.Titulo,
-		URL:       req.URL,
-		Proveedor: req.Proveedor,
-		DuracionS: req.DuracionS,
+		SectionID:   sectionID,
+		Titulo:      req.Titulo,
+		Descripcion: req.Descripcion,
+		URL:         req.URL,
+		Proveedor:   req.Proveedor,
+		DuracionS:   req.DuracionS,
 	})
 	if err != nil {
 		h.renderCourseErrorWrite(c, err)
@@ -460,10 +478,11 @@ func (h *Handler) UpdateVideo(c *gin.Context) {
 	}
 
 	model, err := h.svc.UpdateVideo(c.Request.Context(), id, creadorID, service.VideoUpdateRequest{
-		Titulo:    req.Titulo,
-		URL:       req.URL,
-		Proveedor: req.Proveedor,
-		DuracionS: req.DuracionS,
+		Titulo:      req.Titulo,
+		Descripcion: req.Descripcion,
+		URL:         req.URL,
+		Proveedor:   req.Proveedor,
+		DuracionS:   req.DuracionS,
 	})
 	if err != nil {
 		h.renderCourseErrorWrite(c, err)
@@ -498,8 +517,8 @@ func (h *Handler) DeleteVideo(c *gin.Context) {
 // ── Material handlers (C2.3) ──────────────────────────────────────────────────
 
 // PresignMaterial godoc
-// @Summary     Genera URL presignada para subir un archivo
-// @Description Genera una URL PUT presignada para que el browser suba el archivo directamente a MinIO.
+// @Summary     Genera URL presignada para subir un archivo a un video
+// @Description course-structure-v2: URL ahora bajo /videos/:id/materials/presign (videoID).
 //
 //	ErrFileTooLarge → 413, ErrMIMENotAllowed → 415.
 //
@@ -507,18 +526,18 @@ func (h *Handler) DeleteVideo(c *gin.Context) {
 // @Accept      json
 // @Produce     json
 // @Security    BearerAuth
-// @Param       courseId path   string                         true "UUID del curso"
-// @Param       body     body   dto.MaterialPresignRequest     true "Datos del archivo a subir"
+// @Param       id   path   string                     true "UUID del video"
+// @Param       body body   dto.MaterialPresignRequest true "Datos del archivo a subir"
 // @Success     200 {object} dto.PresignResponse
-// @Failure     400 {object} httperr.Error "body invalido o campos faltantes"
-// @Failure     403 {object} httperr.Error "no es propietario del curso"
-// @Failure     404 {object} httperr.Error "curso no encontrado"
-// @Failure     409 {object} httperr.Error "estado no permite edicion"
-// @Failure     413 {object} httperr.Error "archivo demasiado grande"
-// @Failure     415 {object} httperr.Error "tipo de contenido no permitido"
-// @Router      /courses/{courseId}/materials/presign [post]
+// @Failure     400 {object} httperr.Error
+// @Failure     403 {object} httperr.Error
+// @Failure     404 {object} httperr.Error
+// @Failure     409 {object} httperr.Error
+// @Failure     413 {object} httperr.Error
+// @Failure     415 {object} httperr.Error
+// @Router      /videos/{id}/materials/presign [post]
 func (h *Handler) PresignMaterial(c *gin.Context) {
-	courseID := c.Param("courseId")
+	videoID := c.Param("id")
 	creadorID := middleware.UserIDFrom(c)
 
 	var req dto.MaterialPresignRequest
@@ -527,7 +546,7 @@ func (h *Handler) PresignMaterial(c *gin.Context) {
 		return
 	}
 
-	result, err := h.svc.PresignUpload(c.Request.Context(), courseID, creadorID, service.PresignInput{
+	result, err := h.svc.PresignUpload(c.Request.Context(), videoID, creadorID, service.PresignInput{
 		Nombre:      req.Nombre,
 		ContentType: req.ContentType,
 		TamanoBytes: req.TamanoBytes,
@@ -546,26 +565,23 @@ func (h *Handler) PresignMaterial(c *gin.Context) {
 
 // ConfirmMaterial godoc
 // @Summary     Confirma la subida de un material (crea la fila en DB)
-// @Description Persiste el material tras un PUT presignado exitoso. Re-valida tamano y MIME.
-//
-//	ErrInvalidMaterialKey → 400, ErrFileTooLarge → 413, ErrMIMENotAllowed → 415.
-//
+// @Description course-structure-v2: URL ahora bajo /videos/:id/materials (videoID).
 // @Tags        materials
 // @Accept      json
 // @Produce     json
 // @Security    BearerAuth
-// @Param       courseId path   string                         true "UUID del curso"
-// @Param       body     body   dto.MaterialConfirmRequest     true "Datos del material confirmado"
+// @Param       id   path   string                      true "UUID del video"
+// @Param       body body   dto.MaterialConfirmRequest  true "Datos del material confirmado"
 // @Success     201 {object} dto.MaterialResponse
-// @Failure     400 {object} httperr.Error "clave de objeto invalida o campos faltantes"
-// @Failure     403 {object} httperr.Error "no es propietario del curso"
-// @Failure     404 {object} httperr.Error "curso no encontrado"
-// @Failure     409 {object} httperr.Error "estado no permite edicion"
-// @Failure     413 {object} httperr.Error "archivo demasiado grande"
-// @Failure     415 {object} httperr.Error "tipo de contenido no permitido"
-// @Router      /courses/{courseId}/materials [post]
+// @Failure     400 {object} httperr.Error
+// @Failure     403 {object} httperr.Error
+// @Failure     404 {object} httperr.Error
+// @Failure     409 {object} httperr.Error
+// @Failure     413 {object} httperr.Error
+// @Failure     415 {object} httperr.Error
+// @Router      /videos/{id}/materials [post]
 func (h *Handler) ConfirmMaterial(c *gin.Context) {
-	courseID := c.Param("courseId")
+	videoID := c.Param("id")
 	creadorID := middleware.UserIDFrom(c)
 
 	var req dto.MaterialConfirmRequest
@@ -574,7 +590,7 @@ func (h *Handler) ConfirmMaterial(c *gin.Context) {
 		return
 	}
 
-	model, err := h.svc.ConfirmUpload(c.Request.Context(), courseID, creadorID, service.ConfirmInput{
+	model, err := h.svc.ConfirmUpload(c.Request.Context(), videoID, creadorID, service.ConfirmInput{
 		Key:         req.Key,
 		Nombre:      req.Nombre,
 		ContentType: req.ContentType,
@@ -589,23 +605,22 @@ func (h *Handler) ConfirmMaterial(c *gin.Context) {
 }
 
 // ListMaterials godoc
-// @Summary     Lista los materiales de un curso
-// @Description Retorna todos los materiales del curso ordenados por fecha de creacion ASC. Solo el propietario.
+// @Summary     Lista los materiales de un video
+// @Description course-structure-v2: URL /videos/:id/materials (videoID).
 // @Tags        materials
 // @Produce     json
 // @Security    BearerAuth
-// @Param       id path string true "UUID del curso"
+// @Param       id path string true "UUID del video"
 // @Success     200 {array}  dto.MaterialResponse
 // @Failure     401 {object} httperr.Error
-// @Failure     403 {object} httperr.Error "rol creador requerido"
-// @Failure     404 {object} httperr.Error "curso no encontrado o no pertenece al caller"
-// @Failure     500 {object} httperr.Error
-// @Router      /courses/{id}/materials [get]
+// @Failure     403 {object} httperr.Error
+// @Failure     404 {object} httperr.Error
+// @Router      /videos/{id}/materials [get]
 func (h *Handler) ListMaterials(c *gin.Context) {
-	courseID := c.Param("id")
+	videoID := c.Param("id")
 	creadorID := middleware.UserIDFrom(c)
 
-	materials, err := h.svc.ListMaterials(c.Request.Context(), courseID, creadorID)
+	materials, err := h.svc.ListMaterialsByVideo(c.Request.Context(), videoID, creadorID)
 	if err != nil {
 		h.renderCourseErrorRead(c, err)
 		return
@@ -620,25 +635,30 @@ func (h *Handler) ListMaterials(c *gin.Context) {
 
 // DownloadMaterial godoc
 // @Summary     Genera URL presignada para descargar un material
-// @Description Retorna una URL GET presignada con TTL = PresignTTL. Solo el propietario del curso.
+// @Description course-structure-v2: URL /materials/:id/download (flat; chain ownership via video).
+//
+//	OQ3 resolution: caller may download if they are the course owner OR enrolled in the course.
+//	Non-enrolled non-owner → 403 NOT_OWNER (not 404, as material existence is not a secret).
+//
 // @Tags        materials
 // @Produce     json
 // @Security    BearerAuth
-// @Param       id         path string true "UUID del curso"
-// @Param       materialId path string true "UUID del material"
+// @Param       id path string true "UUID del material"
 // @Success     200 {object} dto.DownloadResponse
 // @Failure     401 {object} httperr.Error
-// @Failure     404 {object} httperr.Error "material o curso no encontrado"
-// @Failure     500 {object} httperr.Error
-// @Router      /courses/{id}/materials/{materialId}/download [get]
+// @Failure     403 {object} httperr.Error "not owner or not enrolled"
+// @Failure     404 {object} httperr.Error "material not found"
+// @Router      /materials/{id}/download [get]
 func (h *Handler) DownloadMaterial(c *gin.Context) {
-	courseID := c.Param("id")
-	materialID := c.Param("materialId")
+	materialID := c.Param("id")
 	creadorID := middleware.UserIDFrom(c)
 
-	result, err := h.svc.PresignDownload(c.Request.Context(), courseID, materialID, creadorID)
+	result, err := h.svc.PresignDownload(c.Request.Context(), materialID, creadorID)
 	if err != nil {
-		h.renderCourseErrorRead(c, err)
+		// Use renderCourseErrorWrite so ErrNotOwner → 403 (authz signal).
+		// Material download is content access — non-owners get 403, not a hidden 404.
+		// Material existence is not a secret (the material ID comes from enrolled course detail).
+		h.renderCourseErrorWrite(c, err)
 		return
 	}
 
@@ -646,6 +666,73 @@ func (h *Handler) DownloadMaterial(c *gin.Context) {
 		URL:       result.URL,
 		ExpiresAt: result.ExpiresAt,
 	})
+}
+
+// PresignThumbnail godoc
+// @Summary     Genera URL presignada para subir miniatura de un curso
+// @Description course-structure-v2: imagen MIME only. Owner-gated + editable gate.
+// @Tags        courses
+// @Accept      json
+// @Produce     json
+// @Security    BearerAuth
+// @Param       courseId path   string                     true "UUID del curso"
+// @Param       body     body   dto.MaterialPresignRequest true "Datos de la imagen"
+// @Success     200 {object} dto.PresignResponse
+// @Router      /courses/{courseId}/thumbnail/presign [post]
+func (h *Handler) PresignThumbnail(c *gin.Context) {
+	courseID := c.Param("courseId")
+	creadorID := middleware.UserIDFrom(c)
+
+	var req dto.MaterialPresignRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperr.Render(c, httperr.BadRequest("INVALID_BODY", "body invalido: "+err.Error()))
+		return
+	}
+
+	result, err := h.svc.PresignThumbnail(c.Request.Context(), courseID, creadorID, service.PresignInput{
+		Nombre:      req.Nombre,
+		ContentType: req.ContentType,
+		TamanoBytes: req.TamanoBytes,
+	})
+	if err != nil {
+		h.renderCourseErrorWrite(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.PresignResponse{
+		UploadURL: result.UploadURL,
+		Key:       result.Key,
+		ExpiresAt: result.ExpiresAt,
+	})
+}
+
+// ConfirmThumbnail godoc
+// @Summary     Confirma la subida de la miniatura del curso
+// @Description course-structure-v2: sets miniatura_key on the course.
+// @Tags        courses
+// @Accept      json
+// @Produce     json
+// @Security    BearerAuth
+// @Param       courseId path   string                       true "UUID del curso"
+// @Param       body     body   dto.ThumbnailConfirmRequest  true "key de la miniatura"
+// @Success     200
+// @Router      /courses/{courseId}/thumbnail [post]
+func (h *Handler) ConfirmThumbnail(c *gin.Context) {
+	courseID := c.Param("courseId")
+	creadorID := middleware.UserIDFrom(c)
+
+	var req dto.ThumbnailConfirmRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperr.Render(c, httperr.BadRequest("INVALID_BODY", "body invalido: "+err.Error()))
+		return
+	}
+
+	if err := h.svc.ConfirmThumbnail(c.Request.Context(), courseID, creadorID, req.Key); err != nil {
+		h.renderCourseErrorWrite(c, err)
+		return
+	}
+
+	c.Status(http.StatusOK)
 }
 
 // DeleteMaterial godoc
@@ -677,6 +764,7 @@ func (h *Handler) DeleteMaterial(c *gin.Context) {
 
 // renderCourseErrorRead maps service sentinels to HTTP statuses for READ routes (GET).
 // CRITICAL: ErrNotOwner → 404 here (hides existence of private drafts from other creadores).
+// REQ-SEC: ErrInvalidTransition (course not editable) → 409 ERR_COURSE_NOT_EDITABLE.
 func (h *Handler) renderCourseErrorRead(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, service.ErrCourseNotFound):
@@ -690,7 +778,7 @@ func (h *Handler) renderCourseErrorRead(c *gin.Context, err error) {
 	case errors.Is(err, service.ErrNotOwner):
 		httperr.Render(c, httperr.NotFound("COURSE_NOT_FOUND", "course not found")) // 404: hide existence
 	case errors.Is(err, service.ErrInvalidTransition):
-		httperr.Render(c, httperr.Conflict("INVALID_TRANSITION", "course estado does not permit this edit"))
+		httperr.Render(c, httperr.Conflict("ERR_COURSE_NOT_EDITABLE", "course estado does not permit this edit"))
 	case errors.Is(err, service.ErrInvalidReorderSet):
 		httperr.Render(c, httperr.BadRequest("INVALID_REORDER_SET", "reorder ids must exactly match the course's section set"))
 	default:
@@ -703,7 +791,7 @@ func (h *Handler) renderCourseErrorRead(c *gin.Context, err error) {
 // CRITICAL: ErrNotOwner → 403 here (signals authz failure per AC3 / REQ-DIVERGENCE).
 // The ONLY difference from renderCourseErrorRead is the ErrNotOwner case.
 // ErrInvalidReorderSet → 400 (validation error: wrong section IDs sent).
-// ErrInvalidTransition → 409 (state error: course not editable).
+// ErrInvalidTransition → 409 ERR_COURSE_NOT_EDITABLE (state error: course not editable per REQ-SEC).
 // ErrFileTooLarge → 413, ErrMIMENotAllowed → 415 (material upload validation).
 // These are DISTINCT: one is about the input set, the other about course estado.
 func (h *Handler) renderCourseErrorWrite(c *gin.Context, err error) {
@@ -721,7 +809,7 @@ func (h *Handler) renderCourseErrorWrite(c *gin.Context, err error) {
 	case errors.Is(err, service.ErrInvalidReorderSet):
 		httperr.Render(c, httperr.BadRequest("INVALID_REORDER_SET", "reorder ids must exactly match the course's section set"))
 	case errors.Is(err, service.ErrInvalidTransition):
-		httperr.Render(c, httperr.Conflict("INVALID_TRANSITION", "course estado does not permit this edit"))
+		httperr.Render(c, httperr.Conflict("ERR_COURSE_NOT_EDITABLE", "course estado does not permit this edit"))
 	case errors.Is(err, service.ErrURLProviderMismatch):
 		httperr.Render(c, httperr.BadRequest("URL_PROVIDER_MISMATCH", "url host does not match declared proveedor"))
 	case errors.Is(err, service.ErrFileTooLarge):
@@ -730,6 +818,8 @@ func (h *Handler) renderCourseErrorWrite(c *gin.Context, err error) {
 		httperr.Render(c, httperr.UnsupportedMediaType("MIME_NOT_ALLOWED", "content type not allowed"))
 	case errors.Is(err, service.ErrInvalidMaterialKey):
 		httperr.Render(c, httperr.BadRequest("INVALID_KEY", "material key prefix mismatch"))
+	case errors.Is(err, service.ErrInvalidCategoria):
+		httperr.Render(c, httperr.BadRequest("INVALID_CATEGORIA", "one or more categoria IDs are invalid"))
 	default:
 		slog.Error("courses: unexpected error (write)", "err", err)
 		httperr.Render(c, httperr.Internal(err.Error()))

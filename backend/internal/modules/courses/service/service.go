@@ -50,27 +50,43 @@ type SectionWithVideosModel struct {
 }
 
 // VideoModel is the service-layer read model for a video.
+// course-structure-v2: Descripcion and Materiales added.
 type VideoModel struct {
-	ID        string
-	SectionID string
-	Titulo    string
-	URL       string
-	Proveedor string
-	DuracionS int
-	Orden     int
-	CreatedAt time.Time
+	ID          string
+	SectionID   string
+	Titulo      string
+	Descripcion string // migration 0011
+	URL         string
+	Proveedor   string
+	DuracionS   int
+	Orden       int
+	CreatedAt   time.Time
+	Materiales  []MaterialModel // populated only in buildContentTree (per-video)
+}
+
+// CategoriaModel is the service-layer read model for a categoria.
+type CategoriaModel struct {
+	ID     string
+	Nombre string
+	Slug   string
 }
 
 // ── C2.4 catalog read models ───────────────────────────────────────────────────
 
 // CatalogCourseModel is the service-layer read model for an approved-course card.
-// Mirrors repository.CatalogCourseModel so handlers/DTOs never import repository.
+// course-structure-v2: Nivel, MiniaturaURL, HorasPractico, CantidadClases, HorasVideo, Categorias added.
 type CatalogCourseModel struct {
-	ID            string
-	Titulo        string
-	Descripcion   string
-	CreadorNombre string
-	CreatedAt     time.Time
+	ID             string
+	Titulo         string
+	Descripcion    string
+	CreadorNombre  string
+	CreatedAt      time.Time
+	Nivel          *string
+	MiniaturaURL   string // presigned URL if MiniaturaKey set, else ""
+	HorasPractico  float64
+	CantidadClases int
+	HorasVideo     float64
+	Categorias     []CategoriaModel
 }
 
 // MyCourseModel is the service-layer read model for GET /users/me/courses.
@@ -83,17 +99,23 @@ type MyCourseModel struct {
 }
 
 // CatalogDetailModel is a discriminated union for GET /catalog/:id.
-// When Enrolled=false, Sections and Materiales are nil (preview — structural no-leak).
-// When Enrolled=true, Sections and Materiales are populated.
-// The handler maps this to TWO distinct DTOs (CoursePreviewResponse vs CourseDetailAlumnoResponse).
+// When Enrolled=false, Sections is nil (preview — structural no-leak).
+// When Enrolled=true, Sections is populated with per-video materials.
+// course-structure-v2: Materiales removed from course level; added per-video in VideoModel.
+// Metadata fields (Nivel, Categorias, etc.) always present.
 type CatalogDetailModel struct {
-	ID            string
-	Titulo        string
-	Descripcion   string
-	CreadorNombre string
-	Enrolled      bool
-	Sections      []SectionWithVideosModel // nil when !Enrolled
-	Materiales    []MaterialModel          // nil when !Enrolled
+	ID             string
+	Titulo         string
+	Descripcion    string
+	CreadorNombre  string
+	Enrolled       bool
+	Sections       []SectionWithVideosModel // nil when !Enrolled
+	Nivel          *string
+	MiniaturaURL   string // presigned URL if MiniaturaKey set
+	HorasPractico  float64
+	CantidadClases int
+	HorasVideo     float64
+	Categorias     []CategoriaModel
 }
 
 // CourseSummary is the cross-module read model returned by ListByEstado.
@@ -114,17 +136,25 @@ type CourseSummary struct {
 
 // CreateRequest carries the caller-supplied data for creating a course.
 // Estado is intentionally absent — the service always forces borrador (AC1).
+// course-structure-v2: Nivel, HorasPractico, CategoriaIDs added.
 type CreateRequest struct {
-	Titulo      string
-	Descripcion string
+	Titulo        string
+	Descripcion   string
+	Nivel         *string
+	HorasPractico *float64
+	CategoriaIDs  []string
 }
 
 // UpdateRequest carries optional fields for a partial course update.
 // Nil pointer = field not supplied by the caller = leave as-is in DB.
 // This matches design §4: field-map so zero-value strings can be written.
+// course-structure-v2: Nivel, HorasPractico, CategoriaIDs added.
 type UpdateRequest struct {
-	Titulo      *string
-	Descripcion *string
+	Titulo        *string
+	Descripcion   *string
+	Nivel         *string
+	HorasPractico *float64
+	CategoriaIDs  []string // nil means "not provided, do not change"; []string{} means "clear all"
 }
 
 // SectionCreateRequest carries data for creating a section.
@@ -139,20 +169,24 @@ type SectionUpdateRequest struct {
 }
 
 // VideoCreateRequest carries data for creating a video.
+// course-structure-v2: Descripcion added.
 type VideoCreateRequest struct {
-	SectionID string
-	Titulo    string
-	URL       string
-	Proveedor string
-	DuracionS int
+	SectionID   string
+	Titulo      string
+	Descripcion string // optional; defaults to ""
+	URL         string
+	Proveedor   string
+	DuracionS   int
 }
 
 // VideoUpdateRequest carries optional fields for a partial video update.
+// course-structure-v2: Descripcion added.
 type VideoUpdateRequest struct {
-	Titulo    *string
-	URL       *string
-	Proveedor *string
-	DuracionS *int
+	Titulo      *string
+	Descripcion *string
+	URL         *string
+	Proveedor   *string
+	DuracionS   *int
 }
 
 // ReorderRequest carries the desired section order for a course.
@@ -164,9 +198,10 @@ type ReorderRequest struct {
 // ── Material types (C2.3) ──────────────────────────────────────────────────────
 
 // MaterialModel is the service-layer read model for a material attachment.
+// course-structure-v2: VideoID replaces CourseID (material belongs to video now).
 type MaterialModel struct {
 	ID          string
-	CourseID    string
+	VideoID     string // migration 0012: replaces CourseID
 	Titulo      string
 	StorageKey  string
 	MimeType    string
@@ -270,31 +305,39 @@ type Service interface {
 	// Owner-gated: returns ErrNotOwner if creadorID does not own the course.
 	HasContent(ctx context.Context, courseID, creadorID string) (bool, error)
 
-	// ── Material methods (C2.3) ──────────────────────────────────────────────
+	// ── Material methods (course-structure-v2: videoID-based) ───────────────────
 
 	// PresignUpload generates a presigned PUT URL for uploading a material file.
-	// Owner-gated (write): returns ErrNotOwner (403) for non-owners.
-	// Estado-gated: returns ErrInvalidTransition (409) for non-editable courses.
-	// Validates file size and MIME type — returns ErrFileTooLarge (413) or ErrMIMENotAllowed (415).
-	PresignUpload(ctx context.Context, courseID, creadorID string, req PresignInput) (PresignResult, error)
+	// course-structure-v2: takes videoID; resolves courseID via chain.
+	// Owner-gated + Estado-gated. ErrFileTooLarge (413) or ErrMIMENotAllowed (415).
+	PresignUpload(ctx context.Context, videoID, callerID string, req PresignInput) (PresignResult, error)
 
 	// ConfirmUpload persists a material row after a successful presigned PUT.
-	// Re-validates size and MIME as defense in depth.
-	// Returns ErrInvalidMaterialKey (400) if the key prefix is invalid.
-	ConfirmUpload(ctx context.Context, courseID, creadorID string, req ConfirmInput) (*MaterialModel, error)
+	// course-structure-v2: takes videoID. Re-validates size+MIME (defense in depth).
+	ConfirmUpload(ctx context.Context, videoID, callerID string, req ConfirmInput) (*MaterialModel, error)
 
-	// ListMaterials returns all materials for a course ordered by created_at ASC.
+	// ListMaterialsByVideo returns all materials for a video ordered by created_at ASC.
 	// Owner-gated (read): returns ErrNotOwner (→ 404 via read helper) for non-owners.
-	ListMaterials(ctx context.Context, courseID, creadorID string) ([]MaterialModel, error)
+	ListMaterialsByVideo(ctx context.Context, videoID, callerID string) ([]MaterialModel, error)
 
 	// PresignDownload generates a presigned GET URL for downloading a material.
-	// Owner-gated (read): returns ErrNotOwner (→ 404 via read helper) for non-owners.
-	PresignDownload(ctx context.Context, courseID, materialID, creadorID string) (DownloadResult, error)
+	// course-structure-v2: no courseID arg; ownership resolved via chain.
+	PresignDownload(ctx context.Context, materialID, callerID string) (DownloadResult, error)
 
 	// DeleteMaterial deletes a material row and attempts best-effort object deletion.
 	// Owner-gated (write): returns ErrNotOwner (→ 403) for non-owners.
 	// If the storage delete fails, the error is logged and swallowed (D5).
-	DeleteMaterial(ctx context.Context, materialID, creadorID string) error
+	DeleteMaterial(ctx context.Context, materialID, callerID string) error
+
+	// ── Thumbnail methods (course-structure-v2) ──────────────────────────────
+
+	// PresignThumbnail generates a presigned PUT URL for a course thumbnail.
+	// Owner-gated + Estado-gated. Image MIME only.
+	PresignThumbnail(ctx context.Context, courseID, callerID string, req PresignInput) (PresignResult, error)
+
+	// ConfirmThumbnail sets miniatura_key on the course after a successful thumbnail upload.
+	// Owner-gated + Estado-gated.
+	ConfirmThumbnail(ctx context.Context, courseID, callerID, key string) error
 
 	// ── Catalog + enrollment methods (C2.4) ─────────────────────────────────────
 
@@ -318,6 +361,11 @@ type Service interface {
 	// MarkEnrollmentCompleted satisfies the evaluations.EnrollmentCompleter seam.
 	// Sets completado=true for (userID, courseID). No-op if no enrollment row exists.
 	MarkEnrollmentCompleted(ctx context.Context, userID, courseID string) error
+
+	// ── Categoria methods (course-structure-v2) ─────────────────────────────────
+
+	// ListCategorias returns all curated categorias.
+	ListCategorias(ctx context.Context) ([]CategoriaModel, error)
 
 	// ── Cross-module seam (C3.1) ─────────────────────────────────────────────────
 
@@ -369,7 +417,19 @@ func New(repo repository.Repository, store storage.Client, presignTTL time.Durat
 // ── Course methods ─────────────────────────────────────────────────────────────
 
 // Create forces estado=borrador and sets creadorID from the argument (never from request).
+// course-structure-v2: validates and sets categoriaIDs, nivel, horasPractico.
 func (s *serviceImpl) Create(ctx context.Context, creadorID string, req CreateRequest) (*CourseModel, error) {
+	// Validate categoriaIDs if provided.
+	if len(req.CategoriaIDs) > 0 {
+		ok, err := s.repo.CategoriasExist(ctx, req.CategoriaIDs)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, ErrInvalidCategoria
+		}
+	}
+
 	c := &domain.Course{
 		ID:          uuid.New().String(),
 		CreadorID:   creadorID,
@@ -377,9 +437,23 @@ func (s *serviceImpl) Create(ctx context.Context, creadorID string, req CreateRe
 		Descripcion: req.Descripcion,
 		Estado:      domain.EstadoBorrador, // FORCED — client cannot influence this
 	}
+	if req.Nivel != nil {
+		c.Nivel = req.Nivel
+	}
+	if req.HorasPractico != nil {
+		c.HorasPractico = *req.HorasPractico
+	}
 	if err := s.repo.Create(ctx, c); err != nil {
 		return nil, err
 	}
+
+	// Set categoriaIDs if provided.
+	if len(req.CategoriaIDs) > 0 {
+		if err := s.repo.SetCourseCategorias(ctx, c.ID, req.CategoriaIDs); err != nil {
+			return nil, err
+		}
+	}
+
 	return toModel(c), nil
 }
 
@@ -425,9 +499,35 @@ func (s *serviceImpl) UpdateByID(ctx context.Context, id, creadorID string, req 
 	if req.Descripcion != nil {
 		fields["descripcion"] = *req.Descripcion
 	}
+	if req.Nivel != nil {
+		fields["nivel"] = *req.Nivel
+	}
+	if req.HorasPractico != nil {
+		fields["horas_practico"] = *req.HorasPractico
+	}
 
-	if err := s.repo.UpdateByID(ctx, id, fields); err != nil {
-		return nil, wrapNotFound(err)
+	if len(fields) > 1 { // > 1 because updated_at is always added
+		if err := s.repo.UpdateByID(ctx, id, fields); err != nil {
+			return nil, wrapNotFound(err)
+		}
+	}
+
+	// Update categoriaIDs if the caller explicitly provided the field (nil = "not set, leave as-is").
+	// Empty slice = "clear all associations".
+	if req.CategoriaIDs != nil {
+		// Validate non-empty ID lists before applying.
+		if len(req.CategoriaIDs) > 0 {
+			ok, err := s.repo.CategoriasExist(ctx, req.CategoriaIDs)
+			if err != nil {
+				return nil, err
+			}
+			if !ok {
+				return nil, ErrInvalidCategoria
+			}
+		}
+		if err := s.repo.SetCourseCategorias(ctx, id, req.CategoriaIDs); err != nil {
+			return nil, err
+		}
 	}
 
 	// 4. Re-read for a fresh model reflecting DB state (including updated_at). See T2.
@@ -603,6 +703,8 @@ func (s *serviceImpl) ReorderSections(ctx context.Context, courseID, creadorID s
 // ── Video methods ──────────────────────────────────────────────────────────────
 
 // CreateVideo creates a video after verifying section ownership and URL validation.
+//
+//nolint:gocritic // hugeParam: VideoCreateRequest is 88b (Descripcion field added in course-structure-v2); value-passing is intentional interface contract.
 func (s *serviceImpl) CreateVideo(ctx context.Context, creadorID string, req VideoCreateRequest) (*VideoModel, error) {
 	sec, _, err := s.loadOwnedSection(ctx, req.SectionID, creadorID)
 	if err != nil {
@@ -620,13 +722,14 @@ func (s *serviceImpl) CreateVideo(ctx context.Context, creadorID string, req Vid
 	}
 
 	v := &domain.Video{
-		ID:        uuid.New().String(),
-		SectionID: req.SectionID,
-		Titulo:    req.Titulo,
-		URL:       req.URL,
-		Proveedor: req.Proveedor,
-		DuracionS: req.DuracionS,
-		Orden:     len(existingVideos),
+		ID:          uuid.New().String(),
+		SectionID:   req.SectionID,
+		Titulo:      req.Titulo,
+		Descripcion: req.Descripcion, // migration 0011
+		URL:         req.URL,
+		Proveedor:   req.Proveedor,
+		DuracionS:   req.DuracionS,
+		Orden:       len(existingVideos),
 	}
 	if err := s.repo.CreateVideo(ctx, v); err != nil {
 		return nil, err
@@ -659,6 +762,9 @@ func (s *serviceImpl) UpdateVideo(ctx context.Context, id, creadorID string, req
 	fields := map[string]any{}
 	if req.Titulo != nil {
 		fields["titulo"] = *req.Titulo
+	}
+	if req.Descripcion != nil {
+		fields["descripcion"] = *req.Descripcion
 	}
 	if req.URL != nil {
 		fields["url"] = *req.URL
@@ -723,20 +829,45 @@ func (s *serviceImpl) HasContent(ctx context.Context, courseID, creadorID string
 
 // ListCatalog delegates to repo.ListApproved and maps repository.CatalogCourseModel
 // → service.CatalogCourseModel. Handlers never import repository types.
+// course-structure-v2: loads categorias in one batch query, presigns miniatura if set.
 func (s *serviceImpl) ListCatalog(ctx context.Context, p pagination.Params, q string) (pagination.Page[CatalogCourseModel], error) {
 	rp, err := s.repo.ListApproved(ctx, p, q)
 	if err != nil {
 		return pagination.Page[CatalogCourseModel]{}, err
 	}
 
+	// Batch load categorias for all courses (no N+1).
+	courseIDs := make([]string, 0, len(rp.Items))
+	for i := range rp.Items {
+		courseIDs = append(courseIDs, rp.Items[i].ID)
+	}
+	catsByID, err := s.repo.ListCategoriasForCourses(ctx, courseIDs)
+	if err != nil {
+		return pagination.Page[CatalogCourseModel]{}, err
+	}
+
 	items := make([]CatalogCourseModel, 0, len(rp.Items))
-	for _, r := range rp.Items {
+	for i := range rp.Items {
+		r := &rp.Items[i]
+		miniaturaURL := ""
+		if r.MiniaturaKey != nil && *r.MiniaturaKey != "" {
+			if u, err := s.store.PresignGetURL(ctx, *r.MiniaturaKey, s.presignTTL); err == nil {
+				miniaturaURL = u
+			}
+		}
+		cats := toCategoriaModels(catsByID[r.ID])
 		items = append(items, CatalogCourseModel{
-			ID:            r.ID,
-			Titulo:        r.Titulo,
-			Descripcion:   r.Descripcion,
-			CreadorNombre: r.CreadorNombre,
-			CreatedAt:     r.CreatedAt,
+			ID:             r.ID,
+			Titulo:         r.Titulo,
+			Descripcion:    r.Descripcion,
+			CreadorNombre:  r.CreadorNombre,
+			CreatedAt:      r.CreatedAt,
+			Nivel:          r.Nivel,
+			MiniaturaURL:   miniaturaURL,
+			HorasPractico:  r.HorasPractico,
+			CantidadClases: r.CantidadClases,
+			HorasVideo:     roundHorasVideo(r.HorasVideo),
+			Categorias:     cats,
 		})
 	}
 	return pagination.Page[CatalogCourseModel]{
@@ -750,9 +881,10 @@ func (s *serviceImpl) ListCatalog(ctx context.Context, p pagination.Params, q st
 
 // GetCatalogDetail returns the course detail for an alumno:
 //   - ErrCourseNotFound if missing or not aprobado (draft-invisibility).
-//   - Non-enrolled → CatalogDetailModel{Enrolled:false, Sections:nil, Materiales:nil}.
-//   - Enrolled → CatalogDetailModel{Enrolled:true} with full content tree.
+//   - Non-enrolled → CatalogDetailModel{Enrolled:false, Sections:nil} + metadata always present.
+//   - Enrolled → CatalogDetailModel{Enrolled:true} with full content tree + per-video materials.
 //
+// course-structure-v2: metadata (nivel, categorias, horasVideo, etc.) always populated.
 // IMPORTANT: does NOT reuse ListContent (owner-gated). Uses buildContentTree instead.
 func (s *serviceImpl) GetCatalogDetail(ctx context.Context, userID, courseID string) (*CatalogDetailModel, error) {
 	d, err := s.repo.GetApprovedDetail(ctx, courseID)
@@ -765,44 +897,79 @@ func (s *serviceImpl) GetCatalogDetail(ctx context.Context, userID, courseID str
 		return nil, err
 	}
 
+	// Load categorias for this course.
+	cats, err := s.repo.GetCourseCategorias(ctx, courseID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Presign miniatura if set.
+	miniaturaURL := ""
+	if d.MiniaturaKey != nil && *d.MiniaturaKey != "" {
+		if u, err := s.store.PresignGetURL(ctx, *d.MiniaturaKey, s.presignTTL); err == nil {
+			miniaturaURL = u
+		}
+	}
+
 	out := &CatalogDetailModel{
-		ID:            d.ID,
-		Titulo:        d.Titulo,
-		Descripcion:   d.Descripcion,
-		CreadorNombre: d.CreadorNombre,
-		Enrolled:      enrolled,
+		ID:             d.ID,
+		Titulo:         d.Titulo,
+		Descripcion:    d.Descripcion,
+		CreadorNombre:  d.CreadorNombre,
+		Enrolled:       enrolled,
+		Nivel:          d.Nivel,
+		MiniaturaURL:   miniaturaURL,
+		HorasPractico:  d.HorasPractico,
+		CantidadClases: d.CantidadClases,
+		HorasVideo:     roundHorasVideo(d.HorasVideo),
+		Categorias:     toCategoriaModels(cats),
 	}
 
 	if enrolled {
-		sections, mats, err := s.buildContentTree(ctx, courseID)
+		sections, err := s.buildContentTree(ctx, courseID)
 		if err != nil {
 			return nil, err
 		}
 		out.Sections = sections
-		out.Materiales = mats
 	}
 
 	return out, nil
 }
 
-// buildContentTree fetches sections+videos+materials for a course WITHOUT an ownership check.
+// buildContentTree fetches sections+videos+per-video-materials for a course WITHOUT an ownership check.
 // Called only from GetCatalogDetail (alumno enrolled → already verified).
+// course-structure-v2: materials are now nested per video (no course-level materiales).
+// Uses ONE ListMaterialsByCourseVideos query to avoid N+1.
 // GOTCHA: do NOT reuse ListContent — it is owner-gated and returns ErrNotOwner.
-func (s *serviceImpl) buildContentTree(ctx context.Context, courseID string) ([]SectionWithVideosModel, []MaterialModel, error) {
+func (s *serviceImpl) buildContentTree(ctx context.Context, courseID string) ([]SectionWithVideosModel, error) {
 	sections, err := s.repo.ListSectionsByCourse(ctx, courseID)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
+	}
+
+	// Load all materials for all course videos in ONE query (no N+1).
+	rawMats, err := s.repo.ListMaterialsByCourseVideos(ctx, courseID)
+	if err != nil {
+		return nil, err
+	}
+	// Group materials by video_id in Go.
+	matByVideo := make(map[string][]MaterialModel, len(rawMats))
+	for i := range rawMats {
+		vm := toMaterialModel(&rawMats[i])
+		matByVideo[rawMats[i].VideoID] = append(matByVideo[rawMats[i].VideoID], *vm)
 	}
 
 	sectionModels := make([]SectionWithVideosModel, 0, len(sections))
 	for i := range sections {
 		videos, err := s.repo.ListVideosBySection(ctx, sections[i].ID)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		videoModels := make([]VideoModel, 0, len(videos))
 		for j := range videos {
-			videoModels = append(videoModels, *toVideoModel(&videos[j]))
+			vm := toVideoModel(&videos[j])
+			vm.Materiales = matByVideo[videos[j].ID] // attach per-video materials
+			videoModels = append(videoModels, *vm)
 		}
 		sectionModels = append(sectionModels, SectionWithVideosModel{
 			Section: *toSectionModel(&sections[i]),
@@ -810,16 +977,7 @@ func (s *serviceImpl) buildContentTree(ctx context.Context, courseID string) ([]
 		})
 	}
 
-	rawMats, err := s.repo.ListMaterialsByCourse(ctx, courseID)
-	if err != nil {
-		return nil, nil, err
-	}
-	matModels := make([]MaterialModel, 0, len(rawMats))
-	for i := range rawMats {
-		matModels = append(matModels, *toMaterialModel(&rawMats[i]))
-	}
-
-	return sectionModels, matModels, nil
+	return sectionModels, nil
 }
 
 // Enroll enrolls userID in courseID.
@@ -1061,15 +1219,82 @@ func toSectionModel(s *domain.Section) *SectionModel {
 }
 
 // toVideoModel converts a domain.Video to a VideoModel.
+// course-structure-v2: Descripcion included. Materiales is left nil; buildContentTree populates it.
 func toVideoModel(v *domain.Video) *VideoModel {
 	return &VideoModel{
-		ID:        v.ID,
-		SectionID: v.SectionID,
-		Titulo:    v.Titulo,
-		URL:       v.URL,
-		Proveedor: v.Proveedor,
-		DuracionS: v.DuracionS,
-		Orden:     v.Orden,
-		CreatedAt: v.CreatedAt,
+		ID:          v.ID,
+		SectionID:   v.SectionID,
+		Titulo:      v.Titulo,
+		Descripcion: v.Descripcion,
+		URL:         v.URL,
+		Proveedor:   v.Proveedor,
+		DuracionS:   v.DuracionS,
+		Orden:       v.Orden,
+		CreatedAt:   v.CreatedAt,
 	}
+}
+
+// roundHorasVideo rounds horas_video to 1 decimal place.
+// Formula: ROUND(SUM(duracion_s)/3600, 1). Matches REQ-COMPUTED spec.
+func roundHorasVideo(raw float64) float64 {
+	// Round to 1 decimal: multiply by 10, round to nearest int, divide by 10.
+	return float64(int(raw*10+0.5)) / 10
+}
+
+// toCategoriaModels converts a slice of domain.Categoria to CategoriaModel read models.
+func toCategoriaModels(cats []domain.Categoria) []CategoriaModel {
+	if len(cats) == 0 {
+		return []CategoriaModel{}
+	}
+	out := make([]CategoriaModel, 0, len(cats))
+	for _, c := range cats {
+		out = append(out, CategoriaModel{ID: c.ID, Nombre: c.Nombre, Slug: c.Slug})
+	}
+	return out
+}
+
+// ListCategorias returns all curated categorias.
+func (s *serviceImpl) ListCategorias(ctx context.Context) ([]CategoriaModel, error) {
+	cats, err := s.repo.ListCategorias(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return toCategoriaModels(cats), nil
+}
+
+// PresignThumbnail generates a presigned PUT URL for a course thumbnail.
+// Owner-gated + Estado-gated. Image MIME only.
+func (s *serviceImpl) PresignThumbnail(ctx context.Context, courseID, callerID string, req PresignInput) (PresignResult, error) {
+	if _, err := s.assertCourseEditable(ctx, courseID, callerID); err != nil {
+		return PresignResult{}, err
+	}
+	if !allowedImageMIME[req.ContentType] {
+		return PresignResult{}, ErrMIMENotAllowed
+	}
+	key := thumbnailKey(courseID, req.Nombre)
+	uploadURL, err := s.store.PresignPutURL(ctx, key, s.presignTTL)
+	if err != nil {
+		return PresignResult{}, err
+	}
+	return PresignResult{
+		UploadURL: uploadURL,
+		Key:       key,
+		ExpiresAt: time.Now().Add(s.presignTTL),
+	}, nil
+}
+
+// ConfirmThumbnail sets miniatura_key on the course after a successful thumbnail upload.
+// Owner-gated + Estado-gated.
+func (s *serviceImpl) ConfirmThumbnail(ctx context.Context, courseID, callerID, key string) error {
+	if _, err := s.assertCourseEditable(ctx, courseID, callerID); err != nil {
+		return err
+	}
+	expectedPrefix := "courses/" + courseID + "/thumbnail/"
+	if !strings.HasPrefix(key, expectedPrefix) {
+		return ErrInvalidMaterialKey
+	}
+	return s.repo.UpdateByID(ctx, courseID, map[string]any{
+		"miniatura_key": key,
+		"updated_at":    time.Now(),
+	})
 }

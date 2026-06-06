@@ -71,7 +71,7 @@ func (n *nilCourseSvc) ListContent(_ context.Context, _, _ string) ([]coursesSer
 	return nil, nil
 }
 func (n *nilCourseSvc) ReorderSections(_ context.Context, _, _ string, _ []string) error { return nil }
-func (n *nilCourseSvc) CreateVideo(_ context.Context, _ string, _ coursesService.VideoCreateRequest) (*coursesService.VideoModel, error) {
+func (n *nilCourseSvc) CreateVideo(_ context.Context, _ string, _ coursesService.VideoCreateRequest) (*coursesService.VideoModel, error) { //nolint:gocritic
 	return nil, nil
 }
 func (n *nilCourseSvc) UpdateVideo(_ context.Context, _, _ string, _ coursesService.VideoUpdateRequest) (*coursesService.VideoModel, error) {
@@ -82,19 +82,28 @@ func (n *nilCourseSvc) ListVideos(_ context.Context, _ string) ([]coursesService
 	return nil, nil
 }
 func (n *nilCourseSvc) HasContent(_ context.Context, _, _ string) (bool, error) { return false, nil }
+
+// course-structure-v2: material methods updated to videoID-based API.
 func (n *nilCourseSvc) PresignUpload(_ context.Context, _, _ string, _ coursesService.PresignInput) (coursesService.PresignResult, error) {
 	return coursesService.PresignResult{}, nil
 }
 func (n *nilCourseSvc) ConfirmUpload(_ context.Context, _, _ string, _ coursesService.ConfirmInput) (*coursesService.MaterialModel, error) {
 	return nil, nil
 }
-func (n *nilCourseSvc) ListMaterials(_ context.Context, _, _ string) ([]coursesService.MaterialModel, error) {
+func (n *nilCourseSvc) ListMaterialsByVideo(_ context.Context, _, _ string) ([]coursesService.MaterialModel, error) {
 	return nil, nil
 }
-func (n *nilCourseSvc) PresignDownload(_ context.Context, _, _, _ string) (coursesService.DownloadResult, error) {
+func (n *nilCourseSvc) PresignDownload(_ context.Context, _, _ string) (coursesService.DownloadResult, error) {
 	return coursesService.DownloadResult{}, nil
 }
 func (n *nilCourseSvc) DeleteMaterial(_ context.Context, _, _ string) error { return nil }
+func (n *nilCourseSvc) PresignThumbnail(_ context.Context, _, _ string, _ coursesService.PresignInput) (coursesService.PresignResult, error) {
+	return coursesService.PresignResult{}, nil
+}
+func (n *nilCourseSvc) ConfirmThumbnail(_ context.Context, _, _, _ string) error { return nil }
+func (n *nilCourseSvc) ListCategorias(_ context.Context) ([]coursesService.CategoriaModel, error) {
+	return nil, nil
+}
 func (n *nilCourseSvc) GetCourseOwnership(_ context.Context, _ string) (creadorID, estado string, err error) {
 	return "", "", nil
 }
@@ -310,6 +319,28 @@ func TestRouteBoot_AllModules_NoPanic(t *testing.T) {
 			"[C6.1] GET /api/reports/team must be registered without panic")
 		assert.True(t, routeMap["GET /api/reports/users/:id/progress"],
 			"[C6.1] GET /api/reports/users/:id/progress must be registered without panic")
+
+		// course-structure-v2 NEW routes (FIX-2: boot test assertions required by spec).
+		assert.True(t, routeMap["POST /api/videos/:id/materials/presign"],
+			"[course-structure-v2] POST /api/videos/:id/materials/presign must be registered")
+		assert.True(t, routeMap["POST /api/videos/:id/materials"],
+			"[course-structure-v2] POST /api/videos/:id/materials must be registered")
+		assert.True(t, routeMap["GET /api/videos/:id/materials"],
+			"[course-structure-v2] GET /api/videos/:id/materials must be registered")
+		assert.True(t, routeMap["POST /api/courses/:courseId/thumbnail/presign"],
+			"[course-structure-v2] POST /api/courses/:courseId/thumbnail/presign must be registered")
+		assert.True(t, routeMap["POST /api/courses/:courseId/thumbnail"],
+			"[course-structure-v2] POST /api/courses/:courseId/thumbnail must be registered")
+		assert.True(t, routeMap["GET /api/categorias"],
+			"[course-structure-v2] GET /api/categorias must be registered")
+
+		// course-structure-v2 ABSENT old routes (FIX-2: spec requires asserting their absence).
+		assert.False(t, routeMap["POST /api/courses/:courseId/materials"],
+			"[course-structure-v2] POST /api/courses/:courseId/materials must NOT be registered (removed)")
+		assert.False(t, routeMap["GET /api/courses/:courseId/materials"],
+			"[course-structure-v2] GET /api/courses/:courseId/materials must NOT be registered (removed)")
+		assert.False(t, routeMap["GET /api/courses/:id/materials/:materialId/download"],
+			"[course-structure-v2] old per-course material download route must NOT be registered (removed)")
 	}, "registering all module routes must not panic (no Gin param-tree conflict)")
 
 	_ = time.Now() // suppress unused import

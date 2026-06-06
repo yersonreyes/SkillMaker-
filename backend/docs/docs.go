@@ -547,6 +547,40 @@ const docTemplate = `{
                 }
             }
         },
+        "/categorias": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all curated categories. JWT required; any authenticated role (no role gate).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "categorias"
+                ],
+                "summary": "Lista las categorias curadas",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dto.CategoriaResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/certificates/me": {
             "get": {
                 "security": [
@@ -931,170 +965,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/courses/{courseId}/materials": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Persiste el material tras un PUT presignado exitoso. Re-valida tamano y MIME.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "materials"
-                ],
-                "summary": "Confirma la subida de un material (crea la fila en DB)",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "UUID del curso",
-                        "name": "courseId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Datos del material confirmado",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.MaterialConfirmRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/dto.MaterialResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "clave de objeto invalida o campos faltantes",
-                        "schema": {
-                            "$ref": "#/definitions/httperr.Error"
-                        }
-                    },
-                    "403": {
-                        "description": "no es propietario del curso",
-                        "schema": {
-                            "$ref": "#/definitions/httperr.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "curso no encontrado",
-                        "schema": {
-                            "$ref": "#/definitions/httperr.Error"
-                        }
-                    },
-                    "409": {
-                        "description": "estado no permite edicion",
-                        "schema": {
-                            "$ref": "#/definitions/httperr.Error"
-                        }
-                    },
-                    "413": {
-                        "description": "archivo demasiado grande",
-                        "schema": {
-                            "$ref": "#/definitions/httperr.Error"
-                        }
-                    },
-                    "415": {
-                        "description": "tipo de contenido no permitido",
-                        "schema": {
-                            "$ref": "#/definitions/httperr.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/courses/{courseId}/materials/presign": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Genera una URL PUT presignada para que el browser suba el archivo directamente a MinIO.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "materials"
-                ],
-                "summary": "Genera URL presignada para subir un archivo",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "UUID del curso",
-                        "name": "courseId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Datos del archivo a subir",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.MaterialPresignRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dto.PresignResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "body invalido o campos faltantes",
-                        "schema": {
-                            "$ref": "#/definitions/httperr.Error"
-                        }
-                    },
-                    "403": {
-                        "description": "no es propietario del curso",
-                        "schema": {
-                            "$ref": "#/definitions/httperr.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "curso no encontrado",
-                        "schema": {
-                            "$ref": "#/definitions/httperr.Error"
-                        }
-                    },
-                    "409": {
-                        "description": "estado no permite edicion",
-                        "schema": {
-                            "$ref": "#/definitions/httperr.Error"
-                        }
-                    },
-                    "413": {
-                        "description": "archivo demasiado grande",
-                        "schema": {
-                            "$ref": "#/definitions/httperr.Error"
-                        }
-                    },
-                    "415": {
-                        "description": "tipo de contenido no permitido",
-                        "schema": {
-                            "$ref": "#/definitions/httperr.Error"
-                        }
-                    }
-                }
-            }
-        },
         "/courses/{courseId}/reject": {
             "post": {
                 "security": [
@@ -1285,6 +1155,95 @@ const docTemplate = `{
                         "description": "estado invalido / sin contenido / evaluacion incompleta",
                         "schema": {
                             "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/courses/{courseId}/thumbnail": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "course-structure-v2: sets miniatura_key on the course.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "courses"
+                ],
+                "summary": "Confirma la subida de la miniatura del curso",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID del curso",
+                        "name": "courseId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "key de la miniatura",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ThumbnailConfirmRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/courses/{courseId}/thumbnail/presign": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "course-structure-v2: imagen MIME only. Owner-gated + editable gate.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "courses"
+                ],
+                "summary": "Genera URL presignada para subir miniatura de un curso",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID del curso",
+                        "name": "courseId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Datos de la imagen",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.MaterialPresignRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.PresignResponse"
                         }
                     }
                 }
@@ -1556,126 +1515,6 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "curso o evaluacion no encontrada / curso no aprobado",
-                        "schema": {
-                            "$ref": "#/definitions/httperr.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/courses/{id}/materials": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Retorna todos los materiales del curso ordenados por fecha de creacion ASC. Solo el propietario.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "materials"
-                ],
-                "summary": "Lista los materiales de un curso",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "UUID del curso",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/dto.MaterialResponse"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/httperr.Error"
-                        }
-                    },
-                    "403": {
-                        "description": "rol creador requerido",
-                        "schema": {
-                            "$ref": "#/definitions/httperr.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "curso no encontrado o no pertenece al caller",
-                        "schema": {
-                            "$ref": "#/definitions/httperr.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/httperr.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/courses/{id}/materials/{materialId}/download": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Retorna una URL GET presignada con TTL = PresignTTL. Solo el propietario del curso.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "materials"
-                ],
-                "summary": "Genera URL presignada para descargar un material",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "UUID del curso",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "UUID del material",
-                        "name": "materialId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dto.DownloadResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/httperr.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "material o curso no encontrado",
-                        "schema": {
-                            "$ref": "#/definitions/httperr.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/httperr.Error"
                         }
@@ -2024,6 +1863,58 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "material no encontrado",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/materials/{id}/download": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "course-structure-v2: URL /materials/:id/download (flat; chain ownership via video).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "materials"
+                ],
+                "summary": "Genera URL presignada para descargar un material",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID del material",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.DownloadResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "not owner or not enrolled",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "material not found",
                         "schema": {
                             "$ref": "#/definitions/httperr.Error"
                         }
@@ -3242,6 +3133,223 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/videos/{id}/materials": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "course-structure-v2: URL /videos/:id/materials (videoID).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "materials"
+                ],
+                "summary": "Lista los materiales de un video",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID del video",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dto.MaterialResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "course-structure-v2: URL ahora bajo /videos/:id/materials (videoID).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "materials"
+                ],
+                "summary": "Confirma la subida de un material (crea la fila en DB)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID del video",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Datos del material confirmado",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.MaterialConfirmRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/dto.MaterialResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "415": {
+                        "description": "Unsupported Media Type",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/videos/{id}/materials/presign": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "course-structure-v2: URL ahora bajo /videos/:id/materials/presign (videoID).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "materials"
+                ],
+                "summary": "Genera URL presignada para subir un archivo a un video",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID del video",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Datos del archivo a subir",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.MaterialPresignRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.PresignResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "415": {
+                        "description": "Unsupported Media Type",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -3411,6 +3519,20 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.CategoriaResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "nombre": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.CertificateListItem": {
             "type": "object",
             "properties": {
@@ -3493,6 +3615,15 @@ const docTemplate = `{
         "dto.CourseDetailAlumnoResponse": {
             "type": "object",
             "properties": {
+                "cantidadClases": {
+                    "type": "integer"
+                },
+                "categorias": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.CategoriaResponse"
+                    }
+                },
                 "creadorNombre": {
                     "type": "string"
                 },
@@ -3503,14 +3634,20 @@ const docTemplate = `{
                     "description": "always true",
                     "type": "boolean"
                 },
+                "horasPractico": {
+                    "type": "number"
+                },
+                "horasVideo": {
+                    "type": "number"
+                },
                 "id": {
                     "type": "string"
                 },
-                "materiales": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.MaterialResponse"
-                    }
+                "miniaturaUrl": {
+                    "type": "string"
+                },
+                "nivel": {
+                    "type": "string"
                 },
                 "secciones": {
                     "type": "array",
@@ -3526,6 +3663,15 @@ const docTemplate = `{
         "dto.CoursePreviewResponse": {
             "type": "object",
             "properties": {
+                "cantidadClases": {
+                    "type": "integer"
+                },
+                "categorias": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.CategoriaResponse"
+                    }
+                },
                 "creadorNombre": {
                     "type": "string"
                 },
@@ -3536,7 +3682,19 @@ const docTemplate = `{
                     "description": "always false",
                     "type": "boolean"
                 },
+                "horasPractico": {
+                    "type": "number"
+                },
+                "horasVideo": {
+                    "type": "number"
+                },
                 "id": {
+                    "type": "string"
+                },
+                "miniaturaUrl": {
+                    "type": "string"
+                },
+                "nivel": {
                     "type": "string"
                 },
                 "titulo": {
@@ -3587,9 +3745,27 @@ const docTemplate = `{
                 "titulo"
             ],
             "properties": {
+                "categoriaIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "descripcion": {
                     "type": "string",
                     "maxLength": 5000
+                },
+                "horasPractico": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "nivel": {
+                    "type": "string",
+                    "enum": [
+                        "basico",
+                        "intermedio",
+                        "avanzado"
+                    ]
                 },
                 "titulo": {
                     "type": "string",
@@ -4316,6 +4492,17 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.ThumbnailConfirmRequest": {
+            "type": "object",
+            "required": [
+                "key"
+            ],
+            "properties": {
+                "key": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.TopCreatorItem": {
             "description": "Creator ranked by aprobado course count.",
             "type": "object",
@@ -4331,9 +4518,27 @@ const docTemplate = `{
         "dto.UpdateCourseRequest": {
             "type": "object",
             "properties": {
+                "categoriaIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "descripcion": {
                     "type": "string",
                     "maxLength": 5000
+                },
+                "horasPractico": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "nivel": {
+                    "type": "string",
+                    "enum": [
+                        "basico",
+                        "intermedio",
+                        "avanzado"
+                    ]
                 },
                 "titulo": {
                     "type": "string",
@@ -4420,6 +4625,10 @@ const docTemplate = `{
                 "url"
             ],
             "properties": {
+                "descripcion": {
+                    "type": "string",
+                    "maxLength": 5000
+                },
                 "duracionS": {
                     "type": "integer",
                     "minimum": 0
@@ -4447,11 +4656,20 @@ const docTemplate = `{
                 "createdAt": {
                     "type": "string"
                 },
+                "descripcion": {
+                    "type": "string"
+                },
                 "duracionS": {
                     "type": "integer"
                 },
                 "id": {
                     "type": "string"
+                },
+                "materiales": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.MaterialResponse"
+                    }
                 },
                 "orden": {
                     "type": "integer"
@@ -4473,6 +4691,10 @@ const docTemplate = `{
         "dto.VideoUpdateRequest": {
             "type": "object",
             "properties": {
+                "descripcion": {
+                    "type": "string",
+                    "maxLength": 5000
+                },
                 "duracionS": {
                     "type": "integer",
                     "minimum": 0

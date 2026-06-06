@@ -297,6 +297,21 @@ export interface paths {
       };
     };
   };
+  "/categorias": {
+    /** Returns all curated categories. JWT required; any authenticated role (no role gate). */
+    get: {
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.CategoriaResponse"][];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
   "/certificates/me": {
     /** Devuelve los certificados del usuario autenticado, ordenados por emitidoEn DESC. */
     get: {
@@ -498,96 +513,6 @@ export interface paths {
       };
     };
   };
-  "/courses/{courseId}/materials": {
-    /** Persiste el material tras un PUT presignado exitoso. Re-valida tamano y MIME. */
-    post: {
-      parameters: {
-        path: {
-          /** UUID del curso */
-          courseId: string;
-        };
-        body: {
-          /** Datos del material confirmado */
-          body: definitions["dto.MaterialConfirmRequest"];
-        };
-      };
-      responses: {
-        /** Created */
-        201: {
-          schema: definitions["dto.MaterialResponse"];
-        };
-        /** clave de objeto invalida o campos faltantes */
-        400: {
-          schema: definitions["httperr.Error"];
-        };
-        /** no es propietario del curso */
-        403: {
-          schema: definitions["httperr.Error"];
-        };
-        /** curso no encontrado */
-        404: {
-          schema: definitions["httperr.Error"];
-        };
-        /** estado no permite edicion */
-        409: {
-          schema: definitions["httperr.Error"];
-        };
-        /** archivo demasiado grande */
-        413: {
-          schema: definitions["httperr.Error"];
-        };
-        /** tipo de contenido no permitido */
-        415: {
-          schema: definitions["httperr.Error"];
-        };
-      };
-    };
-  };
-  "/courses/{courseId}/materials/presign": {
-    /** Genera una URL PUT presignada para que el browser suba el archivo directamente a MinIO. */
-    post: {
-      parameters: {
-        path: {
-          /** UUID del curso */
-          courseId: string;
-        };
-        body: {
-          /** Datos del archivo a subir */
-          body: definitions["dto.MaterialPresignRequest"];
-        };
-      };
-      responses: {
-        /** OK */
-        200: {
-          schema: definitions["dto.PresignResponse"];
-        };
-        /** body invalido o campos faltantes */
-        400: {
-          schema: definitions["httperr.Error"];
-        };
-        /** no es propietario del curso */
-        403: {
-          schema: definitions["httperr.Error"];
-        };
-        /** curso no encontrado */
-        404: {
-          schema: definitions["httperr.Error"];
-        };
-        /** estado no permite edicion */
-        409: {
-          schema: definitions["httperr.Error"];
-        };
-        /** archivo demasiado grande */
-        413: {
-          schema: definitions["httperr.Error"];
-        };
-        /** tipo de contenido no permitido */
-        415: {
-          schema: definitions["httperr.Error"];
-        };
-      };
-    };
-  };
   "/courses/{courseId}/reject": {
     /** Rechaza un curso en revision con un comentario obligatorio. */
     post: {
@@ -689,6 +614,46 @@ export interface paths {
         /** estado invalido / sin contenido / evaluacion incompleta */
         409: {
           schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/courses/{courseId}/thumbnail": {
+    /** course-structure-v2: sets miniatura_key on the course. */
+    post: {
+      parameters: {
+        path: {
+          /** UUID del curso */
+          courseId: string;
+        };
+        body: {
+          /** key de la miniatura */
+          body: definitions["dto.ThumbnailConfirmRequest"];
+        };
+      };
+      responses: {
+        /** OK */
+        200: unknown;
+      };
+    };
+  };
+  "/courses/{courseId}/thumbnail/presign": {
+    /** course-structure-v2: imagen MIME only. Owner-gated + editable gate. */
+    post: {
+      parameters: {
+        path: {
+          /** UUID del curso */
+          courseId: string;
+        };
+        body: {
+          /** Datos de la imagen */
+          body: definitions["dto.MaterialPresignRequest"];
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.PresignResponse"];
         };
       };
     };
@@ -835,70 +800,6 @@ export interface paths {
         };
         /** curso o evaluacion no encontrada / curso no aprobado */
         404: {
-          schema: definitions["httperr.Error"];
-        };
-      };
-    };
-  };
-  "/courses/{id}/materials": {
-    /** Retorna todos los materiales del curso ordenados por fecha de creacion ASC. Solo el propietario. */
-    get: {
-      parameters: {
-        path: {
-          /** UUID del curso */
-          id: string;
-        };
-      };
-      responses: {
-        /** OK */
-        200: {
-          schema: definitions["dto.MaterialResponse"][];
-        };
-        /** Unauthorized */
-        401: {
-          schema: definitions["httperr.Error"];
-        };
-        /** rol creador requerido */
-        403: {
-          schema: definitions["httperr.Error"];
-        };
-        /** curso no encontrado o no pertenece al caller */
-        404: {
-          schema: definitions["httperr.Error"];
-        };
-        /** Internal Server Error */
-        500: {
-          schema: definitions["httperr.Error"];
-        };
-      };
-    };
-  };
-  "/courses/{id}/materials/{materialId}/download": {
-    /** Retorna una URL GET presignada con TTL = PresignTTL. Solo el propietario del curso. */
-    get: {
-      parameters: {
-        path: {
-          /** UUID del curso */
-          id: string;
-          /** UUID del material */
-          materialId: string;
-        };
-      };
-      responses: {
-        /** OK */
-        200: {
-          schema: definitions["dto.DownloadResponse"];
-        };
-        /** Unauthorized */
-        401: {
-          schema: definitions["httperr.Error"];
-        };
-        /** material o curso no encontrado */
-        404: {
-          schema: definitions["httperr.Error"];
-        };
-        /** Internal Server Error */
-        500: {
           schema: definitions["httperr.Error"];
         };
       };
@@ -1084,6 +985,35 @@ export interface paths {
           schema: definitions["httperr.Error"];
         };
         /** material no encontrado */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/materials/{id}/download": {
+    /** course-structure-v2: URL /materials/:id/download (flat; chain ownership via video). */
+    get: {
+      parameters: {
+        path: {
+          /** UUID del material */
+          id: string;
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.DownloadResponse"];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** not owner or not enrolled */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** material not found */
         404: {
           schema: definitions["httperr.Error"];
         };
@@ -1720,6 +1650,123 @@ export interface paths {
       };
     };
   };
+  "/videos/{id}/materials": {
+    /** course-structure-v2: URL /videos/:id/materials (videoID). */
+    get: {
+      parameters: {
+        path: {
+          /** UUID del video */
+          id: string;
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.MaterialResponse"][];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Forbidden */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Not Found */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+    /** course-structure-v2: URL ahora bajo /videos/:id/materials (videoID). */
+    post: {
+      parameters: {
+        path: {
+          /** UUID del video */
+          id: string;
+        };
+        body: {
+          /** Datos del material confirmado */
+          body: definitions["dto.MaterialConfirmRequest"];
+        };
+      };
+      responses: {
+        /** Created */
+        201: {
+          schema: definitions["dto.MaterialResponse"];
+        };
+        /** Bad Request */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Forbidden */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Not Found */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Conflict */
+        409: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Request Entity Too Large */
+        413: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Unsupported Media Type */
+        415: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/videos/{id}/materials/presign": {
+    /** course-structure-v2: URL ahora bajo /videos/:id/materials/presign (videoID). */
+    post: {
+      parameters: {
+        path: {
+          /** UUID del video */
+          id: string;
+        };
+        body: {
+          /** Datos del archivo a subir */
+          body: definitions["dto.MaterialPresignRequest"];
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.PresignResponse"];
+        };
+        /** Bad Request */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Forbidden */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Not Found */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Conflict */
+        409: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Request Entity Too Large */
+        413: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Unsupported Media Type */
+        415: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
 }
 
 export interface definitions {
@@ -1779,6 +1826,11 @@ export interface definitions {
     /** @description OtorgadoEn is the UTC timestamp when the badge was awarded. */
     otorgadoEn?: string;
   };
+  "dto.CategoriaResponse": {
+    id?: string;
+    nombre?: string;
+    slug?: string;
+  };
   "dto.CertificateListItem": {
     /** @description Codigo is the unique verification code printed on the certificate. */
     codigo?: string;
@@ -1814,21 +1866,32 @@ export interface definitions {
     updatedAt?: string;
   };
   "dto.CourseDetailAlumnoResponse": {
+    cantidadClases?: number;
+    categorias?: definitions["dto.CategoriaResponse"][];
     creadorNombre?: string;
     descripcion?: string;
     /** @description always true */
     enrolled?: boolean;
+    horasPractico?: number;
+    horasVideo?: number;
     id?: string;
-    materiales?: definitions["dto.MaterialResponse"][];
+    miniaturaUrl?: string;
+    nivel?: string;
     secciones?: definitions["dto.SectionWithVideosResponse"][];
     titulo?: string;
   };
   "dto.CoursePreviewResponse": {
+    cantidadClases?: number;
+    categorias?: definitions["dto.CategoriaResponse"][];
     creadorNombre?: string;
     descripcion?: string;
     /** @description always false */
     enrolled?: boolean;
+    horasPractico?: number;
+    horasVideo?: number;
     id?: string;
+    miniaturaUrl?: string;
+    nivel?: string;
     titulo?: string;
   };
   /** @description Per-course aggregate stats. */
@@ -1847,7 +1910,11 @@ export interface definitions {
     total?: number;
   };
   "dto.CreateCourseRequest": {
+    categoriaIds?: string[];
     descripcion?: string;
+    horasPractico?: number;
+    /** @enum {string} */
+    nivel?: "basico" | "intermedio" | "avanzado";
     titulo: string;
   };
   "dto.DownloadResponse": {
@@ -2076,13 +2143,20 @@ export interface definitions {
     enrolledCount?: number;
     lastAttemptDate?: string;
   };
+  "dto.ThumbnailConfirmRequest": {
+    key: string;
+  };
   /** @description Creator ranked by aprobado course count. */
   "dto.TopCreatorItem": {
     nombre?: string;
     total?: number;
   };
   "dto.UpdateCourseRequest": {
+    categoriaIds?: string[];
     descripcion?: string;
+    horasPractico?: number;
+    /** @enum {string} */
+    nivel?: "basico" | "intermedio" | "avanzado";
     titulo?: string;
   };
   "dto.UserDTO": {
@@ -2109,6 +2183,7 @@ export interface definitions {
     passedAttemptsCount?: number;
   };
   "dto.VideoCreateRequest": {
+    descripcion?: string;
     duracionS?: number;
     /** @enum {string} */
     proveedor: "youtube" | "vimeo";
@@ -2117,8 +2192,10 @@ export interface definitions {
   };
   "dto.VideoResponse": {
     createdAt?: string;
+    descripcion?: string;
     duracionS?: number;
     id?: string;
+    materiales?: definitions["dto.MaterialResponse"][];
     orden?: number;
     proveedor?: string;
     sectionId?: string;
@@ -2126,6 +2203,7 @@ export interface definitions {
     url?: string;
   };
   "dto.VideoUpdateRequest": {
+    descripcion?: string;
     duracionS?: number;
     /** @enum {string} */
     proveedor?: "youtube" | "vimeo";

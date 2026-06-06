@@ -26,7 +26,7 @@ type CatalogHandler struct {
 	svc service.Service
 }
 
-// RegisterCatalog mounts the 4 alumno-facing catalog routes onto protectedGrp.
+// RegisterCatalog mounts the alumno-facing catalog routes + categorias onto protectedGrp.
 // The group must already carry JWT middleware (protected) — NO RequireRole.
 // CRITICAL: these routes use /catalog/* and /users/me/courses — NEVER /courses/*
 // (that namespace is owned by creatorGrp and would Gin-panic on duplicate registration).
@@ -41,6 +41,9 @@ func RegisterCatalog(protectedGrp *gin.RouterGroup, svc service.Service) {
 	// My-courses route (static path — no conflict with /users/:id on adminGrp
 	// because that group is distinct from protected).
 	protectedGrp.GET("/users/me/courses", h.ListMyCourses)
+
+	// Categorias (course-structure-v2): curated category list for any authenticated user.
+	protectedGrp.GET("/categorias", h.ListCategorias)
 }
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
@@ -169,6 +172,28 @@ func (h *CatalogHandler) ListMyCourses(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, dto.ToMyCourseItems(rows))
+}
+
+// ListCategorias godoc
+// @Summary     Lista las categorias curadas
+// @Description Returns all curated categories. JWT required; any authenticated role (no role gate).
+// @Tags        categorias
+// @Produce     json
+// @Security    BearerAuth
+// @Success     200 {array}  dto.CategoriaResponse
+// @Failure     401 {object} httperr.Error
+// @Router      /categorias [get]
+func (h *CatalogHandler) ListCategorias(c *gin.Context) {
+	cats, err := h.svc.ListCategorias(c.Request.Context())
+	if err != nil {
+		httperr.Render(c, httperr.Internal(err.Error()))
+		return
+	}
+	resp := make([]dto.CategoriaResponse, 0, len(cats))
+	for _, cat := range cats {
+		resp = append(resp, dto.ToCategoria(cat))
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // ── Error render helper ────────────────────────────────────────────────────────

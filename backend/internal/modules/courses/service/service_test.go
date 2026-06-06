@@ -150,14 +150,63 @@ func (m *MockCoursesRepository) GetMaterialByID(ctx context.Context, id string) 
 	return args.Get(0).(*domain.Material), args.Error(1)
 }
 
-func (m *MockCoursesRepository) ListMaterialsByCourse(ctx context.Context, courseID string) ([]domain.Material, error) {
+func (m *MockCoursesRepository) ListMaterialsByVideo(ctx context.Context, videoID string) ([]domain.Material, error) {
+	args := m.Called(ctx, videoID)
+	return args.Get(0).([]domain.Material), args.Error(1)
+}
+
+func (m *MockCoursesRepository) ListMaterialsByCourseVideos(ctx context.Context, courseID string) ([]domain.Material, error) {
 	args := m.Called(ctx, courseID)
 	return args.Get(0).([]domain.Material), args.Error(1)
+}
+
+func (m *MockCoursesRepository) GetMaterialOwnership(ctx context.Context, materialID string) (courseID, creadorID, estado string, err error) {
+	args := m.Called(ctx, materialID)
+	return args.String(0), args.String(1), args.String(2), args.Error(3)
+}
+
+func (m *MockCoursesRepository) ResolveVideoCourse(ctx context.Context, videoID string) (courseID, creadorID, estado string, err error) {
+	args := m.Called(ctx, videoID)
+	return args.String(0), args.String(1), args.String(2), args.Error(3)
 }
 
 func (m *MockCoursesRepository) DeleteMaterial(ctx context.Context, id string) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)
+}
+
+func (m *MockCoursesRepository) ListCategorias(ctx context.Context) ([]domain.Categoria, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]domain.Categoria), args.Error(1)
+}
+
+func (m *MockCoursesRepository) GetCourseCategorias(ctx context.Context, courseID string) ([]domain.Categoria, error) {
+	args := m.Called(ctx, courseID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]domain.Categoria), args.Error(1)
+}
+
+func (m *MockCoursesRepository) SetCourseCategorias(ctx context.Context, courseID string, ids []string) error {
+	args := m.Called(ctx, courseID, ids)
+	return args.Error(0)
+}
+
+func (m *MockCoursesRepository) CategoriasExist(ctx context.Context, ids []string) (bool, error) {
+	args := m.Called(ctx, ids)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockCoursesRepository) ListCategoriasForCourses(ctx context.Context, courseIDs []string) (map[string][]domain.Categoria, error) {
+	args := m.Called(ctx, courseIDs)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(map[string][]domain.Categoria), args.Error(1)
 }
 
 // ── T-1.6 additions: UpdateEstadoPublicado + ListByEstado ─────────────────────
@@ -275,12 +324,13 @@ func newSvcWithStore(repo *MockCoursesRepository, store *mockStorageClient) *ser
 }
 
 // materialWith creates a domain.Material fixture for testing.
-func materialWith(courseID string) *domain.Material {
+// course-structure-v2: keyed by videoID (not courseID).
+func materialWith(videoID string) *domain.Material {
 	return &domain.Material{
 		ID:          uuid.New().String(),
-		CourseID:    courseID,
+		VideoID:     videoID,
 		Titulo:      "test-document.pdf",
-		StorageKey:  "courses/" + courseID + "/materials/uuid-test-document.pdf",
+		StorageKey:  "courses/cid/videos/" + videoID + "/materials/uuid-test-document.pdf",
 		MimeType:    "application/pdf",
 		TamanoBytes: 1024,
 		CreatedAt:   time.Now(),
@@ -1098,20 +1148,22 @@ func TestReorderSections_ValidSet_OK(t *testing.T) {
 	repo.AssertExpectations(t)
 }
 
-// ── PresignUpload tests (C2.3) ────────────────────────────────────────────────
+// ── PresignUpload tests (course-structure-v2: videoID-based) ─────────────────
 
-// TestPresignUpload_HappyPath verifies successful presign returns key with correct prefix.
-// Spec: REQ-PRESIGN happy path.
+// TestPresignUpload_HappyPath verifies successful presign returns key with correct video prefix.
+// course-structure-v2: key now includes videoID in path.
 func TestPresignUpload_HappyPath(t *testing.T) {
 	repo := &MockCoursesRepository{}
 	store := &mockStorageClient{}
 	svc := newSvcWithStore(repo, store)
 
 	ownerID := uuid.New().String()
-	course := courseWith(ownerID, domain.EstadoBorrador)
-	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+	courseID := uuid.New().String()
+	videoID := uuid.New().String()
+	// Mock ResolveVideoCourse: video → course chain.
+	repo.On("ResolveVideoCourse", mock.Anything, videoID).Return(courseID, ownerID, "borrador", nil)
 
-	result, err := svc.PresignUpload(context.Background(), course.ID, ownerID, PresignInput{
+	result, err := svc.PresignUpload(context.Background(), videoID, ownerID, PresignInput{
 		Nombre:      "documento.pdf",
 		ContentType: "application/pdf",
 		TamanoBytes: 1024,
@@ -1119,58 +1171,56 @@ func TestPresignUpload_HappyPath(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, result.UploadURL)
-	assert.Contains(t, result.Key, "courses/"+course.ID+"/materials/",
-		"key must start with courses/{id}/materials/")
+	assert.Contains(t, result.Key, "courses/"+courseID+"/videos/"+videoID+"/materials/",
+		"key must contain courses/{courseID}/videos/{videoID}/materials/")
 	assert.False(t, result.ExpiresAt.IsZero())
 	repo.AssertExpectations(t)
 }
 
 // TestPresignUpload_FileTooLarge verifies ErrFileTooLarge when size exceeds max.
-// Spec: REQ-PRESIGN "File too large" scenario, AC4.
 func TestPresignUpload_FileTooLarge(t *testing.T) {
 	repo := &MockCoursesRepository{}
 	store := &mockStorageClient{}
 	svc := newSvcWithStore(repo, store)
 
 	ownerID := uuid.New().String()
-	course := courseWith(ownerID, domain.EstadoBorrador)
-	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+	courseID := uuid.New().String()
+	videoID := uuid.New().String()
+	repo.On("ResolveVideoCourse", mock.Anything, videoID).Return(courseID, ownerID, "borrador", nil)
 
-	_, err := svc.PresignUpload(context.Background(), course.ID, ownerID, PresignInput{
+	_, err := svc.PresignUpload(context.Background(), videoID, ownerID, PresignInput{
 		Nombre:      "big.zip",
 		ContentType: "application/zip",
-		TamanoBytes: 52_428_801, // 1 byte over 50 MB
+		TamanoBytes: 52_428_801,
 	})
 
-	assert.ErrorIs(t, err, ErrFileTooLarge,
-		"file size exceeding max must return ErrFileTooLarge")
+	assert.ErrorIs(t, err, ErrFileTooLarge)
 	repo.AssertExpectations(t)
 }
 
 // TestPresignUpload_MIMENotAllowed verifies ErrMIMENotAllowed for non-whitelisted type.
-// Spec: REQ-PRESIGN "MIME not in whitelist" scenario, AC5.
 func TestPresignUpload_MIMENotAllowed(t *testing.T) {
 	repo := &MockCoursesRepository{}
 	store := &mockStorageClient{}
 	svc := newSvcWithStore(repo, store)
 
 	ownerID := uuid.New().String()
-	course := courseWith(ownerID, domain.EstadoBorrador)
-	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+	courseID := uuid.New().String()
+	videoID := uuid.New().String()
+	repo.On("ResolveVideoCourse", mock.Anything, videoID).Return(courseID, ownerID, "borrador", nil)
 
-	_, err := svc.PresignUpload(context.Background(), course.ID, ownerID, PresignInput{
+	_, err := svc.PresignUpload(context.Background(), videoID, ownerID, PresignInput{
 		Nombre:      "malware.exe",
 		ContentType: "application/x-msdownload",
 		TamanoBytes: 1024,
 	})
 
-	assert.ErrorIs(t, err, ErrMIMENotAllowed,
-		"non-whitelisted MIME must return ErrMIMENotAllowed")
+	assert.ErrorIs(t, err, ErrMIMENotAllowed)
 	repo.AssertExpectations(t)
 }
 
 // TestPresignUpload_NonOwner verifies ErrNotOwner for non-owner caller.
-// Spec: REQ-PRESIGN "Non-owner creador" scenario, AC2.
+// REQ-SEC chain ownership cross-creator → ErrNotOwner.
 func TestPresignUpload_NonOwner(t *testing.T) {
 	repo := &MockCoursesRepository{}
 	store := &mockStorageClient{}
@@ -1178,59 +1228,60 @@ func TestPresignUpload_NonOwner(t *testing.T) {
 
 	ownerID := uuid.New().String()
 	foreignID := uuid.New().String()
-	course := courseWith(ownerID, domain.EstadoBorrador)
-	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+	courseID := uuid.New().String()
+	videoID := uuid.New().String()
+	repo.On("ResolveVideoCourse", mock.Anything, videoID).Return(courseID, ownerID, "borrador", nil)
 
-	_, err := svc.PresignUpload(context.Background(), course.ID, foreignID, PresignInput{
+	_, err := svc.PresignUpload(context.Background(), videoID, foreignID, PresignInput{
 		Nombre:      "doc.pdf",
 		ContentType: "application/pdf",
 		TamanoBytes: 1024,
 	})
 
 	assert.ErrorIs(t, err, ErrNotOwner,
-		"non-owner must get ErrNotOwner from PresignUpload")
+		"cross-creator material presign must return ErrNotOwner (REQ-SEC chain ownership)")
 	repo.AssertExpectations(t)
 }
 
-// TestPresignUpload_EstadoGate verifies ErrInvalidTransition for non-editable course.
-// Spec: REQ-PRESIGN "Course estado gate" scenario.
+// TestPresignUpload_EstadoGate verifies ErrInvalidTransition for aprobado course.
 func TestPresignUpload_EstadoGate(t *testing.T) {
 	repo := &MockCoursesRepository{}
 	store := &mockStorageClient{}
 	svc := newSvcWithStore(repo, store)
 
 	ownerID := uuid.New().String()
-	course := courseWith(ownerID, domain.EstadoEnRevision) // not editable
-	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+	courseID := uuid.New().String()
+	videoID := uuid.New().String()
+	repo.On("ResolveVideoCourse", mock.Anything, videoID).Return(courseID, ownerID, "aprobado", nil)
 
-	_, err := svc.PresignUpload(context.Background(), course.ID, ownerID, PresignInput{
+	_, err := svc.PresignUpload(context.Background(), videoID, ownerID, PresignInput{
 		Nombre:      "doc.pdf",
 		ContentType: "application/pdf",
 		TamanoBytes: 1024,
 	})
 
 	assert.ErrorIs(t, err, ErrInvalidTransition,
-		"non-editable course estado must return ErrInvalidTransition")
+		"aprobado course must block material presign (assertCourseEditable gate)")
 	repo.AssertExpectations(t)
 }
 
-// ── ConfirmUpload tests (C2.3) ────────────────────────────────────────────────
+// ── ConfirmUpload tests (course-structure-v2: videoID-based) ──────────────────
 
 // TestConfirmUpload_HappyPath verifies that a valid confirm persists the material.
-// Spec: REQ-CONFIRM happy path.
 func TestConfirmUpload_HappyPath(t *testing.T) {
 	repo := &MockCoursesRepository{}
 	store := &mockStorageClient{}
 	svc := newSvcWithStore(repo, store)
 
 	ownerID := uuid.New().String()
-	course := courseWith(ownerID, domain.EstadoBorrador)
-	validKey := "courses/" + course.ID + "/materials/uuid-documento.pdf"
+	courseID := uuid.New().String()
+	videoID := uuid.New().String()
+	validKey := "courses/" + courseID + "/videos/" + videoID + "/materials/uuid-documento.pdf"
 
-	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+	repo.On("ResolveVideoCourse", mock.Anything, videoID).Return(courseID, ownerID, "borrador", nil)
 	repo.On("CreateMaterial", mock.Anything, mock.AnythingOfType("*domain.Material")).Return(nil)
 
-	model, err := svc.ConfirmUpload(context.Background(), course.ID, ownerID, ConfirmInput{
+	model, err := svc.ConfirmUpload(context.Background(), videoID, ownerID, ConfirmInput{
 		Key:         validKey,
 		Nombre:      "documento.pdf",
 		ContentType: "application/pdf",
@@ -1239,133 +1290,129 @@ func TestConfirmUpload_HappyPath(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, model)
-	assert.Equal(t, "documento.pdf", model.Titulo,
-		"Titulo must be set from req.Nombre (D1: nombre is the wire label)")
+	assert.Equal(t, "documento.pdf", model.Titulo)
+	assert.Equal(t, videoID, model.VideoID, "VideoID must be set on the persisted material")
 	repo.AssertExpectations(t)
 }
 
 // TestConfirmUpload_BadKeyPrefix verifies ErrInvalidMaterialKey for wrong key prefix.
-// Spec: REQ-CONFIRM key validation.
 func TestConfirmUpload_BadKeyPrefix(t *testing.T) {
 	repo := &MockCoursesRepository{}
 	store := &mockStorageClient{}
 	svc := newSvcWithStore(repo, store)
 
 	ownerID := uuid.New().String()
-	course := courseWith(ownerID, domain.EstadoBorrador)
-	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+	courseID := uuid.New().String()
+	videoID := uuid.New().String()
+	repo.On("ResolveVideoCourse", mock.Anything, videoID).Return(courseID, ownerID, "borrador", nil)
 
-	_, err := svc.ConfirmUpload(context.Background(), course.ID, ownerID, ConfirmInput{
-		Key:         "courses/other-course/materials/uuid-file.pdf", // wrong courseID in prefix
+	_, err := svc.ConfirmUpload(context.Background(), videoID, ownerID, ConfirmInput{
+		Key:         "courses/other-course/videos/other-video/materials/uuid-file.pdf", // wrong IDs
 		Nombre:      "file.pdf",
 		ContentType: "application/pdf",
 		TamanoBytes: 1024,
 	})
 
-	assert.ErrorIs(t, err, ErrInvalidMaterialKey,
-		"key with wrong prefix must return ErrInvalidMaterialKey")
+	assert.ErrorIs(t, err, ErrInvalidMaterialKey)
 	repo.AssertExpectations(t)
 }
 
-// TestConfirmUpload_ReValidationSize verifies that a tampered size at confirm is rejected.
-// LOAD-BEARING: dual validation — even if presign would have passed, tampered confirm is rejected.
-// Spec: REQ-CONFIRM "Re-validation — file too large at confirm" scenario.
+// TestConfirmUpload_ReValidationSize verifies tampered size at confirm is rejected.
+// LOAD-BEARING: dual validation.
 func TestConfirmUpload_ReValidationSize(t *testing.T) {
 	repo := &MockCoursesRepository{}
 	store := &mockStorageClient{}
 	svc := newSvcWithStore(repo, store)
 
 	ownerID := uuid.New().String()
-	course := courseWith(ownerID, domain.EstadoBorrador)
-	validKey := "courses/" + course.ID + "/materials/uuid-big.pdf"
-	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+	courseID := uuid.New().String()
+	videoID := uuid.New().String()
+	validKey := "courses/" + courseID + "/videos/" + videoID + "/materials/uuid-big.pdf"
+	repo.On("ResolveVideoCourse", mock.Anything, videoID).Return(courseID, ownerID, "borrador", nil)
 
-	_, err := svc.ConfirmUpload(context.Background(), course.ID, ownerID, ConfirmInput{
+	_, err := svc.ConfirmUpload(context.Background(), videoID, ownerID, ConfirmInput{
 		Key:         validKey,
 		Nombre:      "big.pdf",
 		ContentType: "application/pdf",
 		TamanoBytes: 52_428_801, // tampered: exceeds max
 	})
 
-	assert.ErrorIs(t, err, ErrFileTooLarge,
-		"[LOAD-BEARING] tampered size at confirm must return ErrFileTooLarge (dual validation)")
+	assert.ErrorIs(t, err, ErrFileTooLarge, "[LOAD-BEARING] dual validation: tampered size rejected")
 	repo.AssertExpectations(t)
 }
 
-// TestConfirmUpload_ReValidationMIME verifies that a tampered MIME at confirm is rejected.
-// LOAD-BEARING: dual validation — even if presign would have passed, tampered confirm is rejected.
-// Spec: REQ-CONFIRM "Re-validation — MIME not allowed at confirm" scenario.
+// TestConfirmUpload_ReValidationMIME verifies tampered MIME at confirm is rejected.
+// LOAD-BEARING: dual validation.
 func TestConfirmUpload_ReValidationMIME(t *testing.T) {
 	repo := &MockCoursesRepository{}
 	store := &mockStorageClient{}
 	svc := newSvcWithStore(repo, store)
 
 	ownerID := uuid.New().String()
-	course := courseWith(ownerID, domain.EstadoBorrador)
-	validKey := "courses/" + course.ID + "/materials/uuid-file.exe"
-	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+	courseID := uuid.New().String()
+	videoID := uuid.New().String()
+	validKey := "courses/" + courseID + "/videos/" + videoID + "/materials/uuid-file.exe"
+	repo.On("ResolveVideoCourse", mock.Anything, videoID).Return(courseID, ownerID, "borrador", nil)
 
-	_, err := svc.ConfirmUpload(context.Background(), course.ID, ownerID, ConfirmInput{
+	_, err := svc.ConfirmUpload(context.Background(), videoID, ownerID, ConfirmInput{
 		Key:         validKey,
 		Nombre:      "file.exe",
-		ContentType: "application/x-msdownload", // tampered: not in whitelist
+		ContentType: "application/x-msdownload", // tampered
 		TamanoBytes: 1024,
 	})
 
-	assert.ErrorIs(t, err, ErrMIMENotAllowed,
-		"[LOAD-BEARING] tampered MIME at confirm must return ErrMIMENotAllowed (dual validation)")
+	assert.ErrorIs(t, err, ErrMIMENotAllowed, "[LOAD-BEARING] dual validation: tampered MIME rejected")
 	repo.AssertExpectations(t)
 }
 
-// ── ListMaterials tests (C2.3) ────────────────────────────────────────────────
+// ── ListMaterialsByVideo tests (course-structure-v2) ─────────────────────────
 
-// TestListMaterials_NonOwner verifies ErrNotOwner for non-owner caller.
-// Spec: REQ-LIST "Non-owner list" scenario.
-func TestListMaterials_NonOwner(t *testing.T) {
+// TestListMaterialsByVideo_NonOwner verifies ErrNotOwner for non-owner.
+func TestListMaterialsByVideo_NonOwner(t *testing.T) {
 	repo := &MockCoursesRepository{}
 	store := &mockStorageClient{}
 	svc := newSvcWithStore(repo, store)
 
 	ownerID := uuid.New().String()
 	foreignID := uuid.New().String()
-	course := courseWith(ownerID, domain.EstadoBorrador)
-	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+	courseID := uuid.New().String()
+	videoID := uuid.New().String()
+	repo.On("ResolveVideoCourse", mock.Anything, videoID).Return(courseID, ownerID, "borrador", nil)
 
-	_, err := svc.ListMaterials(context.Background(), course.ID, foreignID)
+	_, err := svc.ListMaterialsByVideo(context.Background(), videoID, foreignID)
 
-	assert.ErrorIs(t, err, ErrNotOwner,
-		"non-owner must get ErrNotOwner from ListMaterials (→ 404 via read helper)")
+	assert.ErrorIs(t, err, ErrNotOwner)
 	repo.AssertExpectations(t)
 }
 
-// ── PresignDownload tests (C2.3) ──────────────────────────────────────────────
+// ── PresignDownload tests (course-structure-v2: chain ownership) ──────────────
 
-// TestPresignDownload_HappyPath verifies that PresignGetURL is called with the stored key.
-// Spec: REQ-DOWNLOAD happy path.
+// TestPresignDownload_HappyPath verifies PresignGetURL is called with the stored key.
+// course-structure-v2: uses GetMaterialOwnership for chain check (no courseID arg).
 func TestPresignDownload_HappyPath(t *testing.T) {
 	repo := &MockCoursesRepository{}
 	store := &mockStorageClient{}
 	svc := newSvcWithStore(repo, store)
 
 	ownerID := uuid.New().String()
-	course := courseWith(ownerID, domain.EstadoBorrador)
-	mat := materialWith(course.ID)
+	videoID := uuid.New().String()
+	mat := materialWith(videoID)
 
+	// GetMaterialOwnership resolves chain.
+	repo.On("GetMaterialOwnership", mock.Anything, mat.ID).Return("course-id", ownerID, "borrador", nil)
 	repo.On("GetMaterialByID", mock.Anything, mat.ID).Return(mat, nil)
-	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
 
-	result, err := svc.PresignDownload(context.Background(), course.ID, mat.ID, ownerID)
+	result, err := svc.PresignDownload(context.Background(), mat.ID, ownerID)
 
 	require.NoError(t, err)
-	assert.Contains(t, result.URL, mat.StorageKey,
-		"PresignGetURL must be called with the stored key")
-	assert.Equal(t, []string{mat.StorageKey}, store.getCalls,
-		"PresignGetURL must be called exactly once with the stored key")
+	assert.Contains(t, result.URL, mat.StorageKey)
+	assert.Equal(t, []string{mat.StorageKey}, store.getCalls)
 	repo.AssertExpectations(t)
 }
 
-// TestPresignDownload_NonOwner verifies ErrNotOwner for non-owner caller.
-// Spec: REQ-DOWNLOAD "Non-owner download" scenario.
+// TestPresignDownload_NonOwner verifies ErrNotOwner for a non-owner who is NOT enrolled.
+// OQ3 update: the service now checks enrollment when callerID != ownerID.
+// A non-enrolled non-owner still gets ErrNotOwner.
 func TestPresignDownload_NonOwner(t *testing.T) {
 	repo := &MockCoursesRepository{}
 	store := &mockStorageClient{}
@@ -1373,42 +1420,40 @@ func TestPresignDownload_NonOwner(t *testing.T) {
 
 	ownerID := uuid.New().String()
 	foreignID := uuid.New().String()
-	course := courseWith(ownerID, domain.EstadoBorrador)
-	mat := materialWith(course.ID)
+	courseID := "course-id"
+	videoID := uuid.New().String()
+	mat := materialWith(videoID)
 
-	repo.On("GetMaterialByID", mock.Anything, mat.ID).Return(mat, nil)
-	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+	repo.On("GetMaterialOwnership", mock.Anything, mat.ID).Return(courseID, ownerID, "borrador", nil)
+	// Non-owner and NOT enrolled — IsEnrolled returns false.
+	repo.On("IsEnrolled", mock.Anything, foreignID, courseID).Return(false, nil)
 
-	_, err := svc.PresignDownload(context.Background(), course.ID, mat.ID, foreignID)
+	_, err := svc.PresignDownload(context.Background(), mat.ID, foreignID)
 
 	assert.ErrorIs(t, err, ErrNotOwner,
-		"non-owner must get ErrNotOwner from PresignDownload (→ 404 via read helper)")
+		"non-owner non-enrolled caller must receive ErrNotOwner (OQ3: owner OR enrolled)")
 	repo.AssertExpectations(t)
 }
 
-// TestPresignDownload_MaterialNotFound verifies ErrMaterialNotFound when ID does not exist.
-// Spec: REQ-DOWNLOAD "Material not found" scenario.
+// TestPresignDownload_MaterialNotFound verifies ErrMaterialNotFound.
 func TestPresignDownload_MaterialNotFound(t *testing.T) {
 	repo := &MockCoursesRepository{}
 	store := &mockStorageClient{}
 	svc := newSvcWithStore(repo, store)
 
-	ownerID := uuid.New().String()
 	materialID := uuid.New().String()
-	repo.On("GetMaterialByID", mock.Anything, materialID).Return(nil, repository.ErrMaterialNotFound)
+	repo.On("GetMaterialOwnership", mock.Anything, materialID).Return("", "", "", repository.ErrMaterialNotFound)
 
-	_, err := svc.PresignDownload(context.Background(), "any-course", materialID, ownerID)
+	_, err := svc.PresignDownload(context.Background(), materialID, "any-caller")
 
-	assert.ErrorIs(t, err, ErrMaterialNotFound,
-		"missing material must return ErrMaterialNotFound")
+	assert.ErrorIs(t, err, ErrMaterialNotFound)
 	repo.AssertExpectations(t)
 }
 
-// ── DeleteMaterial tests (C2.3) ───────────────────────────────────────────────
+// ── DeleteMaterial tests (course-structure-v2: chain ownership) ───────────────
 
-// TestDeleteMaterial_HappyPath verifies that DeleteMaterial calls repo.DeleteMaterial
-// BEFORE store.Delete, and returns nil on success.
-// LOAD-BEARING: repo.DeleteMaterial must precede store.Delete per D5 / spec REQ-DELETE.
+// TestDeleteMaterial_HappyPath verifies repo.DeleteMaterial BEFORE store.Delete.
+// LOAD-BEARING: D5 ordering.
 func TestDeleteMaterial_HappyPath(t *testing.T) {
 	repo := &MockCoursesRepository{}
 	var callOrder []string
@@ -1421,11 +1466,11 @@ func TestDeleteMaterial_HappyPath(t *testing.T) {
 	svc := newSvcWithStore(repo, store)
 
 	ownerID := uuid.New().String()
-	course := courseWith(ownerID, domain.EstadoBorrador)
-	mat := materialWith(course.ID)
+	videoID := uuid.New().String()
+	mat := materialWith(videoID)
 
+	repo.On("GetMaterialOwnership", mock.Anything, mat.ID).Return("course-id", ownerID, "borrador", nil)
 	repo.On("GetMaterialByID", mock.Anything, mat.ID).Return(mat, nil)
-	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
 	repo.On("DeleteMaterial", mock.Anything, mat.ID).
 		Run(func(_ mock.Arguments) {
 			callOrder = append(callOrder, "repo.DeleteMaterial")
@@ -1438,41 +1483,36 @@ func TestDeleteMaterial_HappyPath(t *testing.T) {
 	require.Len(t, callOrder, 2)
 	assert.Equal(t, "repo.DeleteMaterial", callOrder[0],
 		"[LOAD-BEARING] repo.DeleteMaterial must be called BEFORE store.Delete")
-	assert.Equal(t, "store.Delete", callOrder[1],
-		"store.Delete must be called after repo.DeleteMaterial")
+	assert.Equal(t, "store.Delete", callOrder[1])
 	repo.AssertExpectations(t)
 }
 
-// TestDeleteMaterial_StoreDeleteError verifies best-effort delete: store.Delete error
-// MUST NOT fail the request. The method must still return nil.
-// LOAD-BEARING: D5 — never fail the DELETE endpoint on object-delete error.
-// Spec: REQ-DELETE "Object already gone — still succeeds" scenario, AC6.
+// TestDeleteMaterial_StoreDeleteError verifies best-effort delete: store.Delete error is swallowed.
+// LOAD-BEARING: D5.
 func TestDeleteMaterial_StoreDeleteError_StillReturnsNil(t *testing.T) {
 	repo := &MockCoursesRepository{}
 	store := &mockStorageClient{
 		DeleteFn: func(_ context.Context, _ string) error {
-			return assert.AnError // simulates a transient storage error
+			return assert.AnError
 		},
 	}
 	svc := newSvcWithStore(repo, store)
 
 	ownerID := uuid.New().String()
-	course := courseWith(ownerID, domain.EstadoBorrador)
-	mat := materialWith(course.ID)
+	videoID := uuid.New().String()
+	mat := materialWith(videoID)
 
+	repo.On("GetMaterialOwnership", mock.Anything, mat.ID).Return("course-id", ownerID, "borrador", nil)
 	repo.On("GetMaterialByID", mock.Anything, mat.ID).Return(mat, nil)
-	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
 	repo.On("DeleteMaterial", mock.Anything, mat.ID).Return(nil)
 
 	err := svc.DeleteMaterial(context.Background(), mat.ID, ownerID)
 
-	assert.NoError(t, err,
-		"[LOAD-BEARING] store.Delete error must be swallowed — DeleteMaterial must return nil (D5)")
+	assert.NoError(t, err, "[LOAD-BEARING] store.Delete error must be swallowed (D5)")
 	repo.AssertExpectations(t)
 }
 
-// TestDeleteMaterial_NonOwner verifies ErrNotOwner for non-owner caller.
-// Spec: REQ-DELETE "Non-owner delete" scenario.
+// TestDeleteMaterial_NonOwner verifies ErrNotOwner for non-owner via chain.
 func TestDeleteMaterial_NonOwner(t *testing.T) {
 	repo := &MockCoursesRepository{}
 	store := &mockStorageClient{}
@@ -1480,34 +1520,168 @@ func TestDeleteMaterial_NonOwner(t *testing.T) {
 
 	ownerID := uuid.New().String()
 	foreignID := uuid.New().String()
-	course := courseWith(ownerID, domain.EstadoBorrador)
-	mat := materialWith(course.ID)
+	videoID := uuid.New().String()
+	mat := materialWith(videoID)
 
-	repo.On("GetMaterialByID", mock.Anything, mat.ID).Return(mat, nil)
-	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+	repo.On("GetMaterialOwnership", mock.Anything, mat.ID).Return("course-id", ownerID, "borrador", nil)
 
 	err := svc.DeleteMaterial(context.Background(), mat.ID, foreignID)
 
-	assert.ErrorIs(t, err, ErrNotOwner,
-		"non-owner must get ErrNotOwner from DeleteMaterial (→ 403)")
+	assert.ErrorIs(t, err, ErrNotOwner)
 	repo.AssertExpectations(t)
 }
 
-// TestDeleteMaterial_MaterialNotFound verifies ErrMaterialNotFound when ID does not exist.
-// Spec: REQ-DELETE "Material not found" scenario.
+// TestDeleteMaterial_MaterialNotFound verifies ErrMaterialNotFound.
 func TestDeleteMaterial_MaterialNotFound(t *testing.T) {
 	repo := &MockCoursesRepository{}
 	store := &mockStorageClient{}
 	svc := newSvcWithStore(repo, store)
 
-	ownerID := uuid.New().String()
 	materialID := uuid.New().String()
-	repo.On("GetMaterialByID", mock.Anything, materialID).Return(nil, repository.ErrMaterialNotFound)
+	repo.On("GetMaterialOwnership", mock.Anything, materialID).Return("", "", "", repository.ErrMaterialNotFound)
 
-	err := svc.DeleteMaterial(context.Background(), materialID, ownerID)
+	err := svc.DeleteMaterial(context.Background(), materialID, "any-caller")
+
+	assert.ErrorIs(t, err, ErrMaterialNotFound)
+	repo.AssertExpectations(t)
+}
+
+// ── FIX-1: PresignDownload owner-OR-enrolled tests (course-structure-v2 OQ3 resolution) ─────
+
+// TestPresignDownload_EnrolledNonOwner_Returns200 verifies that an enrolled non-owner
+// can download a material (OQ3 resolution: material is course content for learners).
+// STRICT TDD: RED → GREEN.
+func TestPresignDownload_EnrolledNonOwner_Returns200(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	enrolledUserID := uuid.New().String() // non-owner but enrolled
+	courseID := uuid.New().String()
+	videoID := uuid.New().String()
+	mat := materialWith(videoID)
+
+	// Chain resolves to ownerID, but caller is enrolledUserID.
+	repo.On("GetMaterialOwnership", mock.Anything, mat.ID).Return(courseID, ownerID, "aprobado", nil)
+	// IsEnrolled returns true — enrolled non-owner should be allowed.
+	repo.On("IsEnrolled", mock.Anything, enrolledUserID, courseID).Return(true, nil)
+	repo.On("GetMaterialByID", mock.Anything, mat.ID).Return(mat, nil)
+
+	result, err := svc.PresignDownload(context.Background(), mat.ID, enrolledUserID)
+
+	require.NoError(t, err, "enrolled non-owner must be allowed to download (OQ3 resolution)")
+	assert.NotEmpty(t, result.URL)
+	repo.AssertExpectations(t)
+}
+
+// TestPresignDownload_OwnerCanDownload verifies owner can always download regardless of enrollment.
+// OQ3 resolution: owner OR enrolled.
+func TestPresignDownload_OwnerCanDownload(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	courseID := uuid.New().String()
+	videoID := uuid.New().String()
+	mat := materialWith(videoID)
+
+	repo.On("GetMaterialOwnership", mock.Anything, mat.ID).Return(courseID, ownerID, "borrador", nil)
+	// Owner: no need to check IsEnrolled, but ensure no unexpected call happens.
+	repo.On("GetMaterialByID", mock.Anything, mat.ID).Return(mat, nil)
+
+	result, err := svc.PresignDownload(context.Background(), mat.ID, ownerID)
+
+	require.NoError(t, err, "owner must always be allowed to download")
+	assert.NotEmpty(t, result.URL)
+	repo.AssertExpectations(t)
+}
+
+// TestPresignDownload_NonEnrolledNonOwner_Returns403 verifies that a non-enrolled non-owner
+// receives ErrNotOwner (→ 403). OQ3 resolution: neither owner nor enrolled.
+func TestPresignDownload_NonEnrolledNonOwner_Returns403(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	strangerID := uuid.New().String() // not owner, not enrolled
+	courseID := uuid.New().String()
+	videoID := uuid.New().String()
+	mat := materialWith(videoID)
+
+	repo.On("GetMaterialOwnership", mock.Anything, mat.ID).Return(courseID, ownerID, "aprobado", nil)
+	repo.On("IsEnrolled", mock.Anything, strangerID, courseID).Return(false, nil)
+
+	_, err := svc.PresignDownload(context.Background(), mat.ID, strangerID)
+
+	assert.ErrorIs(t, err, ErrNotOwner,
+		"non-enrolled non-owner must receive ErrNotOwner (OQ3 resolution)")
+	repo.AssertExpectations(t)
+}
+
+// TestPresignDownload_NonExistentMaterial_Returns404 verifies ErrMaterialNotFound for missing material.
+func TestPresignDownload_NonExistentMaterial_Returns404(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	materialID := uuid.New().String()
+	repo.On("GetMaterialOwnership", mock.Anything, materialID).Return("", "", "", repository.ErrMaterialNotFound)
+
+	_, err := svc.PresignDownload(context.Background(), materialID, "any-caller")
 
 	assert.ErrorIs(t, err, ErrMaterialNotFound,
-		"missing material must return ErrMaterialNotFound")
+		"non-existent material must return ErrMaterialNotFound")
+	repo.AssertExpectations(t)
+}
+
+// ── FIX-3 service: ConfirmUpload and ConfirmThumbnail estado-gate tests ─────────
+
+// TestConfirmUpload_NonEditableCourse_Blocked verifies ConfirmUpload blocks on aprobado course.
+// FIX-3 SUGGESTION-1: service gate test was missing.
+func TestConfirmUpload_NonEditableCourse_Blocked(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	courseID := uuid.New().String()
+	videoID := uuid.New().String()
+	validKey := "courses/" + courseID + "/videos/" + videoID + "/materials/uuid-file.pdf"
+
+	// Course is aprobado — ConfirmUpload must be blocked.
+	repo.On("ResolveVideoCourse", mock.Anything, videoID).Return(courseID, ownerID, "aprobado", nil)
+
+	_, err := svc.ConfirmUpload(context.Background(), videoID, ownerID, ConfirmInput{
+		Key:         validKey,
+		Nombre:      "file.pdf",
+		ContentType: "application/pdf",
+		TamanoBytes: 1024,
+	})
+
+	assert.ErrorIs(t, err, ErrInvalidTransition,
+		"aprobado course must block ConfirmUpload (assertCourseEditable gate)")
+	repo.AssertExpectations(t)
+}
+
+// TestConfirmThumbnail_NonEditableCourse_Blocked verifies ConfirmThumbnail blocks on en_revision course.
+// FIX-3 SUGGESTION-1: service gate test was missing.
+func TestConfirmThumbnail_NonEditableCourse_Blocked(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoEnRevision)
+	validKey := "courses/" + course.ID + "/thumbnail/uuid-cover.jpg"
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+
+	err := svc.ConfirmThumbnail(context.Background(), course.ID, ownerID, validKey)
+
+	assert.ErrorIs(t, err, ErrInvalidTransition,
+		"en_revision course must block ConfirmThumbnail (assertCourseEditable gate)")
 	repo.AssertExpectations(t)
 }
 
@@ -1677,9 +1851,11 @@ func TestListByEstado_EmptyList(t *testing.T) {
 // ── C2.4 catalog + enrollment service unit tests ──────────────────────────────
 
 // TestListCatalog_DelegatesAndMapsPage verifies ListCatalog maps page+q to repo.
+// course-structure-v2: also mocks ListCategoriasForCourses (no N+1).
 func TestListCatalog_DelegatesAndMapsPage(t *testing.T) {
 	repo := &MockCoursesRepository{}
-	svc := newSvc(repo)
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
 
 	p := pagination.Params{Page: 1, Size: 20}
 	repoPage := pagination.Page[repository.CatalogCourseModel]{
@@ -1689,6 +1865,8 @@ func TestListCatalog_DelegatesAndMapsPage(t *testing.T) {
 		Page: 1, Size: 20, Total: 1, TotalPages: 1,
 	}
 	repo.On("ListApproved", mock.Anything, p, "go").Return(repoPage, nil)
+	repo.On("ListCategoriasForCourses", mock.Anything, []string{"c1"}).
+		Return(map[string][]domain.Categoria{}, nil)
 
 	page, err := svc.ListCatalog(context.Background(), p, "go")
 	require.NoError(t, err)
@@ -1714,6 +1892,7 @@ func TestGetCatalogDetail_NotAprobado_Returns404(t *testing.T) {
 }
 
 // TestGetCatalogDetail_NotEnrolled_ReturnsPreview verifies preview when not enrolled.
+// course-structure-v2: metadata always populated; Sections nil on non-enrolled.
 func TestGetCatalogDetail_NotEnrolled_ReturnsPreview(t *testing.T) {
 	repo := &MockCoursesRepository{}
 	svc := newSvc(repo)
@@ -1730,6 +1909,7 @@ func TestGetCatalogDetail_NotEnrolled_ReturnsPreview(t *testing.T) {
 
 	repo.On("GetApprovedDetail", mock.Anything, courseID).Return(detail, nil)
 	repo.On("IsEnrolled", mock.Anything, userID, courseID).Return(false, nil)
+	repo.On("GetCourseCategorias", mock.Anything, courseID).Return([]domain.Categoria{}, nil)
 
 	result, err := svc.GetCatalogDetail(context.Background(), userID, courseID)
 	require.NoError(t, err)
@@ -1740,6 +1920,7 @@ func TestGetCatalogDetail_NotEnrolled_ReturnsPreview(t *testing.T) {
 }
 
 // TestGetCatalogDetail_Enrolled_ReturnsTree verifies full tree when enrolled.
+// course-structure-v2: per-video materials; no course-level materiales.
 func TestGetCatalogDetail_Enrolled_ReturnsTree(t *testing.T) {
 	repo := &MockCoursesRepository{}
 	svc := newSvc(repo)
@@ -1747,6 +1928,7 @@ func TestGetCatalogDetail_Enrolled_ReturnsTree(t *testing.T) {
 	courseID := uuid.New().String()
 	userID := uuid.New().String()
 	sectionID := uuid.New().String()
+	videoID := uuid.New().String()
 	detail := &repository.CatalogCourseModel{
 		ID:            courseID,
 		Titulo:        "Go Course",
@@ -1758,17 +1940,19 @@ func TestGetCatalogDetail_Enrolled_ReturnsTree(t *testing.T) {
 		{ID: sectionID, CourseID: courseID, Titulo: "Cap 1", Orden: 0},
 	}
 	videos := []domain.Video{
-		{ID: uuid.New().String(), SectionID: sectionID, Titulo: "Video 1", URL: "https://youtube.com/v", Proveedor: "youtube"},
+		{ID: videoID, SectionID: sectionID, Titulo: "Video 1", URL: "https://youtube.com/v", Proveedor: "youtube"},
 	}
+	// course-structure-v2: materials keyed by video_id, not course_id.
 	materials := []domain.Material{
-		{ID: uuid.New().String(), CourseID: courseID, Titulo: "doc.pdf", StorageKey: "k", MimeType: "application/pdf", TamanoBytes: 100},
+		{ID: uuid.New().String(), VideoID: videoID, Titulo: "doc.pdf", StorageKey: "k", MimeType: "application/pdf", TamanoBytes: 100},
 	}
 
 	repo.On("GetApprovedDetail", mock.Anything, courseID).Return(detail, nil)
 	repo.On("IsEnrolled", mock.Anything, userID, courseID).Return(true, nil)
+	repo.On("GetCourseCategorias", mock.Anything, courseID).Return([]domain.Categoria{}, nil)
 	repo.On("ListSectionsByCourse", mock.Anything, courseID).Return(sections, nil)
+	repo.On("ListMaterialsByCourseVideos", mock.Anything, courseID).Return(materials, nil)
 	repo.On("ListVideosBySection", mock.Anything, sectionID).Return(videos, nil)
-	repo.On("ListMaterialsByCourse", mock.Anything, courseID).Return(materials, nil)
 
 	result, err := svc.GetCatalogDetail(context.Background(), userID, courseID)
 	require.NoError(t, err)
@@ -1776,7 +1960,9 @@ func TestGetCatalogDetail_Enrolled_ReturnsTree(t *testing.T) {
 	require.Len(t, result.Sections, 1, "enrolled user must see 1 section")
 	assert.Equal(t, sectionID, result.Sections[0].Section.ID)
 	require.Len(t, result.Sections[0].Videos, 1)
-	assert.NotNil(t, result.Materiales, "enrolled user must see materiales")
+	// course-structure-v2: materials are now per-video, not course-level.
+	require.Len(t, result.Sections[0].Videos[0].Materiales, 1,
+		"per-video material must be populated (course-structure-v2)")
 	repo.AssertExpectations(t)
 }
 
@@ -1844,6 +2030,177 @@ func TestMarkEnrollmentCompleted_NoOp(t *testing.T) {
 	err := svc.MarkEnrollmentCompleted(context.Background(), userID, courseID)
 	assert.NoError(t, err, "MarkEnrollmentCompleted no-op path must return nil")
 	repo.AssertExpectations(t)
+}
+
+// ── course-structure-v2 coverage additions ────────────────────────────────────
+
+// TestListCategorias_DelegatesAndMaps verifies ListCategorias delegates to repo.
+func TestListCategorias_DelegatesAndMaps(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	cats := []domain.Categoria{
+		{ID: "c1", Nombre: "Backend", Slug: "backend"},
+		{ID: "c2", Nombre: "Frontend", Slug: "frontend"},
+	}
+	repo.On("ListCategorias", mock.Anything).Return(cats, nil)
+
+	result, err := svc.ListCategorias(context.Background())
+	require.NoError(t, err)
+	require.Len(t, result, 2)
+	assert.Equal(t, "c1", result[0].ID)
+	assert.Equal(t, "Backend", result[0].Nombre)
+	repo.AssertExpectations(t)
+}
+
+// TestPresignThumbnail_HappyPath verifies PresignThumbnail returns key with thumbnail prefix.
+func TestPresignThumbnail_HappyPath(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoBorrador)
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+
+	result, err := svc.PresignThumbnail(context.Background(), course.ID, ownerID, PresignInput{
+		Nombre:      "cover.jpg",
+		ContentType: "image/jpeg",
+		TamanoBytes: 512_000,
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, result.Key, "courses/"+course.ID+"/thumbnail/")
+	assert.NotEmpty(t, result.UploadURL)
+	repo.AssertExpectations(t)
+}
+
+// TestPresignThumbnail_NonOwner verifies ErrNotOwner for non-owner.
+func TestPresignThumbnail_NonOwner(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	foreignID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoBorrador)
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+
+	_, err := svc.PresignThumbnail(context.Background(), course.ID, foreignID, PresignInput{
+		Nombre:      "cover.jpg",
+		ContentType: "image/jpeg",
+		TamanoBytes: 512_000,
+	})
+
+	assert.ErrorIs(t, err, ErrNotOwner)
+	repo.AssertExpectations(t)
+}
+
+// TestPresignThumbnail_NonImageMIME verifies ErrMIMENotAllowed for non-image MIME.
+func TestPresignThumbnail_NonImageMIME(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoBorrador)
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+
+	_, err := svc.PresignThumbnail(context.Background(), course.ID, ownerID, PresignInput{
+		Nombre:      "notes.pdf",
+		ContentType: "application/pdf", // not an image MIME
+		TamanoBytes: 1024,
+	})
+
+	assert.ErrorIs(t, err, ErrMIMENotAllowed, "non-image MIME must be rejected for thumbnail")
+	repo.AssertExpectations(t)
+}
+
+// TestConfirmThumbnail_HappyPath verifies ConfirmThumbnail sets miniatura_key.
+func TestConfirmThumbnail_HappyPath(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoBorrador)
+	validKey := "courses/" + course.ID + "/thumbnail/uuid-cover.jpg"
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+	repo.On("UpdateByID", mock.Anything, course.ID, mock.AnythingOfType("map[string]interface {}")).Return(nil)
+
+	err := svc.ConfirmThumbnail(context.Background(), course.ID, ownerID, validKey)
+	assert.NoError(t, err)
+	repo.AssertExpectations(t)
+}
+
+// TestConfirmThumbnail_BadKeyPrefix verifies ErrInvalidMaterialKey for wrong prefix.
+func TestConfirmThumbnail_BadKeyPrefix(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	ownerID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoBorrador)
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+
+	err := svc.ConfirmThumbnail(context.Background(), course.ID, ownerID,
+		"courses/other-course/thumbnail/uuid-img.jpg")
+
+	assert.ErrorIs(t, err, ErrInvalidMaterialKey)
+	repo.AssertExpectations(t)
+}
+
+// TestCreate_WithCategoriaIDs verifies Create validates and sets categoriaIDs.
+func TestCreate_WithCategoriaIDs(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	ownerID := uuid.New().String()
+	catID := uuid.New().String()
+	repo.On("CategoriasExist", mock.Anything, []string{catID}).Return(true, nil)
+	repo.On("Create", mock.Anything, mock.AnythingOfType("*domain.Course")).Return(nil)
+	repo.On("SetCourseCategorias", mock.Anything, mock.AnythingOfType("string"), []string{catID}).Return(nil)
+
+	_, err := svc.Create(context.Background(), ownerID, CreateRequest{
+		Titulo:       "My Course",
+		Descripcion:  "Desc",
+		CategoriaIDs: []string{catID},
+	})
+	assert.NoError(t, err)
+	repo.AssertExpectations(t)
+}
+
+// TestCreate_WithBogusCategoria verifies ErrInvalidCategoria when category not found.
+func TestCreate_WithBogusCategoria(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	ownerID := uuid.New().String()
+	bogusID := uuid.New().String()
+	repo.On("CategoriasExist", mock.Anything, []string{bogusID}).Return(false, nil)
+
+	_, err := svc.Create(context.Background(), ownerID, CreateRequest{
+		Titulo:       "My Course",
+		CategoriaIDs: []string{bogusID},
+	})
+	assert.ErrorIs(t, err, ErrInvalidCategoria, "bogus categoria ID must return ErrInvalidCategoria")
+	repo.AssertExpectations(t)
+}
+
+// TestRoundHorasVideo_Math verifies the rounding formula matches the spec.
+// Spec REQ-COMPUTED: 1 decimal; ROUND(SUM/3600, 1).
+func TestRoundHorasVideo_Math(t *testing.T) {
+	cases := []struct{ input, want float64 }{
+		{3600.0 / 3600, 1.0},     // 3600s → 1.0
+		{5400.0 / 3600, 1.5},     // 5400s → 1.5
+		{0.0, 0.0},               // 0s → 0.0
+		{3700.0 / 3600, 1.0},     // 3700/3600 = 1.0277... → rounds to 1.0
+		{2 * 3600.0 / 3600, 2.0}, // 7200s → 2.0
+	}
+	for _, tc := range cases {
+		got := roundHorasVideo(tc.input)
+		assert.Equal(t, tc.want, got, "roundHorasVideo(%v) = %v, want %v", tc.input, got, tc.want)
+	}
 }
 
 // TestListMyCourses_DelegatesAndMaps verifies ListMyCourses maps repo model.

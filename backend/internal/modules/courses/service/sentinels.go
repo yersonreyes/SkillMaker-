@@ -59,7 +59,12 @@ var (
 	ErrMIMENotAllowed = errors.New("content type not allowed")
 
 	// ErrInvalidMaterialKey is returned when the key in ConfirmUpload does not start
-	// with the expected "courses/{courseID}/materials/" prefix.
+	// with the expected "courses/{courseID}/videos/{videoID}/materials/" prefix.
 	// → 400 Bad Request
 	ErrInvalidMaterialKey = errors.New("material key prefix mismatch")
+
+	// ErrInvalidCategoria is returned when a categoriaId provided in CreateRequest
+	// or UpdateRequest does not exist in the categoria table.
+	// → 400 Bad Request
+	ErrInvalidCategoria = errors.New("one or more categoria IDs are invalid")
 )

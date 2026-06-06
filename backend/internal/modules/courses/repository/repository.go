@@ -19,16 +19,22 @@ import (
 // ErrCourseNotFound is returned when a course lookup finds no matching row.
 var ErrCourseNotFound = errors.New("course not found")
 
-// ── Catalog read models (C2.4) ─────────────────────────────────────────────────
+// ── Catalog read models (C2.4 + course-structure-v2) ──────────────────────────
 
 // CatalogCourseModel is the read model for an approved-course catalog card,
 // carrying the creator's DISPLAY NAME (joined from "user") — not the UUID.
+// course-structure-v2: Nivel, MiniaturaKey, HorasPractico, CantidadClases, HorasVideo added.
 type CatalogCourseModel struct {
-	ID            string
-	Titulo        string
-	Descripcion   string
-	CreadorNombre string
-	CreatedAt     time.Time
+	ID             string
+	Titulo         string
+	Descripcion    string
+	CreadorNombre  string
+	CreatedAt      time.Time
+	Nivel          *string
+	MiniaturaKey   *string
+	HorasPractico  float64
+	CantidadClases int
+	HorasVideo     float64
 }
 
 // EnrollmentWithCourseModel is the read model for GET /users/me/courses.
@@ -160,7 +166,7 @@ type Repository interface {
 	// No-op (nil, no error) when no matching row exists (0 rows affected).
 	MarkCompleted(ctx context.Context, userID, courseID string) error
 
-	// ── Material methods (C2.3) ────────────────────────────────────────────────
+	// ── Material methods (C2.3 / course-structure-v2) ─────────────────────────
 
 	// CreateMaterial persists a new material. Assigns a UUID if ID is empty.
 	CreateMaterial(ctx context.Context, m *domain.Material) error
@@ -169,11 +175,46 @@ type Repository interface {
 	// Returns ErrMaterialNotFound when no row matches.
 	GetMaterialByID(ctx context.Context, id string) (*domain.Material, error)
 
-	// ListMaterialsByCourse returns all materials for a course ordered by created_at ASC.
-	ListMaterialsByCourse(ctx context.Context, courseID string) ([]domain.Material, error)
+	// ListMaterialsByVideo returns all materials for a video ordered by created_at ASC.
+	// course-structure-v2: replaces ListMaterialsByCourse (material now belongs to video).
+	ListMaterialsByVideo(ctx context.Context, videoID string) ([]domain.Material, error)
+
+	// ListMaterialsByCourseVideos returns all materials for a course's videos in a single
+	// query (no N+1). Results are ordered by video.orden, material.created_at ASC.
+	// The caller groups the results by VideoID in Go.
+	ListMaterialsByCourseVideos(ctx context.Context, courseID string) ([]domain.Material, error)
+
+	// GetMaterialOwnership resolves the ownership chain: material → video → section → course.
+	// Returns courseID, creadorID, and course estado. RowsAffected==0 → ErrMaterialNotFound.
+	GetMaterialOwnership(ctx context.Context, materialID string) (courseID, creadorID, estado string, err error)
+
+	// ResolveVideoCourse resolves the chain: video → section → course.
+	// Returns courseID, creadorID, and course estado. RowsAffected==0 → ErrVideoNotFound.
+	ResolveVideoCourse(ctx context.Context, videoID string) (courseID, creadorID, estado string, err error)
 
 	// DeleteMaterial deletes a material by ID.
 	DeleteMaterial(ctx context.Context, id string) error
+
+	// ── Categoria methods (course-structure-v2 / migration 0013) ──────────────
+
+	// ListCategorias returns all curated categorias ordered by nombre ASC.
+	ListCategorias(ctx context.Context) ([]domain.Categoria, error)
+
+	// GetCourseCategorias returns all categorias associated with a course.
+	GetCourseCategorias(ctx context.Context, courseID string) ([]domain.Categoria, error)
+
+	// SetCourseCategorias performs a replace-set: DELETE all existing associations for
+	// courseID, then batch INSERT the new ids. Skips INSERT when ids is empty.
+	// Uses a transaction (mirrors ReorderSections pattern).
+	SetCourseCategorias(ctx context.Context, courseID string, ids []string) error
+
+	// CategoriasExist returns true if ALL provided ids exist in the categoria table.
+	// Returns false if any id is unknown. Used to validate CategoriaIDs on create/update.
+	CategoriasExist(ctx context.Context, ids []string) (bool, error)
+
+	// ListCategoriasForCourses loads categorias for a batch of course IDs in ONE query
+	// (no N+1 on catalog list). Returns a map[courseID][]Categoria.
+	ListCategoriasForCourses(ctx context.Context, courseIDs []string) (map[string][]domain.Categoria, error)
 }
 
 // ── gormRepository ─────────────────────────────────────────────────────────────
@@ -402,7 +443,7 @@ func (r *gormRepository) HasContent(ctx context.Context, courseID string) (bool,
 	return exists, nil
 }
 
-// ── Material implementations (C2.3) ───────────────────────────────────────────
+// ── Material implementations (C2.3 / course-structure-v2) ────────────────────
 
 func (r *gormRepository) CreateMaterial(ctx context.Context, m *domain.Material) error {
 	if m.ID == "" {
@@ -423,10 +464,12 @@ func (r *gormRepository) GetMaterialByID(ctx context.Context, id string) (*domai
 	return &m, nil
 }
 
-func (r *gormRepository) ListMaterialsByCourse(ctx context.Context, courseID string) ([]domain.Material, error) {
+// ListMaterialsByVideo returns all materials for a video ordered by created_at ASC.
+// course-structure-v2: replaces ListMaterialsByCourse (material.video_id instead of course_id).
+func (r *gormRepository) ListMaterialsByVideo(ctx context.Context, videoID string) ([]domain.Material, error) {
 	var materials []domain.Material
 	err := r.db.WithContext(ctx).
-		Where("course_id = ?", courseID).
+		Where("video_id = ?", videoID).
 		Order("created_at ASC").
 		Find(&materials).Error
 	if err != nil {
@@ -435,8 +478,179 @@ func (r *gormRepository) ListMaterialsByCourse(ctx context.Context, courseID str
 	return materials, nil
 }
 
+// ListMaterialsByCourseVideos returns all materials for a course's videos in one query.
+// Joins material → video → section to filter by course_id.
+// Results ordered by video.orden ASC, material.created_at ASC.
+// The caller groups by m.VideoID in Go (no N+1 on the content tree).
+func (r *gormRepository) ListMaterialsByCourseVideos(ctx context.Context, courseID string) ([]domain.Material, error) {
+	var materials []domain.Material
+	err := r.db.WithContext(ctx).
+		Raw(`SELECT m.* FROM material m
+			 JOIN video v ON v.id = m.video_id
+			 JOIN section s ON s.id = v.section_id
+			 WHERE s.course_id = ?
+			 ORDER BY v.orden ASC, m.created_at ASC`, courseID).
+		Scan(&materials).Error
+	if err != nil {
+		return nil, err
+	}
+	return materials, nil
+}
+
+// GetMaterialOwnership resolves the chain: material → video → section → course.
+// Uses Raw().Scan idiom like HasContent for a single round-trip.
+// RowsAffected==0 → ErrMaterialNotFound.
+func (r *gormRepository) GetMaterialOwnership(ctx context.Context, materialID string) (courseID, creadorID, estado string, err error) {
+	type row struct {
+		CourseID  string
+		CreadorID string
+		Estado    string
+	}
+	var result row
+	res := r.db.WithContext(ctx).Raw(`
+		SELECT c.id AS course_id, c.creador_id, c.estado
+		FROM material m
+		JOIN video v ON v.id = m.video_id
+		JOIN section s ON s.id = v.section_id
+		JOIN course c ON c.id = s.course_id
+		WHERE m.id = ?`, materialID).
+		Scan(&result)
+	if res.Error != nil {
+		return "", "", "", res.Error
+	}
+	if res.RowsAffected == 0 {
+		return "", "", "", ErrMaterialNotFound
+	}
+	return result.CourseID, result.CreadorID, result.Estado, nil
+}
+
+// ResolveVideoCourse resolves the chain: video → section → course.
+// RowsAffected==0 → ErrVideoNotFound.
+func (r *gormRepository) ResolveVideoCourse(ctx context.Context, videoID string) (courseID, creadorID, estado string, err error) {
+	type row struct {
+		CourseID  string
+		CreadorID string
+		Estado    string
+	}
+	var result row
+	res := r.db.WithContext(ctx).Raw(`
+		SELECT c.id AS course_id, c.creador_id, c.estado
+		FROM video v
+		JOIN section s ON s.id = v.section_id
+		JOIN course c ON c.id = s.course_id
+		WHERE v.id = ?`, videoID).
+		Scan(&result)
+	if res.Error != nil {
+		return "", "", "", res.Error
+	}
+	if res.RowsAffected == 0 {
+		return "", "", "", ErrVideoNotFound
+	}
+	return result.CourseID, result.CreadorID, result.Estado, nil
+}
+
 func (r *gormRepository) DeleteMaterial(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Where("id = ?", id).Delete(&domain.Material{}).Error
+}
+
+// ── Categoria implementations (course-structure-v2 / migration 0013) ──────────
+
+// ListCategorias returns all curated categorias ordered by nombre ASC.
+func (r *gormRepository) ListCategorias(ctx context.Context) ([]domain.Categoria, error) {
+	var cats []domain.Categoria
+	err := r.db.WithContext(ctx).Order("nombre ASC").Find(&cats).Error
+	return cats, err
+}
+
+// GetCourseCategorias returns categorias joined via course_categoria.
+func (r *gormRepository) GetCourseCategorias(ctx context.Context, courseID string) ([]domain.Categoria, error) {
+	var cats []domain.Categoria
+	err := r.db.WithContext(ctx).
+		Raw(`SELECT cat.* FROM categoria cat
+			 JOIN course_categoria cc ON cc.categoria_id = cat.id
+			 WHERE cc.course_id = ?
+			 ORDER BY cat.nombre ASC`, courseID).
+		Scan(&cats).Error
+	return cats, err
+}
+
+// SetCourseCategorias is a replace-set operation: DELETE existing associations
+// for courseID, then batch INSERT the new ids in a transaction.
+// Mirrors ReorderSections' transaction pattern.
+func (r *gormRepository) SetCourseCategorias(ctx context.Context, courseID string, ids []string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Always delete existing associations first (idempotent on empty ids).
+		if err := tx.Exec(`DELETE FROM course_categoria WHERE course_id = ?`, courseID).Error; err != nil {
+			return err
+		}
+		if len(ids) == 0 {
+			return nil // empty set clears all — done
+		}
+		// Batch INSERT the new associations.
+		for _, id := range ids {
+			if err := tx.Exec(
+				`INSERT INTO course_categoria (course_id, categoria_id) VALUES (?, ?)`,
+				courseID, id,
+			).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// CategoriasExist returns true if ALL provided ids exist in the categoria table.
+// Uses COUNT(*) WHERE id = ANY(?) and compares with len(ids).
+// NOTE: Postgres ANY requires casting the array — pass as (pq.Array or raw cast).
+// We use IN clause with individual placeholders to avoid pq dependency.
+func (r *gormRepository) CategoriasExist(ctx context.Context, ids []string) (bool, error) {
+	if len(ids) == 0 {
+		return true, nil // vacuous truth — no ids to validate
+	}
+	var count int64
+	// Use Where("id IN ?", ids) which GORM handles correctly as multiple placeholders.
+	err := r.db.WithContext(ctx).
+		Model(&domain.Categoria{}).
+		Where("id IN ?", ids).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count == int64(len(ids)), nil
+}
+
+// ListCategoriasForCourses loads categorias for a batch of course IDs in ONE query.
+// Returns map[courseID][]Categoria. Used by ListCatalog to avoid per-card N+1.
+func (r *gormRepository) ListCategoriasForCourses(ctx context.Context, courseIDs []string) (map[string][]domain.Categoria, error) {
+	if len(courseIDs) == 0 {
+		return map[string][]domain.Categoria{}, nil
+	}
+	type row struct {
+		CourseID string
+		ID       string
+		Nombre   string
+		Slug     string
+	}
+	var rows []row
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT cc.course_id, cat.id, cat.nombre, cat.slug
+		FROM course_categoria cc
+		JOIN categoria cat ON cat.id = cc.categoria_id
+		WHERE cc.course_id IN ?
+		ORDER BY cat.nombre ASC`, courseIDs).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string][]domain.Categoria, len(courseIDs))
+	for _, r := range rows {
+		result[r.CourseID] = append(result[r.CourseID], domain.Categoria{
+			ID:     r.ID,
+			Nombre: r.Nombre,
+			Slug:   r.Slug,
+		})
+	}
+	return result, nil
 }
 
 // ── C4.1 additions ────────────────────────────────────────────────────────────
@@ -496,7 +710,11 @@ func (r *gormRepository) ListApproved(ctx context.Context, p pagination.Params, 
 	var rows []CatalogCourseModel
 	err := base.
 		Select(`course.id AS id, course.titulo AS titulo, course.descripcion AS descripcion,
-		         "user".nombre AS creador_nombre, course.created_at AS created_at`).
+		         "user".nombre AS creador_nombre, course.created_at AS created_at,
+		         course.nivel AS nivel, course.miniatura_key AS miniatura_key,
+		         course.horas_practico AS horas_practico,
+		         (SELECT COUNT(*) FROM video v JOIN section s ON s.id = v.section_id WHERE s.course_id = course.id) AS cantidad_clases,
+		         (COALESCE((SELECT SUM(v2.duracion_s) FROM video v2 JOIN section s2 ON s2.id = v2.section_id WHERE s2.course_id = course.id), 0) / 3600.0) AS horas_video`).
 		Order("course.created_at DESC").
 		Offset(p.Offset()).Limit(p.Limit()).
 		Scan(&rows).Error
@@ -516,7 +734,11 @@ func (r *gormRepository) GetApprovedDetail(ctx context.Context, courseID string)
 		Joins(`JOIN "user" ON "user".id = course.creador_id`).
 		Where("course.id = ? AND course.estado = ?", courseID, "aprobado").
 		Select(`course.id AS id, course.titulo AS titulo, course.descripcion AS descripcion,
-		         "user".nombre AS creador_nombre, course.created_at AS created_at`).
+		         "user".nombre AS creador_nombre, course.created_at AS created_at,
+		         course.nivel AS nivel, course.miniatura_key AS miniatura_key,
+		         course.horas_practico AS horas_practico,
+		         (SELECT COUNT(*) FROM video v JOIN section s ON s.id = v.section_id WHERE s.course_id = course.id) AS cantidad_clases,
+		         (COALESCE((SELECT SUM(v2.duracion_s) FROM video v2 JOIN section s2 ON s2.id = v2.section_id WHERE s2.course_id = course.id), 0) / 3600.0) AS horas_video`).
 		Scan(&row)
 	if result.Error != nil {
 		return nil, result.Error

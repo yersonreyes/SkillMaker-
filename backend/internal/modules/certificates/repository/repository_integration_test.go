@@ -115,8 +115,9 @@ func TestMigration0010RoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(3), badgeCount, "re-seed must not create duplicates")
 
-	// Roll back 1 step — drops 0010.
-	require.NoError(t, m.Steps(-1), "m.Steps(-1) must roll back 0010 without error")
+	// Roll back 4 steps — drops 0013+0012+0011+0010.
+	// NOTE (course-structure-v2): migrations 0011+0012+0013 added; +3 → need -4.
+	require.NoError(t, m.Steps(-4), "m.Steps(-4) must roll back 0013+0012+0011+0010 without error")
 
 	// Verify tables gone.
 	err = db.WithContext(ctx).Raw(

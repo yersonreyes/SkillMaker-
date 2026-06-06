@@ -109,6 +109,15 @@ definitions:
         description: OtorgadoEn is the UTC timestamp when the badge was awarded.
         type: string
     type: object
+  dto.CategoriaResponse:
+    properties:
+      id:
+        type: string
+      nombre:
+        type: string
+      slug:
+        type: string
+    type: object
   dto.CertificateListItem:
     properties:
       codigo:
@@ -168,6 +177,12 @@ definitions:
     type: object
   dto.CourseDetailAlumnoResponse:
     properties:
+      cantidadClases:
+        type: integer
+      categorias:
+        items:
+          $ref: '#/definitions/dto.CategoriaResponse'
+        type: array
       creadorNombre:
         type: string
       descripcion:
@@ -175,12 +190,16 @@ definitions:
       enrolled:
         description: always true
         type: boolean
+      horasPractico:
+        type: number
+      horasVideo:
+        type: number
       id:
         type: string
-      materiales:
-        items:
-          $ref: '#/definitions/dto.MaterialResponse'
-        type: array
+      miniaturaUrl:
+        type: string
+      nivel:
+        type: string
       secciones:
         items:
           $ref: '#/definitions/dto.SectionWithVideosResponse'
@@ -190,6 +209,12 @@ definitions:
     type: object
   dto.CoursePreviewResponse:
     properties:
+      cantidadClases:
+        type: integer
+      categorias:
+        items:
+          $ref: '#/definitions/dto.CategoriaResponse'
+        type: array
       creadorNombre:
         type: string
       descripcion:
@@ -197,7 +222,15 @@ definitions:
       enrolled:
         description: always false
         type: boolean
+      horasPractico:
+        type: number
+      horasVideo:
+        type: number
       id:
+        type: string
+      miniaturaUrl:
+        type: string
+      nivel:
         type: string
       titulo:
         type: string
@@ -229,8 +262,21 @@ definitions:
     type: object
   dto.CreateCourseRequest:
     properties:
+      categoriaIds:
+        items:
+          type: string
+        type: array
       descripcion:
         maxLength: 5000
+        type: string
+      horasPractico:
+        minimum: 0
+        type: number
+      nivel:
+        enum:
+        - basico
+        - intermedio
+        - avanzado
         type: string
       titulo:
         maxLength: 200
@@ -721,6 +767,13 @@ definitions:
       lastAttemptDate:
         type: string
     type: object
+  dto.ThumbnailConfirmRequest:
+    properties:
+      key:
+        type: string
+    required:
+    - key
+    type: object
   dto.TopCreatorItem:
     description: Creator ranked by aprobado course count.
     properties:
@@ -731,8 +784,21 @@ definitions:
     type: object
   dto.UpdateCourseRequest:
     properties:
+      categoriaIds:
+        items:
+          type: string
+        type: array
       descripcion:
         maxLength: 5000
+        type: string
+      horasPractico:
+        minimum: 0
+        type: number
+      nivel:
+        enum:
+        - basico
+        - intermedio
+        - avanzado
         type: string
       titulo:
         maxLength: 200
@@ -787,6 +853,9 @@ definitions:
     type: object
   dto.VideoCreateRequest:
     properties:
+      descripcion:
+        maxLength: 5000
+        type: string
       duracionS:
         minimum: 0
         type: integer
@@ -810,10 +879,16 @@ definitions:
     properties:
       createdAt:
         type: string
+      descripcion:
+        type: string
       duracionS:
         type: integer
       id:
         type: string
+      materiales:
+        items:
+          $ref: '#/definitions/dto.MaterialResponse'
+        type: array
       orden:
         type: integer
       proveedor:
@@ -827,6 +902,9 @@ definitions:
     type: object
   dto.VideoUpdateRequest:
     properties:
+      descripcion:
+        maxLength: 5000
+        type: string
       duracionS:
         minimum: 0
         type: integer
@@ -1211,6 +1289,28 @@ paths:
       summary: Inscribe al alumno en un curso aprobado (idempotente)
       tags:
       - catalog
+  /categorias:
+    get:
+      description: Returns all curated categories. JWT required; any authenticated
+        role (no role gate).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.CategoriaResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Lista las categorias curadas
+      tags:
+      - categorias
   /certificates/{id}:
     get:
       description: Devuelve el certificado si pertenece al usuario autenticado. 404
@@ -1461,114 +1561,6 @@ paths:
       summary: Crea una evaluacion para un curso
       tags:
       - evaluations
-  /courses/{courseId}/materials:
-    post:
-      consumes:
-      - application/json
-      description: Persiste el material tras un PUT presignado exitoso. Re-valida
-        tamano y MIME.
-      parameters:
-      - description: UUID del curso
-        in: path
-        name: courseId
-        required: true
-        type: string
-      - description: Datos del material confirmado
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/dto.MaterialConfirmRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/dto.MaterialResponse'
-        "400":
-          description: clave de objeto invalida o campos faltantes
-          schema:
-            $ref: '#/definitions/httperr.Error'
-        "403":
-          description: no es propietario del curso
-          schema:
-            $ref: '#/definitions/httperr.Error'
-        "404":
-          description: curso no encontrado
-          schema:
-            $ref: '#/definitions/httperr.Error'
-        "409":
-          description: estado no permite edicion
-          schema:
-            $ref: '#/definitions/httperr.Error'
-        "413":
-          description: archivo demasiado grande
-          schema:
-            $ref: '#/definitions/httperr.Error'
-        "415":
-          description: tipo de contenido no permitido
-          schema:
-            $ref: '#/definitions/httperr.Error'
-      security:
-      - BearerAuth: []
-      summary: Confirma la subida de un material (crea la fila en DB)
-      tags:
-      - materials
-  /courses/{courseId}/materials/presign:
-    post:
-      consumes:
-      - application/json
-      description: Genera una URL PUT presignada para que el browser suba el archivo
-        directamente a MinIO.
-      parameters:
-      - description: UUID del curso
-        in: path
-        name: courseId
-        required: true
-        type: string
-      - description: Datos del archivo a subir
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/dto.MaterialPresignRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/dto.PresignResponse'
-        "400":
-          description: body invalido o campos faltantes
-          schema:
-            $ref: '#/definitions/httperr.Error'
-        "403":
-          description: no es propietario del curso
-          schema:
-            $ref: '#/definitions/httperr.Error'
-        "404":
-          description: curso no encontrado
-          schema:
-            $ref: '#/definitions/httperr.Error'
-        "409":
-          description: estado no permite edicion
-          schema:
-            $ref: '#/definitions/httperr.Error'
-        "413":
-          description: archivo demasiado grande
-          schema:
-            $ref: '#/definitions/httperr.Error'
-        "415":
-          description: tipo de contenido no permitido
-          schema:
-            $ref: '#/definitions/httperr.Error'
-      security:
-      - BearerAuth: []
-      summary: Genera URL presignada para subir un archivo
-      tags:
-      - materials
   /courses/{courseId}/reject:
     post:
       consumes:
@@ -1696,6 +1688,63 @@ paths:
       summary: Enviar curso a revision
       tags:
       - approvals
+  /courses/{courseId}/thumbnail:
+    post:
+      consumes:
+      - application/json
+      description: 'course-structure-v2: sets miniatura_key on the course.'
+      parameters:
+      - description: UUID del curso
+        in: path
+        name: courseId
+        required: true
+        type: string
+      - description: key de la miniatura
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ThumbnailConfirmRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+      security:
+      - BearerAuth: []
+      summary: Confirma la subida de la miniatura del curso
+      tags:
+      - courses
+  /courses/{courseId}/thumbnail/presign:
+    post:
+      consumes:
+      - application/json
+      description: 'course-structure-v2: imagen MIME only. Owner-gated + editable
+        gate.'
+      parameters:
+      - description: UUID del curso
+        in: path
+        name: courseId
+        required: true
+        type: string
+      - description: Datos de la imagen
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.MaterialPresignRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.PresignResponse'
+      security:
+      - BearerAuth: []
+      summary: Genera URL presignada para subir miniatura de un curso
+      tags:
+      - courses
   /courses/{id}:
     get:
       description: Retorna el detalle de un curso. Solo el creador propietario puede
@@ -1874,85 +1923,6 @@ paths:
       summary: Obtiene el resumen de la evaluacion de un curso (vista estudiante)
       tags:
       - evaluations
-  /courses/{id}/materials:
-    get:
-      description: Retorna todos los materiales del curso ordenados por fecha de creacion
-        ASC. Solo el propietario.
-      parameters:
-      - description: UUID del curso
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/dto.MaterialResponse'
-            type: array
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/httperr.Error'
-        "403":
-          description: rol creador requerido
-          schema:
-            $ref: '#/definitions/httperr.Error'
-        "404":
-          description: curso no encontrado o no pertenece al caller
-          schema:
-            $ref: '#/definitions/httperr.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/httperr.Error'
-      security:
-      - BearerAuth: []
-      summary: Lista los materiales de un curso
-      tags:
-      - materials
-  /courses/{id}/materials/{materialId}/download:
-    get:
-      description: Retorna una URL GET presignada con TTL = PresignTTL. Solo el propietario
-        del curso.
-      parameters:
-      - description: UUID del curso
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: UUID del material
-        in: path
-        name: materialId
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/dto.DownloadResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/httperr.Error'
-        "404":
-          description: material o curso no encontrado
-          schema:
-            $ref: '#/definitions/httperr.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/httperr.Error'
-      security:
-      - BearerAuth: []
-      summary: Genera URL presignada para descargar un material
-      tags:
-      - materials
   /courses/{id}/sections:
     get:
       description: 'Retorna el arbol de contenido del curso: secciones ordenadas por
@@ -2178,6 +2148,40 @@ paths:
       security:
       - BearerAuth: []
       summary: Elimina un material
+      tags:
+      - materials
+  /materials/{id}/download:
+    get:
+      description: 'course-structure-v2: URL /materials/:id/download (flat; chain
+        ownership via video).'
+      parameters:
+      - description: UUID del material
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.DownloadResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: not owner or not enrolled
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: material not found
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Genera URL presignada para descargar un material
       tags:
       - materials
   /options/{id}:
@@ -2955,6 +2959,147 @@ paths:
       summary: Actualiza un video (PATCH parcial)
       tags:
       - videos
+  /videos/{id}/materials:
+    get:
+      description: 'course-structure-v2: URL /videos/:id/materials (videoID).'
+      parameters:
+      - description: UUID del video
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.MaterialResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Lista los materiales de un video
+      tags:
+      - materials
+    post:
+      consumes:
+      - application/json
+      description: 'course-structure-v2: URL ahora bajo /videos/:id/materials (videoID).'
+      parameters:
+      - description: UUID del video
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Datos del material confirmado
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.MaterialConfirmRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.MaterialResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "415":
+          description: Unsupported Media Type
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Confirma la subida de un material (crea la fila en DB)
+      tags:
+      - materials
+  /videos/{id}/materials/presign:
+    post:
+      consumes:
+      - application/json
+      description: 'course-structure-v2: URL ahora bajo /videos/:id/materials/presign
+        (videoID).'
+      parameters:
+      - description: UUID del video
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Datos del archivo a subir
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.MaterialPresignRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.PresignResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "415":
+          description: Unsupported Media Type
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Genera URL presignada para subir un archivo a un video
+      tags:
+      - materials
 securityDefinitions:
   BearerAuth:
     in: header

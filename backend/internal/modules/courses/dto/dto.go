@@ -15,17 +15,25 @@ import (
 // CreateCourseRequest is the body for POST /api/courses.
 // titulo is required (min=3). descripcion is optional.
 // estado is intentionally absent — the service always forces borrador.
+// course-structure-v2: nivel, horasPractico, categoriaIds added.
 type CreateCourseRequest struct {
-	Titulo      string `json:"titulo"      binding:"required,min=3,max=200"`
-	Descripcion string `json:"descripcion" binding:"omitempty,max=5000"`
+	Titulo        string   `json:"titulo"        binding:"required,min=3,max=200"`
+	Descripcion   string   `json:"descripcion"   binding:"omitempty,max=5000"`
+	Nivel         *string  `json:"nivel"         binding:"omitempty,oneof=basico intermedio avanzado"`
+	HorasPractico *float64 `json:"horasPractico" binding:"omitempty,min=0"`
+	CategoriaIDs  []string `json:"categoriaIds"  binding:"omitempty,dive,uuid"`
 }
 
 // UpdateCourseRequest is the body for PATCH /api/courses/:id.
 // Both fields use pointers to distinguish "not provided" (nil) from "set to empty".
 // This enables true partial updates at the service layer.
+// course-structure-v2: nivel, horasPractico, categoriaIds added.
 type UpdateCourseRequest struct {
-	Titulo      *string `json:"titulo"      binding:"omitempty,min=3,max=200"`
-	Descripcion *string `json:"descripcion" binding:"omitempty,max=5000"`
+	Titulo        *string  `json:"titulo"        binding:"omitempty,min=3,max=200"`
+	Descripcion   *string  `json:"descripcion"   binding:"omitempty,max=5000"`
+	Nivel         *string  `json:"nivel"         binding:"omitempty,oneof=basico intermedio avanzado"`
+	HorasPractico *float64 `json:"horasPractico" binding:"omitempty,min=0"`
+	CategoriaIDs  []string `json:"categoriaIds"  binding:"omitempty,dive,uuid"`
 }
 
 // ── Section request bodies ─────────────────────────────────────────────────────
@@ -52,20 +60,24 @@ type ReorderRequest struct {
 // VideoCreateRequest is the body for POST /api/sections/:sectionId/videos.
 // proveedor is validated by the DTO (oneof=youtube vimeo).
 // url/proveedor cross-validation is done at the service layer (design §4 D4).
+// course-structure-v2: descripcion added.
 type VideoCreateRequest struct {
-	Titulo    string `json:"titulo"    binding:"required,min=1,max=200"`
-	URL       string `json:"url"       binding:"required,url"`
-	Proveedor string `json:"proveedor" binding:"required,oneof=youtube vimeo"`
-	DuracionS int    `json:"duracionS" binding:"omitempty,min=0"`
+	Titulo      string `json:"titulo"      binding:"required,min=1,max=200"`
+	Descripcion string `json:"descripcion" binding:"omitempty,max=5000"`
+	URL         string `json:"url"         binding:"required,url"`
+	Proveedor   string `json:"proveedor"   binding:"required,oneof=youtube vimeo"`
+	DuracionS   int    `json:"duracionS"   binding:"omitempty,min=0"`
 }
 
 // VideoUpdateRequest is the body for PATCH /api/videos/:id.
 // All fields are optional — nil means "not provided, do not update".
+// course-structure-v2: descripcion added.
 type VideoUpdateRequest struct {
-	Titulo    *string `json:"titulo"    binding:"omitempty,min=1,max=200"`
-	URL       *string `json:"url"       binding:"omitempty,url"`
-	Proveedor *string `json:"proveedor" binding:"omitempty,oneof=youtube vimeo"`
-	DuracionS *int    `json:"duracionS" binding:"omitempty,min=0"`
+	Titulo      *string `json:"titulo"      binding:"omitempty,min=1,max=200"`
+	Descripcion *string `json:"descripcion" binding:"omitempty,max=5000"`
+	URL         *string `json:"url"         binding:"omitempty,url"`
+	Proveedor   *string `json:"proveedor"   binding:"omitempty,oneof=youtube vimeo"`
+	DuracionS   *int    `json:"duracionS"   binding:"omitempty,min=0"`
 }
 
 // ── Course response shapes ─────────────────────────────────────────────────────
@@ -118,15 +130,18 @@ type SectionWithVideosResponse struct {
 // ── Video response shapes ──────────────────────────────────────────────────────
 
 // VideoResponse is the wire shape for a video returned by the API.
+// course-structure-v2: Descripcion and Materiales added.
 type VideoResponse struct {
-	ID        string    `json:"id"`
-	SectionID string    `json:"sectionId"`
-	Titulo    string    `json:"titulo"`
-	URL       string    `json:"url"`
-	Proveedor string    `json:"proveedor"`
-	DuracionS int       `json:"duracionS"`
-	Orden     int       `json:"orden"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID          string             `json:"id"`
+	SectionID   string             `json:"sectionId"`
+	Titulo      string             `json:"titulo"`
+	Descripcion string             `json:"descripcion"`
+	URL         string             `json:"url"`
+	Proveedor   string             `json:"proveedor"`
+	DuracionS   int                `json:"duracionS"`
+	Orden       int                `json:"orden"`
+	CreatedAt   time.Time          `json:"createdAt"`
+	Materiales  []MaterialResponse `json:"materiales"`
 }
 
 // ── Mapping functions ──────────────────────────────────────────────────────────
@@ -204,29 +219,36 @@ func ToSectionWithVideos(m *service.SectionWithVideosModel) SectionWithVideosRes
 }
 
 // ToVideo converts a service.VideoModel to the VideoResponse wire shape.
+// course-structure-v2: Descripcion and Materiales included.
 func ToVideo(m *service.VideoModel) VideoResponse {
+	materiales := make([]MaterialResponse, 0, len(m.Materiales))
+	for i := range m.Materiales {
+		materiales = append(materiales, ToMaterial(&m.Materiales[i]))
+	}
 	return VideoResponse{
-		ID:        m.ID,
-		SectionID: m.SectionID,
-		Titulo:    m.Titulo,
-		URL:       m.URL,
-		Proveedor: m.Proveedor,
-		DuracionS: m.DuracionS,
-		Orden:     m.Orden,
-		CreatedAt: m.CreatedAt,
+		ID:          m.ID,
+		SectionID:   m.SectionID,
+		Titulo:      m.Titulo,
+		Descripcion: m.Descripcion,
+		URL:         m.URL,
+		Proveedor:   m.Proveedor,
+		DuracionS:   m.DuracionS,
+		Orden:       m.Orden,
+		CreatedAt:   m.CreatedAt,
+		Materiales:  materiales,
 	}
 }
 
 // ── Material request bodies (C2.3) ────────────────────────────────────────────
 
-// MaterialPresignRequest is the body for POST /api/courses/:courseId/materials/presign.
+// MaterialPresignRequest is the body for POST /api/videos/:id/materials/presign.
 type MaterialPresignRequest struct {
 	Nombre      string `json:"nombre"      binding:"required,min=1,max=255"`
 	ContentType string `json:"contentType" binding:"required"`
 	TamanoBytes int64  `json:"tamanoBytes" binding:"required,min=1"`
 }
 
-// MaterialConfirmRequest is the body for POST /api/courses/:courseId/materials.
+// MaterialConfirmRequest is the body for POST /api/videos/:id/materials.
 type MaterialConfirmRequest struct {
 	Key         string `json:"key"         binding:"required"`
 	Nombre      string `json:"nombre"      binding:"required,min=1,max=255"`
@@ -234,9 +256,15 @@ type MaterialConfirmRequest struct {
 	TamanoBytes int64  `json:"tamanoBytes" binding:"required,min=1"`
 }
 
+// ThumbnailConfirmRequest is the body for POST /api/courses/:courseId/thumbnail.
+type ThumbnailConfirmRequest struct {
+	Key string `json:"key" binding:"required"`
+}
+
 // ── Material response shapes (C2.3) ──────────────────────────────────────────
 
 // PresignResponse is the wire shape for the presign upload response.
+// Reused for both material and thumbnail presign (shapes are identical).
 type PresignResponse struct {
 	UploadURL string    `json:"uploadUrl"`
 	Key       string    `json:"key"`
@@ -274,38 +302,82 @@ func ToMaterial(m *service.MaterialModel) MaterialResponse {
 	}
 }
 
+// ── Categoria DTO ─────────────────────────────────────────────────────────────
+
+// CategoriaResponse is the wire shape for a categoria.
+// Verified unique across all module DTOs (collision guard T-5.1).
+type CategoriaResponse struct {
+	ID     string `json:"id"`
+	Nombre string `json:"nombre"`
+	Slug   string `json:"slug"`
+}
+
+// ToCategoria converts a service.CategoriaModel to the CategoriaResponse wire shape.
+func ToCategoria(m service.CategoriaModel) CategoriaResponse {
+	return CategoriaResponse{ID: m.ID, Nombre: m.Nombre, Slug: m.Slug}
+}
+
+// ToCategorias converts a slice of service.CategoriaModel to a slice of CategoriaResponse.
+func ToCategorias(models []service.CategoriaModel) []CategoriaResponse {
+	out := make([]CategoriaResponse, 0, len(models))
+	for _, m := range models {
+		out = append(out, ToCategoria(m))
+	}
+	return out
+}
+
 // ── C2.4 catalog + enrollment DTOs (structural no-leak — design §6) ───────────
 
 // CatalogCourseCard — one approved-course card (list item). NO content fields.
 // Used in GET /catalog pagination envelope.
+// course-structure-v2: metadata fields added.
 type CatalogCourseCard struct {
-	ID            string    `json:"id"`
-	Titulo        string    `json:"titulo"`
-	Descripcion   string    `json:"descripcion"`
-	CreadorNombre string    `json:"creadorNombre"`
-	CreatedAt     time.Time `json:"createdAt"`
+	ID             string              `json:"id"`
+	Titulo         string              `json:"titulo"`
+	Descripcion    string              `json:"descripcion"`
+	CreadorNombre  string              `json:"creadorNombre"`
+	CreatedAt      time.Time           `json:"createdAt"`
+	Nivel          *string             `json:"nivel"`
+	MiniaturaURL   string              `json:"miniaturaUrl"`
+	HorasPractico  float64             `json:"horasPractico"`
+	CantidadClases int                 `json:"cantidadClases"`
+	HorasVideo     float64             `json:"horasVideo"`
+	Categorias     []CategoriaResponse `json:"categorias"`
 }
 
 // CoursePreviewResponse — non-enrolled detail. NO tree field AT THE STRUCT LEVEL (D6).
 // The structural absence (not omitempty) is the compile-time guarantee for AC-9.
+// course-structure-v2: metadata fields added; NO secciones/videos/materiales.
 type CoursePreviewResponse struct {
-	Enrolled      bool   `json:"enrolled"` // always false
-	ID            string `json:"id"`
-	Titulo        string `json:"titulo"`
-	Descripcion   string `json:"descripcion"`
-	CreadorNombre string `json:"creadorNombre"`
+	Enrolled       bool                `json:"enrolled"` // always false
+	ID             string              `json:"id"`
+	Titulo         string              `json:"titulo"`
+	Descripcion    string              `json:"descripcion"`
+	CreadorNombre  string              `json:"creadorNombre"`
+	Nivel          *string             `json:"nivel"`
+	MiniaturaURL   string              `json:"miniaturaUrl"`
+	HorasPractico  float64             `json:"horasPractico"`
+	CantidadClases int                 `json:"cantidadClases"`
+	HorasVideo     float64             `json:"horasVideo"`
+	Categorias     []CategoriaResponse `json:"categorias"`
 }
 
 // CourseDetailAlumnoResponse — enrolled detail WITH the full content tree.
-// Reuses existing SectionWithVideosResponse and MaterialResponse shapes.
+// course-structure-v2: Materiales REMOVED from course level (now nested in VideoResponse).
+// Metadata fields added.
 type CourseDetailAlumnoResponse struct {
-	Enrolled      bool                        `json:"enrolled"` // always true
-	ID            string                      `json:"id"`
-	Titulo        string                      `json:"titulo"`
-	Descripcion   string                      `json:"descripcion"`
-	CreadorNombre string                      `json:"creadorNombre"`
-	Secciones     []SectionWithVideosResponse `json:"secciones"`
-	Materiales    []MaterialResponse          `json:"materiales"`
+	Enrolled       bool                        `json:"enrolled"` // always true
+	ID             string                      `json:"id"`
+	Titulo         string                      `json:"titulo"`
+	Descripcion    string                      `json:"descripcion"`
+	CreadorNombre  string                      `json:"creadorNombre"`
+	Secciones      []SectionWithVideosResponse `json:"secciones"`
+	Nivel          *string                     `json:"nivel"`
+	MiniaturaURL   string                      `json:"miniaturaUrl"`
+	HorasPractico  float64                     `json:"horasPractico"`
+	CantidadClases int                         `json:"cantidadClases"`
+	HorasVideo     float64                     `json:"horasVideo"`
+	Categorias     []CategoriaResponse         `json:"categorias"`
 }
 
 // EnrollmentResponse — POST /catalog/:id/enroll result.
@@ -331,11 +403,17 @@ func ToCatalogCardPage(p pagination.Page[service.CatalogCourseModel]) pagination
 	items := make([]CatalogCourseCard, 0, len(p.Items))
 	for i := range p.Items {
 		items = append(items, CatalogCourseCard{
-			ID:            p.Items[i].ID,
-			Titulo:        p.Items[i].Titulo,
-			Descripcion:   p.Items[i].Descripcion,
-			CreadorNombre: p.Items[i].CreadorNombre,
-			CreatedAt:     p.Items[i].CreatedAt,
+			ID:             p.Items[i].ID,
+			Titulo:         p.Items[i].Titulo,
+			Descripcion:    p.Items[i].Descripcion,
+			CreadorNombre:  p.Items[i].CreadorNombre,
+			CreatedAt:      p.Items[i].CreatedAt,
+			Nivel:          p.Items[i].Nivel,
+			MiniaturaURL:   p.Items[i].MiniaturaURL,
+			HorasPractico:  p.Items[i].HorasPractico,
+			CantidadClases: p.Items[i].CantidadClases,
+			HorasVideo:     p.Items[i].HorasVideo,
+			Categorias:     ToCategorias(p.Items[i].Categorias),
 		})
 	}
 	return pagination.Page[CatalogCourseCard]{
@@ -349,35 +427,43 @@ func ToCatalogCardPage(p pagination.Page[service.CatalogCourseModel]) pagination
 
 // ToCoursePreview converts a non-enrolled CatalogDetailModel to the preview wire shape.
 // The preview struct has NO tree fields — structural absence (not omitempty).
+// course-structure-v2: metadata fields included; content fields (secciones/videos/materiales) absent.
 func ToCoursePreview(d *service.CatalogDetailModel) CoursePreviewResponse {
 	return CoursePreviewResponse{
-		Enrolled:      false,
-		ID:            d.ID,
-		Titulo:        d.Titulo,
-		Descripcion:   d.Descripcion,
-		CreadorNombre: d.CreadorNombre,
+		Enrolled:       false,
+		ID:             d.ID,
+		Titulo:         d.Titulo,
+		Descripcion:    d.Descripcion,
+		CreadorNombre:  d.CreadorNombre,
+		Nivel:          d.Nivel,
+		MiniaturaURL:   d.MiniaturaURL,
+		HorasPractico:  d.HorasPractico,
+		CantidadClases: d.CantidadClases,
+		HorasVideo:     d.HorasVideo,
+		Categorias:     ToCategorias(d.Categorias),
 	}
 }
 
 // ToCourseDetailAlumno converts an enrolled CatalogDetailModel to the full wire shape.
-// Reuses ToSectionWithVideos and ToMaterial to build the nested tree.
+// course-structure-v2: no course-level Materiales; per-video materials nested in VideoResponse.
 func ToCourseDetailAlumno(d *service.CatalogDetailModel) CourseDetailAlumnoResponse {
 	secciones := make([]SectionWithVideosResponse, 0, len(d.Sections))
 	for i := range d.Sections {
 		secciones = append(secciones, ToSectionWithVideos(&d.Sections[i]))
 	}
-	materiales := make([]MaterialResponse, 0, len(d.Materiales))
-	for i := range d.Materiales {
-		materiales = append(materiales, ToMaterial(&d.Materiales[i]))
-	}
 	return CourseDetailAlumnoResponse{
-		Enrolled:      true,
-		ID:            d.ID,
-		Titulo:        d.Titulo,
-		Descripcion:   d.Descripcion,
-		CreadorNombre: d.CreadorNombre,
-		Secciones:     secciones,
-		Materiales:    materiales,
+		Enrolled:       true,
+		ID:             d.ID,
+		Titulo:         d.Titulo,
+		Descripcion:    d.Descripcion,
+		CreadorNombre:  d.CreadorNombre,
+		Secciones:      secciones,
+		Nivel:          d.Nivel,
+		MiniaturaURL:   d.MiniaturaURL,
+		HorasPractico:  d.HorasPractico,
+		CantidadClases: d.CantidadClases,
+		HorasVideo:     d.HorasVideo,
+		Categorias:     ToCategorias(d.Categorias),
 	}
 }
 

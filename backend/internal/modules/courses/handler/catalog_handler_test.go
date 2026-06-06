@@ -103,7 +103,7 @@ func TestGetCatalogDetail_NotEnrolled_ReturnsPreview(t *testing.T) {
 		CreadorNombre: "Alice",
 		Enrolled:      false,
 		Sections:      nil,
-		Materiales:    nil,
+		Categorias:    []service.CategoriaModel{},
 	}
 	svc.On("GetCatalogDetail", mock.Anything, "user-1", "c1").Return(detail, nil)
 
@@ -150,7 +150,7 @@ func TestGetCatalogDetail_Enrolled_ReturnsTree(t *testing.T) {
 				Videos:  []service.VideoModel{},
 			},
 		},
-		Materiales: []service.MaterialModel{},
+		Categorias: []service.CategoriaModel{},
 	}
 	svc.On("GetCatalogDetail", mock.Anything, "user-1", "c1").Return(detail, nil)
 

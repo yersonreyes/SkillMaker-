@@ -124,12 +124,13 @@ func TestMigration0003RoundTrip(t *testing.T) {
 	assert.Equal(t, int64(1), constraintCount, "enrollment UNIQUE constraint must exist")
 
 	// Verify indexes exist (spot-check the most important ones).
+	// NOTE (course-structure-v2): idx_material_course is replaced by idx_material_video in 0012;
+	// that index is checked in TestMigration0012BackfillInvariant instead.
 	indexes := []string{
 		"idx_course_creador",
 		"idx_course_estado",
 		"idx_section_course",
 		"idx_video_section",
-		"idx_material_course",
 		"idx_enrollment_user",
 		"idx_enrollment_course",
 	}
@@ -230,12 +231,13 @@ func TestMigration0004Down_ReversesSchema(t *testing.T) {
 	db, m, teardown := testutil.SetupPostgresWithMigrate(t)
 	defer teardown()
 
-	// All migrations up (0001–0010) are applied by SetupPostgresWithMigrate.
-	// Roll back 7 steps: first 0010, then 0009, then 0008, then 0007, then 0006, then 0005, then 0004.
+	// All migrations up (0001–0013) are applied by SetupPostgresWithMigrate.
+	// Roll back 10 steps: 0013+0012+0011+0010+0009+0008+0007+0006+0005+0004.
 	// NOTE (C2.4): migration 0009 was added; -5 now rolls back 0009+0008+0007+0006+0005, so we need -6 to also roll back 0004.
 	// NOTE (C5.1): migration 0010 was added; -6 now rolls back 0010+0009+0008+0007+0006+0005, so we need -7.
-	err := m.Steps(-7)
-	require.NoError(t, err, "m.Steps(-7) must roll back 0010+0009+0008+0007+0006+0005+0004 without error (SCH-1-B)")
+	// NOTE (course-structure-v2): migrations 0011+0012+0013 added; +3 → need -10.
+	err := m.Steps(-10)
+	require.NoError(t, err, "m.Steps(-10) must roll back 0013+0012+0011+0010+0009+0008+0007+0006+0005+0004 without error (SCH-1-B)")
 
 	// Step 2: Assert storage_key is restored.
 	var storageKeyCount int64
@@ -680,15 +682,16 @@ func TestMigration0005RoundTrip(t *testing.T) {
 	assert.Equal(t, int64(1), tamanoCount,
 		"material.tamano_bytes must exist after 0005 up (AC8)")
 
-	// Apply DOWN six steps — rolls back 0010 then 0009 then 0008 then 0007 then 0006 then 0005 (all migrations 0001–0010 applied).
+	// Apply DOWN nine steps — rolls back 0013+0012+0011+0010+0009+0008+0007+0006+0005 (all migrations 0001–0013 applied).
 	// NOTE (C3.1): migration 0006 was added; -1 now rolls back 0006 only, so we need -2.
 	// NOTE (C3.2): migration 0007 was added; -2 now rolls back 0007+0006, so we need -3.
 	// NOTE (C4.1): migration 0008 was added; -3 now rolls back 0008+0007+0006, so we need -4.
 	// NOTE (C2.4): migration 0009 was added; -4 now rolls back 0009+0008+0007+0006, so we need -5 to reach
 	// the post-0005-down state where mime_type and tamano_bytes are removed.
 	// NOTE (C5.1): migration 0010 was added; -5 now rolls back 0010+0009+0008+0007+0006, so we need -6.
-	err = m.Steps(-6)
-	require.NoError(t, err, "m.Steps(-6) must roll back 0010+0009+0008+0007+0006+0005 without error (AC8)")
+	// NOTE (course-structure-v2): migrations 0011+0012+0013 added; +3 → need -9.
+	err = m.Steps(-9)
+	require.NoError(t, err, "m.Steps(-9) must roll back 0013+0012+0011+0010+0009+0008+0007+0006+0005 without error (AC8)")
 
 	// Verify mime_type is gone after 0005 down.
 	err = db.Raw(
@@ -712,11 +715,12 @@ func TestMigration0005RoundTrip(t *testing.T) {
 // ── TestMaterialCRUD ──────────────────────────────────────────────────────────
 
 // TestMaterialCRUD verifies the complete material CRUD lifecycle with migration 0005.
-// Tests: CreateMaterial, GetMaterialByID, ListMaterialsByCourse (ordered created_at ASC),
+// course-structure-v2: materials are now keyed by video_id (not course_id).
+// Tests: CreateMaterial, GetMaterialByID, ListMaterialsByVideo (ordered created_at ASC),
 //
 //	DeleteMaterial, ErrMaterialNotFound after delete.
 //
-// Spec: REQ-SCH, REQ-CONFIRM persistence, REQ-DELETE DB row removal, AC8.
+// Spec: REQ-SCH, REQ-MATERIAL-VIDEO, REQ-CONFIRM persistence, REQ-DELETE DB row removal, AC8.
 func TestMaterialCRUD(t *testing.T) {
 	db, teardown := testutil.SetupPostgres(t)
 	defer teardown()
@@ -724,13 +728,15 @@ func TestMaterialCRUD(t *testing.T) {
 	repo := repository.New(db)
 	creadorID := seedUser(t, db)
 	course := seedCourse(t, repo, creadorID, "Material CRUD Course")
+	section := seedSection(t, repo, course.ID, "S1", 0)
+	video := seedVideo(t, repo, section.ID, "V1")
 
-	// Create first material.
+	// Create first material (now keyed by video_id, not course_id).
 	m1 := &domain.Material{
 		ID:          uuid.New().String(),
-		CourseID:    course.ID,
+		VideoID:     video.ID,
 		Titulo:      "documento-1.pdf",
-		StorageKey:  "courses/" + course.ID + "/materials/uuid1-documento-1.pdf",
+		StorageKey:  "courses/" + course.ID + "/videos/" + video.ID + "/materials/uuid1-documento-1.pdf",
 		MimeType:    "application/pdf",
 		TamanoBytes: 1024,
 	}
@@ -740,9 +746,9 @@ func TestMaterialCRUD(t *testing.T) {
 	// Create second material (slight delay to differentiate created_at ordering).
 	m2 := &domain.Material{
 		ID:          uuid.New().String(),
-		CourseID:    course.ID,
+		VideoID:     video.ID,
 		Titulo:      "imagen-2.png",
-		StorageKey:  "courses/" + course.ID + "/materials/uuid2-imagen-2.png",
+		StorageKey:  "courses/" + course.ID + "/videos/" + video.ID + "/materials/uuid2-imagen-2.png",
 		MimeType:    "image/png",
 		TamanoBytes: 2048,
 	}
@@ -753,17 +759,18 @@ func TestMaterialCRUD(t *testing.T) {
 	fetched, err := repo.GetMaterialByID(context.Background(), m1.ID)
 	require.NoError(t, err, "GetMaterialByID must return the created material")
 	assert.Equal(t, m1.ID, fetched.ID)
-	assert.Equal(t, course.ID, fetched.CourseID)
+	assert.Equal(t, video.ID, fetched.VideoID,
+		"VideoID must be persisted correctly (migration 0012 column)")
 	assert.Equal(t, "documento-1.pdf", fetched.Titulo)
 	assert.Equal(t, "application/pdf", fetched.MimeType,
 		"MimeType must be persisted correctly (migration 0005 column)")
 	assert.Equal(t, int64(1024), fetched.TamanoBytes,
 		"TamanoBytes must be persisted correctly (migration 0005 column)")
 
-	// ListMaterialsByCourse — verify order is created_at ASC and both materials appear.
-	materials, err := repo.ListMaterialsByCourse(context.Background(), course.ID)
+	// ListMaterialsByVideo — verify order is created_at ASC and both materials appear.
+	materials, err := repo.ListMaterialsByVideo(context.Background(), video.ID)
 	require.NoError(t, err)
-	require.Len(t, materials, 2, "course must have 2 materials")
+	require.Len(t, materials, 2, "video must have 2 materials")
 	// m1 was created first, so it must come first in ASC order.
 	assert.Equal(t, m1.ID, materials[0].ID,
 		"first material in ASC order must be m1 (created first)")
@@ -917,11 +924,12 @@ func TestMigration0009RoundTrip(t *testing.T) {
 	assert.Contains(t, columnDefault, "false",
 		"enrollment.completado must have DEFAULT false after 0009 up (AC-13)")
 
-	// Roll back 2 steps — drops 0010 first, then 0009 (completado column).
+	// Roll back 5 steps — drops 0013+0012+0011+0010+0009 (completado column).
 	// NOTE (C5.1): migration 0010 was added; -1 now rolls back 0010 only, so we need -2 to drop 0009.
-	err = m.Steps(-2)
+	// NOTE (course-structure-v2): migrations 0011+0012+0013 added; +3 → need -5.
+	err = m.Steps(-5)
 	require.NoError(t, err,
-		"m.Steps(-2) must roll back 0010+0009 (completado column) without error (AC-13)")
+		"m.Steps(-5) must roll back 0013+0012+0011+0010+0009 (completado column) without error (AC-13)")
 
 	// Verify completado is gone after 0009 down.
 	err = db.Raw(
@@ -931,6 +939,251 @@ func TestMigration0009RoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), completadoCount,
 		"enrollment.completado must be dropped after 0009 down (AC-13)")
+}
+
+// ── Migration 0011/0012/0013 round-trip tests (course-structure-v2) ──────────────
+
+// TestMigration0011RoundTrip verifies that migration 0011 adds video.descripcion
+// and the down migration removes it cleanly. Satisfies REQ-SCH 0011.
+func TestMigration0011RoundTrip(t *testing.T) {
+	db, m, teardown := testutil.SetupPostgresWithMigrate(t)
+	defer teardown()
+
+	// All migrations up (0001–0013) are applied by SetupPostgresWithMigrate.
+	// Verify video.descripcion exists.
+	var count int64
+	err := db.Raw(
+		`SELECT COUNT(*) FROM information_schema.columns
+		 WHERE table_name = 'video' AND column_name = 'descripcion'`,
+	).Scan(&count).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), count,
+		"video.descripcion must exist after 0011 up (REQ-SCH-0011)")
+
+	// Roll back 3 steps (0013+0012+0011).
+	err = m.Steps(-3)
+	require.NoError(t, err, "m.Steps(-3) must roll back 0013+0012+0011 without error")
+
+	// Verify video.descripcion is gone after 0011 down.
+	err = db.Raw(
+		`SELECT COUNT(*) FROM information_schema.columns
+		 WHERE table_name = 'video' AND column_name = 'descripcion'`,
+	).Scan(&count).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), count,
+		"video.descripcion must be dropped after 0011 down (REQ-SCH-0011)")
+}
+
+// TestMigration0012BackfillInvariant is the CRITICAL backfill test.
+// Seeds course A with 2 videos (orden 0, 1) and 1 material.
+// Seeds course B with NO video and 1 material (orphan).
+// After 0012 up:
+//   - material of A has video_id == video(orden 0).id
+//   - material of B is deleted (orphan)
+//   - SELECT COUNT(*) FROM material WHERE video_id IS NULL == 0
+//   - course_id column is absent
+//   - idx_material_video index exists
+//
+// Satisfies REQ-SCH 0012 backfill invariant + orphan deletion invariant.
+func TestMigration0012BackfillInvariant(t *testing.T) {
+	db, m, teardown := testutil.SetupPostgresWithMigrate(t)
+	defer teardown()
+
+	// Roll back to migration 0010 state (before 0011+0012+0013).
+	err := m.Steps(-3)
+	require.NoError(t, err, "m.Steps(-3) to reach 0010 state")
+
+	// Re-apply 0011 only (video.descripcion) so we can seed a video without descripcion issues.
+	err = m.Steps(1)
+	require.NoError(t, err, "m.Steps(1) to apply 0011")
+
+	// Seed users.
+	userAID := uuid.New().String()
+	userBID := uuid.New().String()
+	for _, uid := range []string{userAID, userBID} {
+		err = db.Exec(
+			`INSERT INTO "user" (id, google_sub, email, nombre, activo)
+			 VALUES (?, ?, ?, 'Test', true)`,
+			uid, "sub-"+uid, uid+"@test.com",
+		).Error
+		require.NoError(t, err)
+	}
+
+	// Course A: has 1 section, 2 videos (orden 0 and 1).
+	courseAID := uuid.New().String()
+	err = db.Exec(
+		`INSERT INTO course (id, creador_id, titulo, descripcion, estado)
+		 VALUES (?, ?, 'Course A', 'desc', 'borrador')`,
+		courseAID, userAID,
+	).Error
+	require.NoError(t, err)
+
+	sectionAID := uuid.New().String()
+	err = db.Exec(
+		`INSERT INTO section (id, course_id, titulo, orden) VALUES (?, ?, 'S1', 0)`,
+		sectionAID, courseAID,
+	).Error
+	require.NoError(t, err)
+
+	// video0 (orden=0) — this is the first video; backfill should use it.
+	video0ID := uuid.New().String()
+	err = db.Exec(
+		`INSERT INTO video (id, section_id, titulo, url, proveedor, duracion_s, orden)
+		 VALUES (?, ?, 'V0', 'https://youtube.com/watch?v=x', 'youtube', 100, 0)`,
+		video0ID, sectionAID,
+	).Error
+	require.NoError(t, err)
+
+	// video1 (orden=1).
+	video1ID := uuid.New().String()
+	err = db.Exec(
+		`INSERT INTO video (id, section_id, titulo, url, proveedor, duracion_s, orden)
+		 VALUES (?, ?, 'V1', 'https://youtube.com/watch?v=y', 'youtube', 200, 1)`,
+		video1ID, sectionAID,
+	).Error
+	require.NoError(t, err)
+
+	// Material for course A (old schema: course_id).
+	mat1ID := uuid.New().String()
+	err = db.Exec(
+		`INSERT INTO material (id, course_id, titulo, storage_key, mime_type, tamano_bytes)
+		 VALUES (?, ?, 'notes.pdf', 'courses/A/mat1', 'application/pdf', 1000)`,
+		mat1ID, courseAID,
+	).Error
+	require.NoError(t, err)
+
+	// Course B: has a section but NO videos (orphan material).
+	courseBID := uuid.New().String()
+	err = db.Exec(
+		`INSERT INTO course (id, creador_id, titulo, descripcion, estado)
+		 VALUES (?, ?, 'Course B', 'desc', 'borrador')`,
+		courseBID, userBID,
+	).Error
+	require.NoError(t, err)
+
+	sectionBID := uuid.New().String()
+	err = db.Exec(
+		`INSERT INTO section (id, course_id, titulo, orden) VALUES (?, ?, 'SB', 0)`,
+		sectionBID, courseBID,
+	).Error
+	require.NoError(t, err)
+
+	// Orphan material for course B (no videos → will be deleted by 0012).
+	mat2ID := uuid.New().String()
+	err = db.Exec(
+		`INSERT INTO material (id, course_id, titulo, storage_key, mime_type, tamano_bytes)
+		 VALUES (?, ?, 'orphan.pdf', 'courses/B/mat2', 'application/pdf', 500)`,
+		mat2ID, courseBID,
+	).Error
+	require.NoError(t, err)
+
+	// Apply migration 0012 (material → video).
+	err = m.Steps(1)
+	require.NoError(t, err, "m.Steps(1) to apply 0012")
+
+	// CRITICAL: no NULL video_id in material after backfill.
+	var nullCount int64
+	err = db.Raw(`SELECT COUNT(*) FROM material WHERE video_id IS NULL`).Scan(&nullCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), nullCount,
+		"BACKFILL INVARIANT: no material may have video_id IS NULL after 0012 (REQ-SCH-0012)")
+
+	// Material of course A must point to video0 (orden=0, the first by orden).
+	var gotVideoID string
+	err = db.Raw(`SELECT video_id FROM material WHERE id = ?`, mat1ID).Scan(&gotVideoID).Error
+	require.NoError(t, err)
+	assert.Equal(t, video0ID, gotVideoID,
+		"material of course A must be backfilled to video(orden=0) (REQ-SCH-0012)")
+
+	// Orphan material (course B) must be deleted.
+	var orphanCount int64
+	err = db.Raw(`SELECT COUNT(*) FROM material WHERE id = ?`, mat2ID).Scan(&orphanCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), orphanCount,
+		"orphan material (course with no video) must be deleted after 0012 (REQ-SCH-0012)")
+
+	// course_id column must be absent.
+	var colCount int64
+	err = db.Raw(
+		`SELECT COUNT(*) FROM information_schema.columns
+		 WHERE table_name = 'material' AND column_name = 'course_id'`,
+	).Scan(&colCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), colCount,
+		"material.course_id must be dropped after 0012 (REQ-SCH-0012)")
+
+	// idx_material_video must exist.
+	var idxCount int64
+	err = db.Raw(
+		`SELECT COUNT(*) FROM pg_indexes
+		 WHERE tablename = 'material' AND indexname = 'idx_material_video'`,
+	).Scan(&idxCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), idxCount,
+		"idx_material_video must exist after 0012 (REQ-SCH-0012)")
+}
+
+// TestMigration0013CourseMetaAndCategorias verifies that migration 0013 adds
+// nivel/miniatura_key/horas_practico to course, creates categoria+course_categoria,
+// seeds data, and the CHECK constraint rejects 'experto'. Satisfies REQ-SCH 0013.
+func TestMigration0013CourseMetaAndCategorias(t *testing.T) {
+	db, m, teardown := testutil.SetupPostgresWithMigrate(t)
+	defer teardown()
+
+	// Verify categoria table exists and has seed rows.
+	var catCount int64
+	err := db.Raw(`SELECT COUNT(*) FROM categoria`).Scan(&catCount).Error
+	require.NoError(t, err)
+	assert.Greater(t, catCount, int64(0),
+		"categoria must have at least 1 seeded row after 0013 (REQ-SCH-0013)")
+
+	// Verify nivel, miniatura_key, horas_practico columns on course.
+	for _, col := range []string{"nivel", "miniatura_key", "horas_practico"} {
+		var cnt int64
+		err = db.Raw(
+			`SELECT COUNT(*) FROM information_schema.columns
+			 WHERE table_name = 'course' AND column_name = ?`, col,
+		).Scan(&cnt).Error
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), cnt, "course."+col+" must exist after 0013")
+	}
+
+	// CHECK constraint: nivel='experto' must be rejected.
+	userID := uuid.New().String()
+	err = db.Exec(
+		`INSERT INTO "user" (id, google_sub, email, nombre, activo) VALUES (?, ?, ?, 'U', true)`,
+		userID, "sub-check", "check@test.com",
+	).Error
+	require.NoError(t, err)
+	err = db.Exec(
+		`INSERT INTO course (id, creador_id, titulo, descripcion, estado, nivel)
+		 VALUES (gen_random_uuid(), ?, 'T', 'D', 'borrador', 'experto')`, userID,
+	).Error
+	assert.Error(t, err, "CHECK constraint must reject nivel='experto' (REQ-SCH-0013)")
+
+	// Roll back 3 steps (0013+0012+0011).
+	err = m.Steps(-3)
+	require.NoError(t, err, "m.Steps(-3) rolls back 0013+0012+0011")
+
+	// Verify categoria and course_categoria tables gone.
+	var tblCount int64
+	err = db.Raw(
+		`SELECT COUNT(*) FROM information_schema.tables
+		 WHERE table_name IN ('categoria', 'course_categoria')`,
+	).Scan(&tblCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), tblCount,
+		"categoria + course_categoria must be dropped after 0013 down (REQ-SCH-0013)")
+
+	// Verify nivel column gone from course.
+	var nivelCount int64
+	err = db.Raw(
+		`SELECT COUNT(*) FROM information_schema.columns
+		 WHERE table_name = 'course' AND column_name = 'nivel'`,
+	).Scan(&nivelCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), nivelCount,
+		"course.nivel must be dropped after 0013 down (REQ-SCH-0013)")
 }
 
 // ── Catalog repository tests (C2.4 / REQ-CATALOG / REQ-ENROLL / REQ-MYCOURSES) ──
@@ -1179,4 +1432,186 @@ func TestGetApprovedDetail_ReturnsOnlyAprobado(t *testing.T) {
 	_, err = repo.GetApprovedDetail(context.Background(), uuid.New().String())
 	assert.ErrorIs(t, err, repository.ErrCourseNotFound,
 		"GetApprovedDetail on missing id must return ErrCourseNotFound")
+}
+
+// ── Phase 3 repository tests (course-structure-v2) ────────────────────────────
+
+// TestListMaterialsByVideo verifies that ListMaterialsByVideo filters by video_id
+// and returns materials ordered by created_at ASC. Satisfies REQ-MATERIAL-VIDEO.
+func TestListMaterialsByVideo(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+	course := seedCourse(t, repo, creadorID, "List By Video Course")
+	section := seedSection(t, repo, course.ID, "S1", 0)
+	videoA := seedVideo(t, repo, section.ID, "Video A")
+	videoB := seedVideo(t, repo, section.ID, "Video B")
+
+	// Seed 2 materials on videoA and 1 on videoB.
+	matA1 := &domain.Material{ID: uuid.New().String(), VideoID: videoA.ID, Titulo: "a1.pdf", StorageKey: "k1", MimeType: "application/pdf", TamanoBytes: 100}
+	matA2 := &domain.Material{ID: uuid.New().String(), VideoID: videoA.ID, Titulo: "a2.pdf", StorageKey: "k2", MimeType: "application/pdf", TamanoBytes: 200}
+	matB1 := &domain.Material{ID: uuid.New().String(), VideoID: videoB.ID, Titulo: "b1.pdf", StorageKey: "k3", MimeType: "application/pdf", TamanoBytes: 300}
+	require.NoError(t, repo.CreateMaterial(context.Background(), matA1))
+	require.NoError(t, repo.CreateMaterial(context.Background(), matA2))
+	require.NoError(t, repo.CreateMaterial(context.Background(), matB1))
+
+	// ListMaterialsByVideo for videoA must return exactly matA1, matA2 in ASC order.
+	mats, err := repo.ListMaterialsByVideo(context.Background(), videoA.ID)
+	require.NoError(t, err)
+	require.Len(t, mats, 2, "videoA must have 2 materials")
+	assert.Equal(t, matA1.ID, mats[0].ID, "first material must be matA1 (created first)")
+	assert.Equal(t, matA2.ID, mats[1].ID, "second material must be matA2")
+
+	// ListMaterialsByVideo for videoB must return only matB1.
+	mats, err = repo.ListMaterialsByVideo(context.Background(), videoB.ID)
+	require.NoError(t, err)
+	require.Len(t, mats, 1, "videoB must have 1 material")
+	assert.Equal(t, matB1.ID, mats[0].ID)
+
+	// Video with no materials → empty slice, no error.
+	videoC := seedVideo(t, repo, section.ID, "Video C")
+	mats, err = repo.ListMaterialsByVideo(context.Background(), videoC.ID)
+	require.NoError(t, err)
+	assert.Empty(t, mats, "video with no materials must return empty slice")
+}
+
+// TestGetMaterialOwnership verifies chain ownership query.
+// material → video → section → course → creador. Satisfies REQ-MATERIAL-VIDEO.
+func TestGetMaterialOwnership(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+	course := seedCourse(t, repo, creadorID, "Ownership Chain Course")
+	require.NoError(t, repo.UpdateEstado(context.Background(), course.ID, domain.EstadoBorrador))
+	section := seedSection(t, repo, course.ID, "S1", 0)
+	video := seedVideo(t, repo, section.ID, "V1")
+	mat := &domain.Material{ID: uuid.New().String(), VideoID: video.ID, Titulo: "f.pdf", StorageKey: "k", MimeType: "application/pdf", TamanoBytes: 1}
+	require.NoError(t, repo.CreateMaterial(context.Background(), mat))
+
+	// Correct chain.
+	gotCourseID, gotCreadorID, gotEstado, err := repo.GetMaterialOwnership(context.Background(), mat.ID)
+	require.NoError(t, err)
+	assert.Equal(t, course.ID, gotCourseID, "course_id must match via chain")
+	assert.Equal(t, creadorID, gotCreadorID, "creador_id must match via chain")
+	assert.Equal(t, "borrador", gotEstado, "estado must match")
+
+	// Non-existent material → ErrMaterialNotFound.
+	_, _, _, err = repo.GetMaterialOwnership(context.Background(), uuid.New().String())
+	assert.ErrorIs(t, err, repository.ErrMaterialNotFound,
+		"missing material must return ErrMaterialNotFound")
+}
+
+// TestResolveVideoCourse verifies video → section → course chain. Satisfies REQ-MATERIAL-VIDEO.
+func TestResolveVideoCourse(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+	course := seedCourse(t, repo, creadorID, "ResolveVideoCourse Course")
+	section := seedSection(t, repo, course.ID, "S1", 0)
+	video := seedVideo(t, repo, section.ID, "V1")
+
+	gotCourseID, gotCreadorID, gotEstado, err := repo.ResolveVideoCourse(context.Background(), video.ID)
+	require.NoError(t, err)
+	assert.Equal(t, course.ID, gotCourseID)
+	assert.Equal(t, creadorID, gotCreadorID)
+	assert.Equal(t, "borrador", gotEstado)
+
+	// Non-existent video → ErrVideoNotFound.
+	_, _, _, err = repo.ResolveVideoCourse(context.Background(), uuid.New().String())
+	assert.ErrorIs(t, err, repository.ErrVideoNotFound, "missing video must return ErrVideoNotFound")
+}
+
+// TestListMaterialsByCourseVideos verifies the batch no-N+1 query.
+// All materials for a course's videos in one query, groupable by video_id.
+func TestListMaterialsByCourseVideos(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+	course := seedCourse(t, repo, creadorID, "BatchMaterials Course")
+	section := seedSection(t, repo, course.ID, "S1", 0)
+	v1 := seedVideo(t, repo, section.ID, "V1")
+	v2 := seedVideo(t, repo, section.ID, "V2")
+
+	// Seed 2 materials on v1, 1 on v2.
+	mat1 := &domain.Material{ID: uuid.New().String(), VideoID: v1.ID, Titulo: "m1.pdf", StorageKey: "k1", MimeType: "application/pdf", TamanoBytes: 10}
+	mat2 := &domain.Material{ID: uuid.New().String(), VideoID: v1.ID, Titulo: "m2.pdf", StorageKey: "k2", MimeType: "application/pdf", TamanoBytes: 20}
+	mat3 := &domain.Material{ID: uuid.New().String(), VideoID: v2.ID, Titulo: "m3.pdf", StorageKey: "k3", MimeType: "application/pdf", TamanoBytes: 30}
+	require.NoError(t, repo.CreateMaterial(context.Background(), mat1))
+	require.NoError(t, repo.CreateMaterial(context.Background(), mat2))
+	require.NoError(t, repo.CreateMaterial(context.Background(), mat3))
+
+	mats, err := repo.ListMaterialsByCourseVideos(context.Background(), course.ID)
+	require.NoError(t, err)
+	assert.Len(t, mats, 3, "must return all 3 materials for the course")
+	videoIDs := map[string]int{}
+	for _, m := range mats {
+		videoIDs[m.VideoID]++
+	}
+	assert.Equal(t, 2, videoIDs[v1.ID], "v1 must have 2 materials")
+	assert.Equal(t, 1, videoIDs[v2.ID], "v2 must have 1 material")
+}
+
+// TestCategoriasRepo verifies ListCategorias, CategoriasExist, SetCourseCategorias, GetCourseCategorias.
+// Satisfies REQ-COURSE-META categoria methods.
+func TestCategoriasRepo(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+	course := seedCourse(t, repo, creadorID, "Categorias Course")
+
+	// ListCategorias — seeded by migration 0013 — must return >= 8.
+	cats, err := repo.ListCategorias(context.Background())
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, len(cats), 8, "must have at least 8 seeded categorias")
+
+	// Pick 2 valid IDs.
+	id1 := cats[0].ID
+	id2 := cats[1].ID
+
+	// CategoriasExist — valid IDs → true.
+	ok, err := repo.CategoriasExist(context.Background(), []string{id1, id2})
+	require.NoError(t, err)
+	assert.True(t, ok, "valid categoria IDs must exist")
+
+	// CategoriasExist — bogus ID → false.
+	ok, err = repo.CategoriasExist(context.Background(), []string{uuid.New().String()})
+	require.NoError(t, err)
+	assert.False(t, ok, "bogus ID must not exist")
+
+	// SetCourseCategorias — insert set [id1, id2].
+	require.NoError(t, repo.SetCourseCategorias(context.Background(), course.ID, []string{id1, id2}))
+
+	// GetCourseCategorias — must return both.
+	gotCats, err := repo.GetCourseCategorias(context.Background(), course.ID)
+	require.NoError(t, err)
+	require.Len(t, gotCats, 2)
+	gotIDs := map[string]bool{}
+	for _, c := range gotCats {
+		gotIDs[c.ID] = true
+	}
+	assert.True(t, gotIDs[id1])
+	assert.True(t, gotIDs[id2])
+
+	// SetCourseCategorias — replace with [id1] only.
+	require.NoError(t, repo.SetCourseCategorias(context.Background(), course.ID, []string{id1}))
+	gotCats, err = repo.GetCourseCategorias(context.Background(), course.ID)
+	require.NoError(t, err)
+	assert.Len(t, gotCats, 1, "replace-set: must have only 1 categoria")
+	assert.Equal(t, id1, gotCats[0].ID)
+
+	// SetCourseCategorias — empty slice clears all.
+	require.NoError(t, repo.SetCourseCategorias(context.Background(), course.ID, []string{}))
+	gotCats, err = repo.GetCourseCategorias(context.Background(), course.ID)
+	require.NoError(t, err)
+	assert.Empty(t, gotCats, "empty set must clear all categorias")
 }
