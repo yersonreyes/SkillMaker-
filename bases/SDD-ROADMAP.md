@@ -35,10 +35,10 @@
 > Esta seccion es el "punto de partida". Cualquier change posterior parte de este estado.
 > Actualizar cuando se archive un change importante.
 
-**Fecha del snapshot:** 2026-06-06 (actualizado tras course-structure-v2 archive — MVP + first post-MVP refinement COMPLETE)
-**Commits totales del scaffold:** 16 (+ 3 chained PRs para C1.1) (+ 2 PRs para C2.1) (+ 2 PRs para C2.2) (+ 2 PRs para C2.3) (+ 3 PRs para C3.1 incl. UI polish) (+ 3 PRs para C3.2) (+ 3 PRs para C4.1 incl. swagger fix) (+ 2 PRs para C2.4) (+ 2 PRs para C5.1 incl. bundled eval-summary slice) (+ 2 PRs para C6.1) (+ 2 PRs para course-structure-v2 + styling polish) (+ post-merge fixes)
-**LOC totales (Go + TS + SQL):** ~2700 (+ ~900 LOC en C1.1) (+ ~1100 LOC en C2.1) (+ ~900 LOC en C2.2) (+ ~900 LOC en C2.3) (+ ~1200 LOC en C3.1) (+ ~1200 LOC en C3.2) (+ ~1100 LOC en C4.1) (+ ~1300 LOC en C2.4) (+ ~1700 LOC en C5.1 incl. bundled slice) (+ ~800 LOC en C6.1) (+ ~2150 LOC en course-structure-v2)
-**HITO ALCANZADO**: ✅ **MVP FEATURE COMPLETE** (2026-06-05) — Todas las capas C1–C6 archivadas. El loop completo (register → create → approve → publish → consume → evaluate → certify → badge → rank → report) está funcional en main. **Post-MVP refinement INICIADO**: course-structure-v2 (material relocation, course metadata, categorias) archivado 2026-06-06.
+**Fecha del snapshot:** 2026-06-06 (actualizado tras C8.1 refresh-token-tracking archive — Capa 7 hardening INICIADA)
+**Commits totales del scaffold:** 16 (+ 3 chained PRs para C1.1) (+ 2 PRs para C2.1) (+ 2 PRs para C2.2) (+ 2 PRs para C2.3) (+ 3 PRs para C3.1 incl. UI polish) (+ 3 PRs para C3.2) (+ 3 PRs para C4.1 incl. swagger fix) (+ 2 PRs para C2.4) (+ 2 PRs para C5.1 incl. bundled eval-summary slice) (+ 2 PRs para C6.1) (+ 2 PRs para course-structure-v2 + styling polish) (+ 2 PRs para C8.1 refresh-token-tracking) (+ post-merge fixes)
+**LOC totales (Go + TS + SQL):** ~2700 (+ ~900 LOC en C1.1) (+ ~1100 LOC en C2.1) (+ ~900 LOC en C2.2) (+ ~900 LOC en C2.3) (+ ~1200 LOC en C3.1) (+ ~1200 LOC en C3.2) (+ ~1100 LOC en C4.1) (+ ~1300 LOC en C2.4) (+ ~1700 LOC en C5.1 incl. bundled slice) (+ ~800 LOC en C6.1) (+ ~2150 LOC en course-structure-v2) (+ ~420 LOC en C8.1 refresh-token-tracking)
+**HITO ALCANZADO**: ✅ **MVP FEATURE COMPLETE** (2026-06-05) — Todas las capas C1–C6 archivadas. El loop completo (register → create → approve → publish → consume → evaluate → certify → badge → rank → report) está funcional en main. **Post-MVP hardening INICIADO**: C8.1 refresh-token-tracking archivado 2026-06-06.
 
 ### Modulos del dominio (los 7 declarados en RT)
 
@@ -121,9 +121,9 @@
 | C4.1 | [`module-approvals`](#c41--module-approvals) | 4 | ~600 | C2.1, C3.1 | RF-10, RF-15, RF-16, RF-17, RF-17b |
 | C5.1 | [`module-certificates`](#c51--module-certificates) ✅ ARCHIVED | 5 | ~700 | C3.2 | RF-21, RF-22 |
 | C6.1 | [`module-reporting`](#c61--module-reporting) ✅ ARCHIVED | 6 | ~800 | C2.x, C3.x, C5.1 | RF-23, RF-24, RF-25 |
-| C7.1 | [`refresh-token-tracking`](#c71--refresh-token-tracking) | 7 | ~200 | — | (hardening) |
-| C7.2 | [`pagination-policy`](#c72--pagination-policy) | 7 | ~300 | — | (escala) |
-| C7.3 | [`prod-deployment`](#c73--prod-deployment) | 7 | ~500 | — | (deploy) |
+| C8.1 | [`refresh-token-tracking`](#c81--refresh-token-tracking) ✅ ARCHIVED | 7 | ~420 | — | (hardening) |
+| C8.2 | [`pagination-policy`](#c82--pagination-policy) | 7 | ~300 | — | (escala) |
+| C8.3 | [`prod-deployment`](#c83--prod-deployment) | 7 | ~500 | — | (deploy) |
 
 **Total estimado al MVP completo (C0-C6):** ~7000 LOC en 13 changes.
 
@@ -806,21 +806,67 @@ Polish (b310324):
 
 ---
 
-### Capa 8 — Hardening post-MVP (planned)
+### Capa 8 — Hardening post-MVP
 
-#### C8.1 — `refresh-token-tracking` (planned)
+#### C8.1 — `refresh-token-tracking` ✅ ARCHIVED (2026-06-06)
 
-**Por que:** las columnas `ip` y `user_agent` del `refresh_token` quedan NULL hoy. Capturarlas habilita forense ante incidentes (sesion comprometida, revocacion por dispositivo).
+**Estado:** COMPLETE — 2 chained PRs (backend + frontend) merged to dev/main (commits 676ec49 + 760a0bb). Manual smoke test PASSED. Forensic session management + per-device revoke now live.
 
-**Scope IN:**
-- Handler `LoginWithGoogle` y `Refresh` capturan `c.ClientIP()` y `c.Request.UserAgent()` y los pasan al service
-- Service los persiste en la fila de `refresh_token`
-- Endpoint `GET /api/auth/sessions/me` — listado de sesiones activas del user con IP + user agent + fecha
-- Endpoint `DELETE /api/auth/sessions/:id` — revocar una sesion especifica
+**Delivered:**
 
-**Acceptance:**
-- Al loguear desde Chrome desktop, la fila tiene `user_agent` con "Chrome/..." y `ip` con la IP del request
-- User ve sus sesiones activas y puede cerrar una remotamente
+Backend (PR-A: 676ec49):
+- No migration (ip/user_agent columns existed in migration 0001; latest 0013 unchanged).
+- Service signatures updated: `LoginWithGoogle(ctx, idTokenStr, ip, userAgent)` + `Refresh(ctx, refreshTokenPlain, ip, userAgent)` thread ip+ua into issueRefreshToken via strPtr helper (empty→nil for inet safety).
+- Repo methods: ListActiveByUser (caller-scoped WHERE user_id), RevokeByID (caller-scoped WHERE user_id + revoked_at IS NULL) with ErrNotAffected sentinel.
+- Service methods: ListActiveSessions, RevokeSession (maps ErrNotAffected to ErrSessionNotFound).
+- New SessionResponse DTO (id, ip?, userAgent?, createdAt, expiresAt, usedAt?) — never exposes token_hash/parent_id.
+- RegisterSessionRoutes facade + 2 handlers (GetMySessions, RevokeSession) on protected group (JWT-only).
+- main.go wiring: auth.RegisterSessionRoutes(protected, authSvc) after protected group built.
+- Handlers capture c.ClientIP() + c.Request.UserAgent() and thread to service.
+- Tests: 14 service scenarios (9 updated + 5 new) all PASS, 8 integration tests (ip round-trip, caller-scoped list/revoke) all PASS, 8 handler tests (capture, 404 no-leak, 401 no-jwt) all PASS, boot test asserts routes present. Coverage 85.2%.
+- Adversarial probes: 6 RED-confirmed (cross-user revoke/list scoping, ip+ua capture, protected-group requirement, revoked-session refresh invalid, strPtr empty→nil).
+
+Frontend (PR-B: 760a0bb):
+- SessionResponse DTO in auth.res.dto.ts (exact match with backend Go).
+- authService: getMySessions() → GET /auth/sessions/me, revokeSession(id) → DELETE /auth/sessions/:id. Both use existing httpClient + interceptor Bearer (sessions NOT skipped).
+- profile.component.ts: OnInit + sessions/loadingSessions signals, onRevoke method, confirm dialog via UiDialogService, list reload on success.
+- profile.component.html: "Sesiones activas" section with p-table (ip, userAgent/browserOf helper, createdAt), per-row revoke, empty state, skeleton while loading.
+- profile.component.sass: --page-* tokens only (Cyanotype Atelier pattern).
+- profile.component.spec.ts: 7 tests (init, empty state, confirm flows) all PASS; confirm→true tests mutations RED-confirmed.
+- Tests: 322 total vitest all PASS, tsc clean, ng build clean, lint clean.
+
+**Acceptance:** ✅
+- LoginWithGoogle + Refresh populate ip + user_agent on refresh_token row (captured via c.ClientIP() + c.Request.UserAgent()).
+- GET /api/auth/sessions/me returns only caller's active sessions (revoked/expired excluded) — caller-scoped at SQL layer.
+- DELETE /api/auth/sessions/:id revokes only caller's own session; cross-user/nonexistent/already-revoked → 404 (no existence leak).
+- Profile UI lists active sessions with ip/browser/date and per-row revoke with confirm.
+- Revoked session cannot refresh (existing ErrInvalidRefreshToken regression test).
+- Manual smoke test: re-login populates ip/ua; profile "Sesiones activas" lists sessions; revoke works; new session appears after re-login.
+
+**Key Learnings Captured:**
+1. ip/user_agent are forensic/informational only — NOT a security boundary. Stolen token works from any IP until replay detection fires.
+2. strPtr empty→nil conversion: Postgres inet column rejects pointer-to-empty-string; must convert to NULL for safe casting.
+3. Caller-scoping at SQL layer (WHERE user_id = caller) in BOTH list and revoke is the dominant security property — verified by adversarial probes.
+4. Routes MUST be on protected group (JWT middleware). Pre-auth placement would silently break scoping (UserIDFrom empty).
+5. Revoke 404 for cross-user/nonexistent/already-revoked avoids existence leaks.
+6. Revoking current session is allowed (logout-this-device pattern); access token valid until exp, next refresh fails.
+7. Boot test needed nil-safe auth.Service stub (mirrors nilCourseSvc pattern).
+8. NO migration required (first C8+ change without schema step-drift).
+
+**Scope realizado:**
+- ✅ IP/UA capture at handler layer → service → repo → persist
+- ✅ GET /api/auth/sessions/me (caller-scoped active list)
+- ✅ DELETE /api/auth/sessions/:id (caller-scoped revoke)
+- ✅ Frontend sessions section in profile page (p-table + confirm dialog)
+- ✅ Full test coverage (85.2% backend service, 322 vitest frontend)
+- ✅ 6 adversarial probes RED-confirmed (scoping, capture, routing, refresh invalid)
+- ✅ Manual smoke test PASSED
+
+**Scope OUT (deferred follow-ups):**
+- "Current session" flag (D5 — JWT alone cannot map to refresh_token row; needs token hint coupling)
+- last_used_at per-request tracking (hot-path write, deferred to C8.x)
+- Expired-token cleanup cron (ops task)
+- Geo-IP / ASN lookup (informational, post-MVP)
 
 ---
 
