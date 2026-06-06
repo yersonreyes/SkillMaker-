@@ -1,15 +1,14 @@
 /**
  * course-detail.component.ts — Alumno course detail page (C2.4).
  *
- * Replaces the PendingViewComponent stub for the courses/:id route.
- * Branches on the `enrolled` discriminator from the backend response:
- *  - enrolled=false → preview block (titulo, descripcion, creadorNombre, "Inscribirme")
- *  - enrolled=true  → full tree (secciones → VideoEmbed + materiales)
+ * Updated in course-structure-v2:
+ * - Renders video.descripcion and per-video materiales[]
+ * - Course-level materiales REMOVED (now per-video)
+ * - Course metadata: nivel, categorias, cantidadClases, horasVideo, horasPractico, miniaturaUrl
  *
- * "Inscribirme" calls enroll(id) → on success re-fetches getDetail(id) to flip to enrolled view.
- * "Mi certificado" (C5.1) appears when a certificate matching this courseId exists.
- * "Rendir evaluación" (student-eval-discovery) appears when enrolled and the course has an evaluation.
- * Navigation uses ABSOLUTE /platform/... paths (C2.2 relative-nav bug prevention).
+ * Branches on the `enrolled` discriminator from the backend response:
+ *  - enrolled=false → preview block (metadata + "Inscribirme")
+ *  - enrolled=true  → full tree (secciones → VideoEmbed + video.descripcion + per-video materiales)
  */
 import {
   Component,
@@ -24,6 +23,7 @@ import { SkeletonModule } from 'primeng/skeleton';
 import { CourseCatalogService } from '@core/services/courseCatalogService/course-catalog.service';
 import { CertificateService } from '@core/services/certificateService/certificate.service';
 import { EvaluationService } from '@core/services/evaluationService/evaluation.service';
+import { MaterialService } from '@core/services/materialService/material.service';
 import { VideoEmbedComponent } from '@shared/components/video-embed/video-embed.component';
 import type {
   CourseDetailResponse,
@@ -44,6 +44,7 @@ export class CourseDetailAlumnoComponent implements OnInit {
   private readonly catalogService = inject(CourseCatalogService);
   private readonly certService = inject(CertificateService);
   private readonly evalService = inject(EvaluationService);
+  readonly materialService = inject(MaterialService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
@@ -60,7 +61,6 @@ export class CourseDetailAlumnoComponent implements OnInit {
 
   /**
    * courseId as a signal so `myCertificate` computed stays reactive when it updates.
-   * Set from ActivatedRoute in ngOnInit.
    */
   private readonly courseIdSignal = signal<string>('');
 
@@ -79,7 +79,6 @@ export class CourseDetailAlumnoComponent implements OnInit {
 
   /**
    * The certificate for this specific course, if the user has earned it.
-   * Match is done by courseId from the certificate list.
    */
   readonly myCertificate = computed((): CertificateListItem | null => {
     const certs = this.myCerts();
@@ -107,7 +106,6 @@ export class CourseDetailAlumnoComponent implements OnInit {
       this.detail.set(result);
       this.myCerts.set(certs);
 
-      // Fetch eval summary when enrolled — catch 404 silently (no evaluation = null).
       if (result?.enrolled) {
         const summary = await this.evalService
           .getCourseEvaluationSummary(this.courseId)
@@ -129,7 +127,6 @@ export class CourseDetailAlumnoComponent implements OnInit {
     this.enrolling.set(true);
     try {
       await this.catalogService.enroll(this.courseId);
-      // Re-fetch detail to flip to enrolled view (no full page reload)
       await this.loadDetail();
     } catch {
       // Error toast shown by builder
@@ -150,6 +147,16 @@ export class CourseDetailAlumnoComponent implements OnInit {
       if (res.url) {
         window.open(res.url, '_blank');
       }
+    } catch {
+      // Error toast shown by HttpPromiseBuilderService
+    }
+  }
+
+  /** Download material — resolves ownership chain on backend, works for enrolled alumno. */
+  async downloadMaterial(materialId: string): Promise<void> {
+    try {
+      const res = await this.materialService.downloadUrl(materialId);
+      window.open(res.url, '_blank', 'noopener');
     } catch {
       // Error toast shown by HttpPromiseBuilderService
     }

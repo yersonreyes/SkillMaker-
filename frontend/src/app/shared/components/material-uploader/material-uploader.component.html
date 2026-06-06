@@ -5,7 +5,7 @@
       type="file"
       class="uploader__input"
       [disabled]="uploading()"
-      [accept]="'application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/zip,application/x-zip-compressed,image/jpeg,image/png,image/gif,image/webp'"
+      [accept]="acceptString"
       (change)="onInputChange($event)" />
 
     @if (uploading()) {
@@ -16,7 +16,7 @@
     } @else {
       <span class="uploader__hint">
         <i class="pi pi-upload"></i>
-        Seleccionar archivo &mdash; PDF, Word, ZIP o imagen &middot; max 50 MB
+        {{ hintText }}
       </span>
     }
   </label>

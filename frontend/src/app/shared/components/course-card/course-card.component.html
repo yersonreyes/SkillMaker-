@@ -1,9 +1,58 @@
 <article class="course-card">
+  <!-- Miniatura (or placeholder if null) -->
+  <div class="course-card__cover">
+    @if (card.miniaturaUrl) {
+      <img [src]="card.miniaturaUrl" [alt]="card.titulo" class="course-card__cover-img" />
+    } @else {
+      <div class="course-card__cover-placeholder" aria-hidden="true">
+        <i class="pi pi-image"></i>
+      </div>
+    }
+  </div>
+
   <div class="course-card__body">
     <p class="course-card__eyebrow">{{ card.creadorNombre }}</p>
     <h3 class="course-card__titulo">{{ card.titulo }}</h3>
+
+    <!-- Nivel tag -->
+    @if (card.nivel) {
+      <span class="course-card__nivel tag">{{ card.nivel }}</span>
+    }
+
+    <!-- Categorias chips -->
+    @if (card.categorias.length > 0) {
+      <div class="course-card__categorias">
+        @for (cat of card.categorias; track cat.id) {
+          <span class="tag">{{ cat.nombre }}</span>
+        }
+      </div>
+    }
+
     <p class="course-card__desc">{{ card.descripcion }}</p>
+
+    <!-- Stats: clases, horas video, horas practico -->
+    <div class="course-card__stats">
+      @if (card.cantidadClases > 0) {
+        <span class="course-card__stat">
+          <i class="pi pi-play-circle" aria-hidden="true"></i>
+          {{ card.cantidadClases }} {{ card.cantidadClases === 1 ? 'clase' : 'clases' }}
+        </span>
+      }
+      @if (card.horasVideo > 0) {
+        <span class="course-card__stat">
+          <i class="pi pi-clock" aria-hidden="true"></i>
+          {{ card.horasVideo.toFixed(1) }}h
+        </span>
+      }
+      @if (card.horasPractico > 0) {
+        <span class="course-card__stat">
+          <i class="pi pi-wrench" aria-hidden="true"></i>
+          {{ card.horasPractico.toFixed(1) }}h
+        </span>
+      }
+    </div>
   </div>
+
   <footer class="course-card__footer">
     <button type="button" class="course-card__cta" (click)="onOpen()">
       Ver detalle

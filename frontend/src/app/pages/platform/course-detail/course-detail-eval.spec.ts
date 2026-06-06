@@ -27,6 +27,7 @@ import { CourseDetailAlumnoComponent } from './course-detail.component';
 import { CourseCatalogService } from '@core/services/courseCatalogService/course-catalog.service';
 import { CertificateService } from '@core/services/certificateService/certificate.service';
 import { EvaluationService } from '@core/services/evaluationService/evaluation.service';
+import { MaterialService } from '@core/services/materialService/material.service';
 import type { CourseDetailAlumnoResponse } from '@core/services/courseCatalogService/course-catalog.dto';
 import type { EvaluationSummary } from '@core/services/evaluationService/evaluation.dto';
 
@@ -39,7 +40,13 @@ const MOCK_ENROLLED: CourseDetailAlumnoResponse = {
   descripcion: 'Aprende Go de verdad',
   creadorNombre: 'Yerson Reyes',
   secciones: [],
-  materiales: [],
+  // course-structure-v2: materiales moved to per-video; course-level REMOVED
+  nivel: null,
+  categorias: [],
+  cantidadClases: 0,
+  horasVideo: 0,
+  horasPractico: 0,
+  miniaturaUrl: '',
 };
 
 const MOCK_SUMMARY: EvaluationSummary = {
@@ -68,6 +75,7 @@ async function createComponent(
       { provide: CourseCatalogService, useValue: catalogSpy },
       { provide: CertificateService, useValue: noCertSpy },
       { provide: EvaluationService, useValue: evalSpy },
+      { provide: MaterialService, useValue: { downloadUrl: vi.fn().mockResolvedValue({ url: '', expiresAt: '' }) } },
       // Do NOT use provideRouter — it overrides ActivatedRoute snapshot.
       // Provide Router as a stub instead (C5.1 lesson from course-detail-cert.spec.ts).
       { provide: Router, useValue: router },

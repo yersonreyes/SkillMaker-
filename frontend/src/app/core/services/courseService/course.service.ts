@@ -2,7 +2,14 @@ import { Injectable, inject } from '@angular/core';
 import { environment } from '@env/environment';
 import { HttpPromiseBuilderService } from '../http-promise-builder.service';
 import type { Page, CourseListItem, CourseDetail } from './course.res.dto';
-import type { CourseListParams, CreateCourseRequest, UpdateCourseRequest } from './course.req.dto';
+import type {
+  CourseListParams,
+  CreateCourseRequest,
+  UpdateCourseRequest,
+  ThumbnailPresignRequest,
+  ThumbnailPresignResponse,
+  ThumbnailConfirmRequest,
+} from './course.req.dto';
 
 @Injectable({ providedIn: 'root' })
 export class CourseService {
@@ -49,6 +56,33 @@ export class CourseService {
       .request<CourseDetail>()
       .patch()
       .url(`${this.base}/${id}`)
+      .body(body)
+      .send();
+  }
+
+  /**
+   * POST /api/courses/:courseId/thumbnail/presign
+   * Requests a presigned PUT URL for uploading the course thumbnail.
+   * Owner + assertCourseEditable gated on the backend.
+   */
+  presignThumbnail(courseId: string, body: ThumbnailPresignRequest): Promise<ThumbnailPresignResponse> {
+    return this.http
+      .request<ThumbnailPresignResponse>()
+      .post()
+      .url(`${this.base}/${courseId}/thumbnail/presign`)
+      .body(body)
+      .send();
+  }
+
+  /**
+   * POST /api/courses/:courseId/thumbnail
+   * Confirms the thumbnail upload and sets miniatura_key on the course.
+   */
+  confirmThumbnail(courseId: string, body: ThumbnailConfirmRequest): Promise<void> {
+    return this.http
+      .request<void>()
+      .post()
+      .url(`${this.base}/${courseId}/thumbnail`)
       .body(body)
       .send();
   }

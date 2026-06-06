@@ -27,6 +27,13 @@ const MOCK_CARD: CatalogCourseCard = {
   descripcion: 'Aprende Go de verdad',
   creadorNombre: 'Yerson Reyes',
   createdAt: '2026-01-01T00:00:00Z',
+  // course-structure-v2 metadata fields
+  miniaturaUrl: '',
+  nivel: null,
+  categorias: [],
+  cantidadClases: 0,
+  horasVideo: 0,
+  horasPractico: 0,
 };
 
 const MOCK_EMPTY_PAGE: Page<CatalogCourseCard> = {

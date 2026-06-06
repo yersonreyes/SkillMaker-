@@ -8,17 +8,20 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { InputTextModule } from 'primeng/inputtext';
+import { InputNumberModule } from 'primeng/inputnumber';
 import { TextareaModule } from 'primeng/textarea';
 import { TooltipModule } from 'primeng/tooltip';
 import { SkeletonModule } from 'primeng/skeleton';
 import { DialogModule } from 'primeng/dialog';
 import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { OrderListModule } from 'primeng/orderlist';
 
 import { CourseService } from '@core/services/courseService/course.service';
 import { SectionService } from '@core/services/sectionService/section.service';
 import { VideoService } from '@core/services/videoService/video.service';
 import { MaterialService } from '@core/services/materialService/material.service';
+import { CategoriaService } from '@core/services/categoriaService/categoria.service';
 import { UiDialogService } from '@core/services/ui-dialog.service';
 import { ApprovalService } from '@core/services/approvalService/approval.service';
 import { VideoEmbedComponent } from '@shared/components/video-embed/video-embed.component';
@@ -29,6 +32,14 @@ import type { SectionItem } from '@core/services/sectionService/section.res.dto'
 import type { VideoItem } from '@core/services/videoService/video.res.dto';
 import type { VideoProveedor } from '@core/services/videoService/video.req.dto';
 import type { MaterialResponse } from '@core/services/materialService/material.types';
+import type { CategoriaItem } from '@core/services/categoriaService/categoria.dto';
+
+/** Nivel options for the p-select field. */
+export const NIVEL_OPTIONS = [
+  { label: 'Basico', value: 'basico' },
+  { label: 'Intermedio', value: 'intermedio' },
+  { label: 'Avanzado', value: 'avanzado' },
+];
 
 /** Section enriched with its videos list for the UI. */
 export interface SectionWithVideos extends SectionItem {
@@ -41,6 +52,7 @@ export interface VideoFormState {
   url: string;
   proveedor: VideoProveedor;
   duracionS: number | undefined;
+  descripcion: string;
 }
 
 @Component({
@@ -49,11 +61,13 @@ export interface VideoFormState {
   imports: [
     FormsModule,
     InputTextModule,
+    InputNumberModule,
     TextareaModule,
     TooltipModule,
     SkeletonModule,
     DialogModule,
     SelectModule,
+    MultiSelectModule,
     OrderListModule,
     VideoEmbedComponent,
     MaterialUploaderComponent,
@@ -66,6 +80,7 @@ export class CursoEditarComponent implements OnInit {
   private readonly sectionService = inject(SectionService);
   private readonly videoService = inject(VideoService);
   private readonly materialService = inject(MaterialService);
+  private readonly categoriaService = inject(CategoriaService);
   private readonly ui = inject(UiDialogService);
   private readonly approvalService = inject(ApprovalService);
   private readonly route = inject(ActivatedRoute);
@@ -74,17 +89,32 @@ export class CursoEditarComponent implements OnInit {
   // ── Course form state ────────────────────────────────────────────────────────
   readonly titulo = signal<string>('');
   readonly descripcion = signal<string>('');
+  readonly nivel = signal<string | null>(null);
+  readonly horasPractico = signal<number>(0);
+  readonly selectedCategoriaIds = signal<string[]>([]);
+  readonly miniaturaUrl = signal<string | null>(null);
+  readonly miniaturaKey = signal<string | null>(null);
+  readonly horasVideo = signal<number>(0);
+  readonly cantidadClases = signal<number>(0);
+
   readonly loading = signal<boolean>(false);
   readonly saving = signal<boolean>(false);
   readonly submitting = signal<boolean>(false);
   readonly course = signal<CourseDetail | null>(null);
   readonly hasContent = signal<boolean>(false);
 
+  // ── Categorias ───────────────────────────────────────────────────────────────
+  readonly categorias = signal<CategoriaItem[]>([]);
+
+  /** Options for p-multiselect — label/value pairs. */
+  readonly categoriaOptions = computed(() =>
+    this.categorias().map(c => ({ label: c.nombre, value: c.id })),
+  );
+
   /**
    * C4.1: "Enviar a revisión" is enabled ONLY when:
    *   - course has content (hasContent=true)
    *   - estado ∈ {borrador, rechazado} (can submit / re-submit after rejection)
-   * Disabled for en_revision (already pending) and aprobado (already published).
    */
   readonly submitDisabled = computed(() => {
     const c = this.course();
@@ -92,16 +122,18 @@ export class CursoEditarComponent implements OnInit {
     return c.estado !== 'borrador' && c.estado !== 'rechazado';
   });
 
-  /** Latest rejection comment from approval history (shown when estado=rechazado). */
+  /** Latest rejection comment from approval history. */
   readonly rejectionComentario = signal<string | null>(null);
+
+  // ── Nivel options ───────────────────────────────────────────────────────────���─
+  readonly nivelOptions = NIVEL_OPTIONS;
 
   // ── Sections state ───────────────────────────────────────────────────────────
   readonly sections = signal<SectionWithVideos[]>([]);
   readonly sectionsLoading = signal<boolean>(false);
 
-  // ── Materials state ──────────────────────────────────────────────────────────
-  readonly materials = signal<MaterialResponse[]>([]);
-  readonly materialsLoading = signal<boolean>(false);
+  /** Per-video materials map: videoId → MaterialResponse[] (for the editor list). */
+  readonly videoMaterials = signal<Record<string, MaterialResponse[]>>({});
 
   /** Expose humanizeBytes for the template (pure function, no injection needed). */
   readonly humanizeBytes = humanizeBytes;
@@ -120,6 +152,7 @@ export class CursoEditarComponent implements OnInit {
     url: '',
     proveedor: 'youtube',
     duracionS: undefined,
+    descripcion: '',
   });
 
   // ── Proveedor options ────────────────────────────────────────────────────────
@@ -133,6 +166,7 @@ export class CursoEditarComponent implements OnInit {
   ngOnInit(): void {
     this.courseId = this.route.snapshot.paramMap.get('id') ?? '';
     void this.loadCourse();
+    void this.loadCategorias();
   }
 
   async loadCourse(): Promise<void> {
@@ -144,9 +178,12 @@ export class CursoEditarComponent implements OnInit {
       this.titulo.set(detail.titulo);
       this.descripcion.set(detail.descripcion);
       this.hasContent.set(detail.hasContent ?? false);
+      this.nivel.set(detail.nivel ?? null);
+      this.horasPractico.set(detail.horasPractico ?? 0);
+      this.miniaturaUrl.set(detail.miniaturaUrl ?? null);
+      this.horasVideo.set(detail.horasVideo ?? 0);
+      this.cantidadClases.set(detail.cantidadClases ?? 0);
 
-      // FE-4: when rechazado, load the latest rejection comment so the creator
-      // knows WHY the course was rejected without needing an email.
       if (detail.estado === 'rechazado') {
         void this.loadRejectionComment();
       } else {
@@ -158,18 +195,26 @@ export class CursoEditarComponent implements OnInit {
       this.loading.set(false);
     }
 
-    // Load sections and materials in parallel (independent of course form data)
-    await Promise.all([this.loadSections(), this.loadMaterials()]);
+    // Load sections in parallel (independent of course form data)
+    await this.loadSections();
   }
 
-  /** Fetch approval history and surface the latest rejection comment (FE-4). */
+  async loadCategorias(): Promise<void> {
+    try {
+      const items = await this.categoriaService.getAll();
+      this.categorias.set(items);
+    } catch {
+      // Non-critical: categorias are informational
+    }
+  }
+
+  /** Fetch approval history and surface the latest rejection comment. */
   async loadRejectionComment(): Promise<void> {
     if (!this.courseId) return;
     try {
       const history = await this.approvalService.history(this.courseId);
       const rejections = history.filter((h: ApprovalHistoryItem) => h.resultado === 'rechazado');
       if (rejections.length > 0) {
-        // History returned most-recent-first per spec (resueltoEn DESC).
         this.rejectionComentario.set(rejections[0].comentario);
       }
     } catch {
@@ -177,18 +222,13 @@ export class CursoEditarComponent implements OnInit {
     }
   }
 
-  /**
-   * FE-2 (C4.1): Submit course for admin review.
-   * On success, reloads the course so estado → en_revision is reflected
-   * and the button becomes disabled.
-   */
+  /** Submit course for admin review. */
   async onSubmitToReview(): Promise<void> {
     if (!this.courseId) return;
     this.submitting.set(true);
     try {
       await this.approvalService.submitToReview(this.courseId);
       this.ui.showSuccess('Curso enviado a revision');
-      // Reload so estado signal reflects en_revision and button disables.
       await this.loadCourse();
     } catch {
       // Error toast already shown by HttpPromiseBuilderService
@@ -201,16 +241,38 @@ export class CursoEditarComponent implements OnInit {
     if (!this.courseId) return;
     this.sectionsLoading.set(true);
     try {
-      // listByCourse returns SectionWithVideos[] — sections with nested videos from the API.
-      // CRITICAL fix: use the videos from the API response so existing sections/videos render
-      // on page reload (instead of wiping them with videos: []).
       const items = await this.sectionService.listByCourse(this.courseId);
       this.sections.set(items.map(s => ({ ...s, videos: s.videos ?? [] })));
+      // Load materials for all videos
+      await this.loadAllVideoMaterials(items);
     } catch {
       // Error toast already shown
     } finally {
       this.sectionsLoading.set(false);
     }
+  }
+
+  /** Batch load materials for all videos in all sections. */
+  async loadAllVideoMaterials(sections: SectionWithVideos[]): Promise<void> {
+    const allVideos = sections.flatMap(s => s.videos ?? []);
+    if (allVideos.length === 0) return;
+
+    const results = await Promise.allSettled(
+      allVideos.map(v => this.materialService.list(v.id).then(mats => ({ videoId: v.id, mats }))),
+    );
+
+    const map: Record<string, MaterialResponse[]> = {};
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
+        map[r.value.videoId] = r.value.mats;
+      }
+    }
+    this.videoMaterials.set(map);
+  }
+
+  /** Get materials for a specific video (from the local cache). */
+  getMaterialsForVideo(videoId: string): MaterialResponse[] {
+    return this.videoMaterials()[videoId] ?? [];
   }
 
   async onSave(): Promise<void> {
@@ -220,6 +282,9 @@ export class CursoEditarComponent implements OnInit {
       await this.courseService.update(this.courseId, {
         titulo: this.titulo(),
         descripcion: this.descripcion(),
+        nivel: this.nivel() ?? undefined,
+        horasPractico: this.horasPractico(),
+        categoriaIds: this.selectedCategoriaIds(),
       });
       this.ui.showSuccess('Curso guardado');
     } catch {
@@ -283,7 +348,7 @@ export class CursoEditarComponent implements OnInit {
 
   openAddVideoDialog(sectionId: string): void {
     this.addVideoSectionId.set(sectionId);
-    this.videoForm.set({ titulo: '', url: '', proveedor: 'youtube', duracionS: undefined });
+    this.videoForm.set({ titulo: '', url: '', proveedor: 'youtube', duracionS: undefined, descripcion: '' });
     this.addVideoVisible.set(true);
   }
 
@@ -293,12 +358,13 @@ export class CursoEditarComponent implements OnInit {
 
     this.addingVideoBusy.set(true);
     try {
-      const body: { titulo: string; url: string; proveedor: VideoProveedor; duracionS?: number } = {
+      const body: { titulo: string; url: string; proveedor: VideoProveedor; duracionS?: number; descripcion?: string } = {
         titulo: form.titulo.trim(),
         url: form.url.trim(),
         proveedor: form.proveedor,
       };
       if (form.duracionS) body['duracionS'] = form.duracionS;
+      if (form.descripcion.trim()) body['descripcion'] = form.descripcion.trim();
 
       const created = await this.videoService.create(sectionId, body);
       this.sections.update(list =>
@@ -306,6 +372,8 @@ export class CursoEditarComponent implements OnInit {
           s.id === sectionId ? { ...s, videos: [...s.videos, created] } : s,
         ),
       );
+      // Initialize empty materials list for new video
+      this.videoMaterials.update(map => ({ ...map, [created.id]: [] }));
       this.addVideoVisible.set(false);
       this.ui.showSuccess('Video agregado');
     } catch {
@@ -328,44 +396,38 @@ export class CursoEditarComponent implements OnInit {
             : s,
         ),
       );
+      // Remove materials cache for this video
+      this.videoMaterials.update(map => {
+        const next = { ...map };
+        delete next[videoId];
+        return next;
+      });
       this.ui.showSuccess('Video eliminado');
     } catch {
       // Error toast already shown
     }
   }
 
-  // ── Material operations ──────────────────────────────────────────────────────
+  // ── Per-video material operations ────────────────────────────────────────────
 
-  async loadMaterials(): Promise<void> {
-    if (!this.courseId) return;
-    this.materialsLoading.set(true);
-    try {
-      const items = await this.materialService.list(this.courseId);
-      this.materials.set(items);
-    } catch {
-      // Error toast already shown by HttpPromiseBuilderService
-    } finally {
-      this.materialsLoading.set(false);
-    }
-  }
-
-  onMaterialUploaded(material: MaterialResponse): void {
-    // Append the new material to the list (no full reload needed).
-    this.materials.update(list => [...list, material]);
+  onVideoMaterialUploaded(videoId: string, material: MaterialResponse): void {
+    this.videoMaterials.update(map => ({
+      ...map,
+      [videoId]: [...(map[videoId] ?? []), material],
+    }));
     this.ui.showSuccess('Material agregado');
   }
 
-  async downloadMaterial(material: MaterialResponse): Promise<void> {
-    if (!this.courseId) return;
+  async downloadVideoMaterial(material: MaterialResponse): Promise<void> {
     try {
-      const resp = await this.materialService.downloadUrl(this.courseId, material.id);
+      const resp = await this.materialService.downloadUrl(material.id);
       window.open(resp.url, '_blank', 'noopener');
     } catch {
       // Error toast already shown
     }
   }
 
-  async deleteMaterial(material: MaterialResponse): Promise<void> {
+  async deleteVideoMaterial(videoId: string, material: MaterialResponse): Promise<void> {
     const confirmed = await this.ui.confirmDelete(
       `¿Eliminar "${material.nombre}"? Esta accion no se puede deshacer.`,
     );
@@ -373,11 +435,21 @@ export class CursoEditarComponent implements OnInit {
 
     try {
       await this.materialService.remove(material.id);
-      this.materials.update(list => list.filter(m => m.id !== material.id));
+      this.videoMaterials.update(map => ({
+        ...map,
+        [videoId]: (map[videoId] ?? []).filter(m => m.id !== material.id),
+      }));
       this.ui.showSuccess('Material eliminado');
     } catch {
       // Error toast already shown
     }
+  }
+
+  // ── Thumbnail ────────────────────────────────────────────────────────────────
+
+  onThumbnailUploaded(key: string): void {
+    this.miniaturaKey.set(key);
+    this.ui.showSuccess('Miniatura actualizada');
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -394,12 +466,8 @@ export class CursoEditarComponent implements OnInit {
 
   // ── Navigation ────────────────────────────────────────────────────────────────
 
-  /**
-   * Navigate to the evaluation editor.
-   * CRITICAL: uses the ABSOLUTE /platform-prefixed path.
-   * A bare /creator/... path is a known C2.2 bug pattern — never use relative paths here.
-   */
   navigateToEvaluation(): Promise<boolean> {
     return this.router.navigateByUrl(`/platform/creator/evaluacion-editar/${this.courseId}`);
   }
+
 }

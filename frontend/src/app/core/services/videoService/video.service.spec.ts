@@ -23,6 +23,9 @@ const MOCK_VIDEO: VideoItem = {
   proveedor: 'youtube',
   duracionS: 300,
   orden: 0,
+  // course-structure-v2 additions
+  descripcion: '',
+  materiales: [],
   createdAt: '2026-01-01T00:00:00Z',
 };
 

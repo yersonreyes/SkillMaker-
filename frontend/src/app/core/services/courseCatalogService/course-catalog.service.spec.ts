@@ -34,6 +34,13 @@ const MOCK_CARD: CatalogCourseCard = {
   descripcion: 'Aprende Go de verdad',
   creadorNombre: 'Yerson Reyes',
   createdAt: '2026-01-01T00:00:00Z',
+  // course-structure-v2 metadata fields
+  miniaturaUrl: '',
+  nivel: null,
+  categorias: [],
+  cantidadClases: 0,
+  horasVideo: 0,
+  horasPractico: 0,
 };
 
 const MOCK_PAGE: Page<CatalogCourseCard> = {
@@ -50,6 +57,13 @@ const MOCK_PREVIEW: CoursePreviewResponse = {
   titulo: 'Go Avanzado',
   descripcion: 'Aprende Go de verdad',
   creadorNombre: 'Yerson Reyes',
+  // course-structure-v2 metadata fields
+  nivel: null,
+  categorias: [],
+  cantidadClases: 0,
+  horasVideo: 0,
+  horasPractico: 0,
+  miniaturaUrl: '',
 };
 
 const MOCK_ENROLLED: CourseDetailAlumnoResponse = {
@@ -59,7 +73,13 @@ const MOCK_ENROLLED: CourseDetailAlumnoResponse = {
   descripcion: 'Aprende Go de verdad',
   creadorNombre: 'Yerson Reyes',
   secciones: [],
-  materiales: [],
+  // course-structure-v2: materiales moved to per-video; course-level REMOVED
+  nivel: null,
+  categorias: [],
+  cantidadClases: 0,
+  horasVideo: 0,
+  horasPractico: 0,
+  miniaturaUrl: '',
 };
 
 const MOCK_ENROLL_RESP: EnrollmentResponse = {

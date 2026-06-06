@@ -3,6 +3,7 @@
  *
  * Note: `Page<T>` is defined locally because the generated types.ts generic
  * pagination type is erased to `object`. Mirror the same shape as user.res.dto.
+ * Updated in course-structure-v2: CourseDetail gains nivel, horasPractico, categoriaIds.
  */
 
 export type CourseEstado = 'borrador' | 'en_revision' | 'aprobado' | 'rechazado';
@@ -32,6 +33,16 @@ export interface CourseDetail {
   estado: CourseEstado;
   /** C2.2: true when the course has at least one video (via any section). */
   hasContent: boolean;
+  /** Optional nivel: 'basico' | 'intermedio' | 'avanzado' (null if not set). */
+  nivel?: string | null;
+  /** Practical hours (stored, not computed). */
+  horasPractico?: number;
+  /** Presigned miniatura URL (null if not set). */
+  miniaturaUrl?: string | null;
+  /** Computed video hours (read-only). */
+  horasVideo?: number;
+  /** Computed video count (read-only). */
+  cantidadClases?: number;
   createdAt: string; // ISO 8601
   updatedAt: string; // ISO 8601
 }

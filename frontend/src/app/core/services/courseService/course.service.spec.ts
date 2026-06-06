@@ -2,6 +2,7 @@
  * course.service.spec.ts — CourseService unit tests (Vitest + Angular TestBed).
  * Uses provideHttpClient + provideHttpClientTesting (modern API).
  * Mock strategy: HttpTestingController intercepts real HTTP calls.
+ * Updated in course-structure-v2: thumbnail presign/confirm + metadata fields.
  */
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
@@ -29,6 +30,11 @@ const MOCK_COURSE_DETAIL: CourseDetail = {
   descripcion: 'Curso de Go',
   estado: 'borrador',
   hasContent: false,
+  nivel: null,
+  horasPractico: 0,
+  miniaturaUrl: null,
+  horasVideo: 0,
+  cantidadClases: 0,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
 };
@@ -140,6 +146,25 @@ describe('CourseService', () => {
     await promise;
   });
 
+  it('create() sends nivel and categoriaIds when provided', async () => {
+    const promise = service.create({
+      titulo: 'Go avanzado',
+      nivel: 'intermedio',
+      categoriaIds: ['cat-1', 'cat-2'],
+    });
+
+    const req = httpMock.expectOne(BASE);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({
+      titulo: 'Go avanzado',
+      nivel: 'intermedio',
+      categoriaIds: ['cat-1', 'cat-2'],
+    });
+    req.flush(MOCK_COURSE_DETAIL, { status: 201, statusText: 'Created' });
+
+    await promise;
+  });
+
   // ── update ───────────────────────────────────────────────────────────────────
 
   it('update() sends PATCH /api/courses/:id with partial body', async () => {
@@ -161,6 +186,59 @@ describe('CourseService', () => {
     expect(req.request.method).toBe('PATCH');
     expect(req.request.body).toEqual({ descripcion: 'Nueva descripcion' });
     req.flush({ ...MOCK_COURSE_DETAIL, descripcion: 'Nueva descripcion' });
+
+    await promise;
+  });
+
+  it('update() sends PATCH with nivel and categoriaIds', async () => {
+    const promise = service.update('course-1', {
+      nivel: 'avanzado',
+      horasPractico: 4.5,
+      categoriaIds: ['cat-3'],
+    });
+
+    const req = httpMock.expectOne(`${BASE}/course-1`);
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toEqual({
+      nivel: 'avanzado',
+      horasPractico: 4.5,
+      categoriaIds: ['cat-3'],
+    });
+    req.flush({ ...MOCK_COURSE_DETAIL, nivel: 'avanzado', horasPractico: 4.5 });
+
+    await promise;
+  });
+
+  // ── presignThumbnail ──────────────────────────────────────────────────────────
+
+  it('presignThumbnail() sends POST /api/courses/:courseId/thumbnail/presign', async () => {
+    const body = { nombre: 'cover.jpg', contentType: 'image/jpeg', tamanoBytes: 200_000 };
+    const promise = service.presignThumbnail('course-1', body);
+
+    const req = httpMock.expectOne(`${BASE}/course-1/thumbnail/presign`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual(body);
+    req.flush({
+      uploadUrl: 'http://minio/presigned-thumb',
+      key: 'courses/course-1/thumbnail/uuid-cover.jpg',
+      expiresAt: '2026-06-03T16:00:00Z',
+    });
+
+    const result = await promise;
+    expect(result.uploadUrl).toContain('minio');
+    expect(result.key).toContain('thumbnail');
+  });
+
+  // ── confirmThumbnail ──────────────────────────────────────────────────────────
+
+  it('confirmThumbnail() sends POST /api/courses/:courseId/thumbnail with key', async () => {
+    const body = { key: 'courses/course-1/thumbnail/uuid-cover.jpg' };
+    const promise = service.confirmThumbnail('course-1', body);
+
+    const req = httpMock.expectOne(`${BASE}/course-1/thumbnail`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual(body);
+    req.flush(null, { status: 200, statusText: 'OK' });
 
     await promise;
   });

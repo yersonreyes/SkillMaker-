@@ -22,6 +22,7 @@ import { provideAnimationsAsync } from '@angular/platform-browser/animations/asy
 import { CourseDetailAlumnoComponent } from './course-detail.component';
 import { CourseCatalogService } from '@core/services/courseCatalogService/course-catalog.service';
 import { CertificateService } from '@core/services/certificateService/certificate.service';
+import { MaterialService } from '@core/services/materialService/material.service';
 import type {
   CoursePreviewResponse,
 } from '@core/services/courseCatalogService/course-catalog.dto';
@@ -33,6 +34,13 @@ const MOCK_PREVIEW: CoursePreviewResponse = {
   titulo: 'Go Avanzado',
   descripcion: 'Aprende Go de verdad',
   creadorNombre: 'Yerson Reyes',
+  // course-structure-v2 metadata fields
+  nivel: null,
+  categorias: [],
+  cantidadClases: 0,
+  horasVideo: 0,
+  horasPractico: 0,
+  miniaturaUrl: '',
 };
 
 const MOCK_CERT_MATCH: CertificateListItem = {
@@ -60,6 +68,7 @@ async function createComponent(
     providers: [
       { provide: CourseCatalogService, useValue: catalogSpy },
       { provide: CertificateService, useValue: certSpy },
+      { provide: MaterialService, useValue: { downloadUrl: vi.fn().mockResolvedValue({ url: '', expiresAt: '' }) } },
       // Inject ActivatedRoute with id='course-1'. Do NOT use provideRouter here
       // because provideRouter overrides ActivatedRoute snapshot (C5.1 lesson).
       {

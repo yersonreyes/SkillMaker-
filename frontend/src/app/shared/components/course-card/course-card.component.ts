@@ -1,17 +1,20 @@
 /**
  * course-card.component.ts — Reusable catalog course card (C2.4).
  *
- * Standalone component. Displays one CatalogCourseCard with titulo, descripcion,
- * creadorNombre, and a "Ver detalle" CTA. Emits @Output() open when clicked.
- * Uses Cyanotype Workshop globals (.panel, .btn--cyan).
+ * Updated in course-structure-v2:
+ * - Renders miniatura img (or placeholder when miniaturaUrl is null)
+ * - Shows nivel tag
+ * - Shows categorias chips
+ * - Shows cantidadClases, horasVideo (1 decimal), horasPractico
  */
 import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import type { CatalogCourseCard } from '@core/services/courseCatalogService/course-catalog.dto';
 
 @Component({
   selector: 'app-course-card',
   standalone: true,
-  imports: [],
+  imports: [CommonModule],
   templateUrl: './course-card.component.html',
   styleUrl: './course-card.component.sass',
 })

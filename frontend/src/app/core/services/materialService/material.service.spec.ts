@@ -1,11 +1,12 @@
 /**
  * material.service.spec.ts — MaterialService unit tests (Vitest + Angular TestBed).
  *
+ * Re-keyed in course-structure-v2: materials now belong to videos (not courses).
  * Coverage targets:
- *  - presign()       → POST /api/courses/:courseId/materials/presign
- *  - confirm()       → POST /api/courses/:courseId/materials
- *  - list()          → GET  /api/courses/:courseId/materials
- *  - downloadUrl()   → GET  /api/courses/:courseId/materials/:materialId/download
+ *  - presign()       → POST /api/videos/:videoId/materials/presign
+ *  - confirm()       → POST /api/videos/:videoId/materials
+ *  - list()          → GET  /api/videos/:videoId/materials
+ *  - downloadUrl()   → GET  /api/materials/:materialId/download (flat; no courseId)
  *  - remove()        → DELETE /api/materials/:materialId
  *  - uploadToStorage → LOAD-BEARING: raw XHR, Content-Type set, NO Authorization header.
  */
@@ -24,12 +25,12 @@ import type {
   DownloadResponse,
 } from './material.types';
 
-const BASE_COURSES = 'http://localhost:3000/api/courses';
+const BASE_VIDEOS = 'http://localhost:3000/api/videos';
 const BASE_MATERIALS = 'http://localhost:3000/api/materials';
 
 const MOCK_PRESIGN_RESPONSE: PresignResponse = {
-  uploadUrl: 'http://minio:9000/skillmaker-materials/courses/c-1/materials/uuid-file.pdf?signature=abc',
-  key: 'courses/c-1/materials/uuid-file.pdf',
+  uploadUrl: 'http://minio:9000/skillmaker-materials/courses/c-1/videos/v-1/materials/uuid-file.pdf?signature=abc',
+  key: 'courses/c-1/videos/v-1/materials/uuid-file.pdf',
   expiresAt: '2026-06-03T16:00:00Z',
 };
 
@@ -42,11 +43,11 @@ const MOCK_MATERIAL: MaterialResponse = {
 };
 
 const MOCK_DOWNLOAD: DownloadResponse = {
-  url: 'http://minio:9000/skillmaker-materials/courses/c-1/materials/uuid-file.pdf?download=1',
+  url: 'http://minio:9000/skillmaker-materials/courses/c-1/videos/v-1/materials/uuid-file.pdf?download=1',
   expiresAt: '2026-06-03T16:00:00Z',
 };
 
-describe('MaterialService — backend API methods', () => {
+describe('MaterialService — backend API methods (re-keyed to videoId)', () => {
   let service: MaterialService;
   let httpMock: HttpTestingController;
 
@@ -70,38 +71,38 @@ describe('MaterialService — backend API methods', () => {
 
   // ── presign ───────────────────────────────────────────────────────────────────
 
-  it('presign() sends POST /api/courses/:courseId/materials/presign with correct body', async () => {
+  it('presign() sends POST /api/videos/:videoId/materials/presign with correct body', async () => {
     const req_body: MaterialPresignRequest = {
       nombre: 'slides.pdf',
       contentType: 'application/pdf',
       tamanoBytes: 5_000_000,
     };
 
-    const promise = service.presign('c-1', req_body);
+    const promise = service.presign('v-1', req_body);
 
-    const req = httpMock.expectOne(`${BASE_COURSES}/c-1/materials/presign`);
+    const req = httpMock.expectOne(`${BASE_VIDEOS}/v-1/materials/presign`);
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual(req_body);
     req.flush(MOCK_PRESIGN_RESPONSE, { status: 200, statusText: 'OK' });
 
     const result = await promise;
     expect(result.uploadUrl).toContain('minio');
-    expect(result.key).toBe('courses/c-1/materials/uuid-file.pdf');
+    expect(result.key).toContain('videos/v-1/materials');
   });
 
   // ── confirm ───────────────────────────────────────────────────────────────────
 
-  it('confirm() sends POST /api/courses/:courseId/materials with confirm body', async () => {
+  it('confirm() sends POST /api/videos/:videoId/materials with confirm body', async () => {
     const req_body: MaterialConfirmRequest = {
-      key: 'courses/c-1/materials/uuid-file.pdf',
+      key: 'courses/c-1/videos/v-1/materials/uuid-file.pdf',
       nombre: 'slides.pdf',
       contentType: 'application/pdf',
       tamanoBytes: 5_000_000,
     };
 
-    const promise = service.confirm('c-1', req_body);
+    const promise = service.confirm('v-1', req_body);
 
-    const req = httpMock.expectOne(`${BASE_COURSES}/c-1/materials`);
+    const req = httpMock.expectOne(`${BASE_VIDEOS}/v-1/materials`);
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual(req_body);
     req.flush(MOCK_MATERIAL, { status: 201, statusText: 'Created' });
@@ -113,10 +114,10 @@ describe('MaterialService — backend API methods', () => {
 
   // ── list ──────────────────────────────────────────────────────────────────────
 
-  it('list() sends GET /api/courses/:courseId/materials and returns array', async () => {
-    const promise = service.list('c-1');
+  it('list() sends GET /api/videos/:videoId/materials and returns array', async () => {
+    const promise = service.list('v-1');
 
-    const req = httpMock.expectOne(`${BASE_COURSES}/c-1/materials`);
+    const req = httpMock.expectOne(`${BASE_VIDEOS}/v-1/materials`);
     expect(req.request.method).toBe('GET');
     req.flush([MOCK_MATERIAL]);
 
@@ -125,10 +126,10 @@ describe('MaterialService — backend API methods', () => {
     expect(result[0].id).toBe('mat-1');
   });
 
-  it('list() returns empty array when course has no materials', async () => {
-    const promise = service.list('c-1');
+  it('list() returns empty array when video has no materials', async () => {
+    const promise = service.list('v-1');
 
-    const req = httpMock.expectOne(`${BASE_COURSES}/c-1/materials`);
+    const req = httpMock.expectOne(`${BASE_VIDEOS}/v-1/materials`);
     req.flush([]);
 
     const result = await promise;
@@ -137,10 +138,10 @@ describe('MaterialService — backend API methods', () => {
 
   // ── downloadUrl ───────────────────────────────────────────────────────────────
 
-  it('downloadUrl() sends GET /api/courses/:courseId/materials/:materialId/download', async () => {
-    const promise = service.downloadUrl('c-1', 'mat-1');
+  it('downloadUrl() sends GET /api/materials/:materialId/download (flat, no courseId)', async () => {
+    const promise = service.downloadUrl('mat-1');
 
-    const req = httpMock.expectOne(`${BASE_COURSES}/c-1/materials/mat-1/download`);
+    const req = httpMock.expectOne(`${BASE_MATERIALS}/mat-1/download`);
     expect(req.request.method).toBe('GET');
     req.flush(MOCK_DOWNLOAD);
 

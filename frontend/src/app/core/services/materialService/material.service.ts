@@ -1,6 +1,7 @@
 /**
- * material.service.ts — C2.3 Material Attachments service.
+ * material.service.ts — Material Attachments service.
  *
+ * Re-keyed in course-structure-v2: materials now belong to videos (not courses).
  * All API calls (presign/confirm/list/downloadUrl/remove) go through
  * HttpPromiseBuilderService, which attaches the JWT via Angular's HTTP interceptor.
  *
@@ -23,56 +24,57 @@ import type {
 @Injectable({ providedIn: 'root' })
 export class MaterialService {
   private readonly http = inject(HttpPromiseBuilderService);
-  private readonly coursesBase = `${environment.apiBaseUrl}/courses`;
+  private readonly videosBase = `${environment.apiBaseUrl}/videos`;
   private readonly materialsBase = `${environment.apiBaseUrl}/materials`;
 
   /**
-   * POST /api/courses/:courseId/materials/presign
+   * POST /api/videos/:videoId/materials/presign
    * Requests a presigned PUT URL from the backend (JWT required — same-origin API).
    */
-  presign(courseId: string, body: MaterialPresignRequest): Promise<PresignResponse> {
+  presign(videoId: string, body: MaterialPresignRequest): Promise<PresignResponse> {
     return this.http
       .request<PresignResponse>()
       .post()
-      .url(`${this.coursesBase}/${courseId}/materials/presign`)
+      .url(`${this.videosBase}/${videoId}/materials/presign`)
       .body(body)
       .send();
   }
 
   /**
-   * POST /api/courses/:courseId/materials
+   * POST /api/videos/:videoId/materials
    * Confirms the upload after the XHR PUT to MinIO succeeds (JWT required).
    */
-  confirm(courseId: string, body: MaterialConfirmRequest): Promise<MaterialResponse> {
+  confirm(videoId: string, body: MaterialConfirmRequest): Promise<MaterialResponse> {
     return this.http
       .request<MaterialResponse>()
       .post()
-      .url(`${this.coursesBase}/${courseId}/materials`)
+      .url(`${this.videosBase}/${videoId}/materials`)
       .body(body)
       .send();
   }
 
   /**
-   * GET /api/courses/:courseId/materials
-   * Lists all materials for a course (JWT required — owner only).
+   * GET /api/videos/:videoId/materials
+   * Lists all materials for a video (JWT required — owner only, creator-editor endpoint).
    */
-  list(courseId: string): Promise<MaterialResponse[]> {
+  list(videoId: string): Promise<MaterialResponse[]> {
     return this.http
       .request<MaterialResponse[]>()
       .get()
-      .url(`${this.coursesBase}/${courseId}/materials`)
+      .url(`${this.videosBase}/${videoId}/materials`)
       .send();
   }
 
   /**
-   * GET /api/courses/:courseId/materials/:materialId/download
+   * GET /api/materials/:materialId/download
    * Returns a presigned GET URL for downloading the material.
+   * Works for owner OR enrolled student (OQ3 resolution).
    */
-  downloadUrl(courseId: string, materialId: string): Promise<DownloadResponse> {
+  downloadUrl(materialId: string): Promise<DownloadResponse> {
     return this.http
       .request<DownloadResponse>()
       .get()
-      .url(`${this.coursesBase}/${courseId}/materials/${materialId}/download`)
+      .url(`${this.materialsBase}/${materialId}/download`)
       .send();
   }
 

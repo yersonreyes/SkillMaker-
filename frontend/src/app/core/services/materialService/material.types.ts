@@ -1,23 +1,24 @@
 /**
- * material.types.ts — DTOs for the C2.3 Material Attachments API.
+ * material.types.ts — DTOs for the Material Attachments API.
  * These mirror the backend camelCase JSON contract exactly.
+ * Re-keyed in course-structure-v2: materials now belong to videos, not courses.
  */
 
-/** POST /api/courses/:courseId/materials/presign — request body. */
+/** POST /api/videos/:videoId/materials/presign — request body. */
 export interface MaterialPresignRequest {
   nombre: string;
   contentType: string;
   tamanoBytes: number;
 }
 
-/** POST /api/courses/:courseId/materials/presign — response body. */
+/** POST /api/videos/:videoId/materials/presign — response body. */
 export interface PresignResponse {
   uploadUrl: string;
   key: string;
   expiresAt: string; // ISO-8601
 }
 
-/** POST /api/courses/:courseId/materials — request body (confirm). */
+/** POST /api/videos/:videoId/materials — request body (confirm). */
 export interface MaterialConfirmRequest {
   key: string;
   nombre: string;
@@ -34,7 +35,7 @@ export interface MaterialResponse {
   createdAt: string; // ISO-8601
 }
 
-/** GET .../download — response body. */
+/** GET /materials/:id/download — response body. */
 export interface DownloadResponse {
   url: string;
   expiresAt: string; // ISO-8601

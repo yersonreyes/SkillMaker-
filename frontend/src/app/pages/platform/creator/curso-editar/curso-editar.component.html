@@ -46,11 +46,81 @@
             <textarea
               id="curso-descripcion"
               pTextarea
-              rows="7"
+              rows="5"
               class="field__input field__input--area"
               [ngModel]="descripcion()"
               (ngModelChange)="descripcion.set($event)"
               placeholder="De que trata este curso?"></textarea>
+          </div>
+
+          <!-- Nivel -->
+          <div class="field">
+            <label class="field__label">Nivel</label>
+            <p-select
+              [options]="nivelOptions"
+              [ngModel]="nivel()"
+              (ngModelChange)="nivel.set($event)"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="Seleccionar nivel"
+              [showClear]="true"
+              styleClass="field__select" />
+          </div>
+
+          <!-- Categorias -->
+          <div class="field">
+            <label class="field__label">Categorias</label>
+            <p-multiselect
+              [options]="categoriaOptions()"
+              [ngModel]="selectedCategoriaIds()"
+              (ngModelChange)="selectedCategoriaIds.set($event)"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="Seleccionar categorias"
+              display="chip"
+              styleClass="field__select" />
+          </div>
+
+          <!-- Horas practico -->
+          <div class="field">
+            <label class="field__label" for="curso-horas-practico">Horas practicas</label>
+            <p-inputNumber
+              inputId="curso-horas-practico"
+              [ngModel]="horasPractico()"
+              (ngModelChange)="horasPractico.set($event ?? 0)"
+              [min]="0"
+              [step]="0.5"
+              [minFractionDigits]="1"
+              [maxFractionDigits]="1"
+              styleClass="field__input" />
+          </div>
+
+          <!-- Computed read-only fields -->
+          @if (cantidadClases() > 0 || horasVideo() > 0) {
+            <div class="editor__computed-fields">
+              <span class="editor__computed-item">
+                <i class="pi pi-play-circle"></i>
+                {{ cantidadClases() }} {{ cantidadClases() === 1 ? 'clase' : 'clases' }}
+              </span>
+              <span class="editor__computed-item">
+                <i class="pi pi-clock"></i>
+                {{ horasVideo().toFixed(1) }}h video
+              </span>
+            </div>
+          }
+
+          <!-- Miniatura -->
+          <div class="field">
+            <label class="field__label">Miniatura del curso</label>
+            @if (miniaturaUrl()) {
+              <div class="editor__miniatura-preview">
+                <img [src]="miniaturaUrl()!" alt="Miniatura del curso" class="editor__miniatura-img" />
+              </div>
+            }
+            <app-material-uploader
+              [target]="'thumbnail'"
+              [ownerId]="course()?.id ?? ''"
+              (thumbnailUploaded)="onThumbnailUploaded($event)" />
           </div>
         </div>
       </section>
@@ -124,9 +194,44 @@
                             @if (video.duracionS) {
                               <span class="vid__dur"><i class="pi pi-clock"></i> {{ video.duracionS }}s</span>
                             }
+                            @if (video.descripcion) {
+                              <p class="vid__desc">{{ video.descripcion }}</p>
+                            }
                           </div>
                           <button class="icon-btn icon-btn--danger vid__del" type="button" pTooltip="Eliminar video" tooltipPosition="top"
                             (click)="deleteVideo(section.id, video.id)"><i class="pi pi-trash"></i></button>
+
+                          <!-- Per-video material section -->
+                          <div class="vid__materials">
+                            <p class="vid__materials-label">
+                              <i class="pi pi-paperclip"></i>
+                              Material adjunto
+                              ({{ getMaterialsForVideo(video.id).length }})
+                            </p>
+                            <app-material-uploader
+                              [target]="'material'"
+                              [ownerId]="video.id"
+                              (uploaded)="onVideoMaterialUploaded(video.id, $event)" />
+                            @if (getMaterialsForVideo(video.id).length > 0) {
+                              <ul class="mat-list" style="list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:4px">
+                                @for (mat of getMaterialsForVideo(video.id); track mat.id) {
+                                  <li style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--page-bg);border:1px solid var(--page-ink-hairline);border-radius:2px">
+                                    <i class="pi pi-file" style="color:var(--page-ink-dim);font-size:12px;flex:0 0 auto"></i>
+                                    <span style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px">{{ mat.nombre }}</span>
+                                    <span style="font-family:var(--font-mono);font-size:10px;color:var(--page-ink-dim);white-space:nowrap;flex:0 0 auto">{{ humanizeBytes(mat.tamanoBytes) }}</span>
+                                    <div style="display:flex;gap:3px;flex:0 0 auto">
+                                      <button class="icon-btn" type="button" pTooltip="Descargar" tooltipPosition="top" (click)="downloadVideoMaterial(mat)">
+                                        <i class="pi pi-download"></i>
+                                      </button>
+                                      <button class="icon-btn icon-btn--danger" type="button" pTooltip="Eliminar" tooltipPosition="top" (click)="deleteVideoMaterial(video.id, mat)">
+                                        <i class="pi pi-trash"></i>
+                                      </button>
+                                    </div>
+                                  </li>
+                                }
+                              </ul>
+                            }
+                          </div>
                         </li>
                       }
                     </ul>
@@ -139,50 +244,9 @@
       </section>
     </div>
 
-    <!-- ── Material adjunto ─────────────────────────────────────────────────── -->
-    <section class="panel editor__materials reveal" style="--d: 180ms">
-      <div class="panel__head">
-        <i class="pi pi-paperclip"></i><span>Material adjunto</span>
-        <span class="panel__count">
-          {{ materials().length }} {{ materials().length === 1 ? 'archivo' : 'archivos' }}
-        </span>
-      </div>
-
-      <div class="panel__body">
-        <!-- Uploader -->
-        <app-material-uploader
-          [courseId]="course()?.id ?? ''"
-          (uploaded)="onMaterialUploaded($event)" />
-
-        <!-- Materials table -->
-        @if (materialsLoading()) {
-          <div class="editor__skel" style="margin-top: 16px"><p-skeleton height="3rem" /></div>
-        } @else if (materials().length > 0) {
-          <!-- mat-table: uses inline styles to avoid pushing curso-editar.sass over the 12kB anyComponentStyle budget -->
-          <ul class="mat-list" style="list-style:none;margin:16px 0 0;padding:0;display:flex;flex-direction:column;gap:6px">
-            @for (mat of materials(); track mat.id) {
-              <li style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--page-bg);border:1px solid var(--page-ink-hairline);border-radius:2px">
-                <i class="pi pi-file" style="color:var(--page-ink-dim);font-size:13px;flex:0 0 auto"></i>
-                <span style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px">{{ mat.nombre }}</span>
-                <span style="font-family:var(--font-mono);font-size:11px;color:var(--page-ink-dim);white-space:nowrap;flex:0 0 auto">{{ humanizeBytes(mat.tamanoBytes) }}</span>
-                <div style="display:flex;gap:4px;flex:0 0 auto">
-                  <button class="icon-btn" type="button" pTooltip="Descargar" tooltipPosition="top" (click)="downloadMaterial(mat)">
-                    <i class="pi pi-download"></i>
-                  </button>
-                  <button class="icon-btn icon-btn--danger" type="button" pTooltip="Eliminar" tooltipPosition="top" (click)="deleteMaterial(mat)">
-                    <i class="pi pi-trash"></i>
-                  </button>
-                </div>
-              </li>
-            }
-          </ul>
-        }
-      </div>
-    </section>
-
     <!-- ── Sticky actions ───────────────────────────────────────────────────── -->
     <footer class="editor__foot">
-      <!-- FE-4: rejection feedback banner (shown when estado=rechazado) -->
+      <!-- FE-4: rejection feedback banner -->
       @if (course()?.estado === 'rechazado' && rejectionComentario()) {
         <div class="rejection-banner">
           <i class="pi pi-times-circle rejection-banner__icon"></i>
@@ -299,6 +363,14 @@
         [ngModel]="videoForm().duracionS"
         (ngModelChange)="videoForm.update(f => ({ ...f, duracionS: $event || undefined }))"
         placeholder="300" />
+    </div>
+
+    <div class="field field--span">
+      <label class="field__label" for="vid-descripcion">Descripcion</label>
+      <textarea id="vid-descripcion" pTextarea rows="3" class="field__input field__input--area"
+        [ngModel]="videoForm().descripcion"
+        (ngModelChange)="videoForm.update(f => ({ ...f, descripcion: $event }))"
+        placeholder="Descripcion del video (max 5000 caracteres)"></textarea>
     </div>
 
     @if (videoForm().url && videoForm().proveedor) {
