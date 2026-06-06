@@ -35,10 +35,10 @@
 > Esta seccion es el "punto de partida". Cualquier change posterior parte de este estado.
 > Actualizar cuando se archive un change importante.
 
-**Fecha del snapshot:** 2026-06-05 (actualizado tras C6.1 archive — MVP COMPLETE)
-**Commits totales del scaffold:** 16 (+ 3 chained PRs para C1.1) (+ 2 PRs para C2.1) (+ 2 PRs para C2.2) (+ 2 PRs para C2.3) (+ 3 PRs para C3.1 incl. UI polish) (+ 3 PRs para C3.2) (+ 3 PRs para C4.1 incl. swagger fix) (+ 2 PRs para C2.4) (+ 2 PRs para C5.1 incl. bundled eval-summary slice) (+ 2 PRs para C6.1) (+ post-merge fixes)
-**LOC totales (Go + TS + SQL):** ~2700 (+ ~900 LOC en C1.1) (+ ~1100 LOC en C2.1) (+ ~900 LOC en C2.2) (+ ~900 LOC en C2.3) (+ ~1200 LOC en C3.1) (+ ~1200 LOC en C3.2) (+ ~1100 LOC en C4.1) (+ ~1300 LOC en C2.4) (+ ~1700 LOC en C5.1 incl. bundled slice) (+ ~800 LOC en C6.1)
-**HITO ALCANZADO**: ✅ **MVP FEATURE COMPLETE** — Todas las capas C1–C6 archivadas. El loop completo (register → create → approve → publish → consume → evaluate → certify → badge → rank → report) está funcional en main.
+**Fecha del snapshot:** 2026-06-06 (actualizado tras course-structure-v2 archive — MVP + first post-MVP refinement COMPLETE)
+**Commits totales del scaffold:** 16 (+ 3 chained PRs para C1.1) (+ 2 PRs para C2.1) (+ 2 PRs para C2.2) (+ 2 PRs para C2.3) (+ 3 PRs para C3.1 incl. UI polish) (+ 3 PRs para C3.2) (+ 3 PRs para C4.1 incl. swagger fix) (+ 2 PRs para C2.4) (+ 2 PRs para C5.1 incl. bundled eval-summary slice) (+ 2 PRs para C6.1) (+ 2 PRs para course-structure-v2 + styling polish) (+ post-merge fixes)
+**LOC totales (Go + TS + SQL):** ~2700 (+ ~900 LOC en C1.1) (+ ~1100 LOC en C2.1) (+ ~900 LOC en C2.2) (+ ~900 LOC en C2.3) (+ ~1200 LOC en C3.1) (+ ~1200 LOC en C3.2) (+ ~1100 LOC en C4.1) (+ ~1300 LOC en C2.4) (+ ~1700 LOC en C5.1 incl. bundled slice) (+ ~800 LOC en C6.1) (+ ~2150 LOC en course-structure-v2)
+**HITO ALCANZADO**: ✅ **MVP FEATURE COMPLETE** (2026-06-05) — Todas las capas C1–C6 archivadas. El loop completo (register → create → approve → publish → consume → evaluate → certify → badge → rank → report) está funcional en main. **Post-MVP refinement INICIADO**: course-structure-v2 (material relocation, course metadata, categorias) archivado 2026-06-06.
 
 ### Modulos del dominio (los 7 declarados en RT)
 
@@ -747,9 +747,68 @@ Frontend (PR-B: e42c69a):
 
 ---
 
-### Capa 7 — Hardening post-MVP
+### Capa 7 — Post-MVP Refinements
 
-#### C7.1 — `refresh-token-tracking`
+#### `course-structure-v2` ✅ ARCHIVED (2026-06-06)
+
+**Estado:** COMPLETE — 2 chained PRs (backend + frontend) + styling polish merged to main. Manual smoke test PASSED. 3 demo architecture courses seeded with SVG thumbnails.
+
+**Delivered:**
+
+**Scope**: Restructure courses domain to move material from course-level to per-video; add course metadata (nivel/miniatura/horas-practico/categorias); compute and surface horasVideo + cantidadClases; enrich catalog and detail UX.
+
+Backend (PR-A: e26d717):
+- Migrations 0011-0013 (video.descripcion, material→video relocation+backfill, course metadata+categorias seed)
+- Material ownership chain: material→video→section→course→creador (single GetMaterialOwnership call)
+- Per-video material routes: /videos/:id/materials/* (presign/confirm/list); flat download /materials/:id/download (owner-OR-enrolled)
+- Course metadata: nivel (CHECK enum), miniatura_key (presigned GET), horas_practico (manual), categorias (curated 8-item seed) + GET /api/categorias
+- Computed: horasVideo (ROUND(SUM duracion_s/3600, 1)), cantidadClases (COUNT videos)
+- DTO breaking change: CourseDetailAlumnoResponse drops course-level materiales (now per-video in VideoResponse)
+- Coverage: handler 75.2%, service 71.5%
+
+Frontend (PR-B: c212d43):
+- MaterialService re-key to videoId (presign/confirm/list paths changed)
+- NEW categoriaService for GET /api/categorias
+- courseService += presignThumbnail/confirmThumbnail
+- curso-editar: metadata panel (nivel p-select, categorias p-multiselect, horasPractico, miniatura uploader), per-video material section, video descripcion
+- course-detail: per-video materiales render, video.descripcion, metadata display, no course-level material block
+- course-card: miniatura img/placeholder, nivel tag, categorias chips, cantidadClases/horasVideo/horasPractico stats
+- Tests: 311 vitest PASS, ng build clean
+
+Polish (b310324):
+- course-detail spacing + Cyanotype refinements
+- SVG thumbnail placeholders for demo data
+
+**Acceptance:** ✅
+- Material per-video with download authorized via ownership chain
+- Course metadata visible on catalog cards and detail
+- Categorias curated, selectable in course editor
+- horasVideo auto-computed and accurate to 1 decimal
+- cantidadClases matches video count
+- Thumbnail upload + presigned GET working
+- Per-video material UX in course-detail (no course-level block)
+- Manual smoke test: 3 demo courses, all consumption flows PASSED
+
+**Learnings:**
+1. Material backfill heuristic (first-video-by-orden): works for dev scale; zero-NULL invariant is safety net
+2. Ownership chain consolidation: single repo call prevents N+1 on per-video lists
+3. Gin wildcard consistency: within method tree, use :id uniformly or panic; different methods = different trees
+4. Step-drift pattern: +3 migrations = update m.Steps(-N) at 6 sites (courses ×3, approvals, certificates, evaluations)
+5. Curated categories (seed-only): no admin UI for MVP; acceptable tradeoff; migration required to expand taxonomy
+6. Thumbnail presign per-card: O(n) for n cards; scales OK now, flag for batching/caching post-MVP
+7. Breaking contract mitigation: chained-PR ordering (backend first, frontend builds against new API); dev-only so no live-client window
+8. Type accuracy (DTO mismatches): frontend miniaturaUrl should align (string non-nullable); openapi-typescript adoption recommended
+
+**Deferred:**
+- Admin UI for categorias (seed-only for now)
+- Per-card miniatura presign batching/caching
+- Real thumbnail images (demo uses SVG; production needs asset sourcing)
+
+---
+
+### Capa 8 — Hardening post-MVP (planned)
+
+#### C8.1 — `refresh-token-tracking` (planned)
 
 **Por que:** las columnas `ip` y `user_agent` del `refresh_token` quedan NULL hoy. Capturarlas habilita forense ante incidentes (sesion comprometida, revocacion por dispositivo).
 
@@ -765,7 +824,7 @@ Frontend (PR-B: e42c69a):
 
 ---
 
-#### C7.2 — `pagination-policy`
+#### C8.2 — `pagination-policy` (planned)
 
 **Por que:** offset pagination (LIMIT/OFFSET) no escala bien con > 10k filas. Cuando el catalogo crezca, queries se vuelven lentas.
 
@@ -781,7 +840,7 @@ Frontend (PR-B: e42c69a):
 
 ---
 
-#### C7.3 — `prod-deployment`
+#### C8.3 — `prod-deployment` (planned)
 
 **Por que:** todo el setup actual es dev. Para deploy real necesita secrets management, TLS, observabilidad.
 
