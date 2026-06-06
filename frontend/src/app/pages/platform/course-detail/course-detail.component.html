@@ -1,4 +1,4 @@
-<div class="page">
+<div class="page course-detail">
 
   <!-- Loading state -->
   @if (loading()) {
@@ -17,26 +17,28 @@
       </h1>
       <p class="page__lede">{{ preview()!.descripcion }}</p>
 
-      <!-- Metadata: nivel, categorias, stats -->
-      @if (preview()!.nivel) {
-        <span class="course-detail__nivel tag">{{ preview()!.nivel }}</span>
-      }
-      @if (preview()!.categorias.length > 0) {
-        <div class="course-detail__categorias">
+      <!-- Nivel + categorias -->
+      @if (preview()!.nivel || preview()!.categorias.length > 0) {
+        <div class="course-detail__meta">
+          @if (preview()!.nivel) {
+            <span class="course-detail__nivel">{{ preview()!.nivel }}</span>
+          }
           @for (cat of preview()!.categorias; track cat.id) {
             <span class="tag">{{ cat.nombre }}</span>
           }
         </div>
       }
+
+      <!-- Stats -->
       <div class="course-detail__stats">
         @if (preview()!.cantidadClases > 0) {
           <span><i class="pi pi-play-circle"></i> {{ preview()!.cantidadClases }} clases</span>
         }
         @if (preview()!.horasVideo > 0) {
-          <span><i class="pi pi-clock"></i> {{ preview()!.horasVideo.toFixed(1) }}h video</span>
+          <span><i class="pi pi-clock"></i> {{ preview()!.horasVideo.toFixed(1) }}h de video</span>
         }
         @if (preview()!.horasPractico > 0) {
-          <span><i class="pi pi-wrench"></i> {{ preview()!.horasPractico.toFixed(1) }}h practicas</span>
+          <span><i class="pi pi-wrench"></i> {{ preview()!.horasPractico.toFixed(1) }}h de practica</span>
         }
       </div>
     </header>
@@ -47,25 +49,29 @@
 
     <div class="panel course-detail__enroll-panel">
       <div class="panel__body">
-        <p>Inscribete en este curso para acceder a todo el contenido.</p>
-        <button
-          type="button"
-          class="btn btn--cyan"
-          [disabled]="enrolling()"
-          (click)="onEnroll()"
-        >
-          {{ enrolling() ? 'Inscribiendo...' : 'Inscribirme' }}
-        </button>
-
-        @if (myCertificate()) {
+        <p class="course-detail__enroll-lede">
+          Inscribite en este curso para acceder a todo el contenido.
+        </p>
+        <div class="course-detail__actions">
           <button
             type="button"
-            class="btn btn--outline"
-            (click)="downloadCertificate(myCertificate()!.id!)"
+            class="btn btn--cyan"
+            [disabled]="enrolling()"
+            (click)="onEnroll()"
           >
-            Mi certificado
+            {{ enrolling() ? 'Inscribiendo...' : 'Inscribirme' }}
           </button>
-        }
+
+          @if (myCertificate()) {
+            <button
+              type="button"
+              class="btn btn--outline"
+              (click)="downloadCertificate(myCertificate()!.id!)"
+            >
+              <i class="pi pi-verified"></i> Mi certificado
+            </button>
+          }
+        </div>
       </div>
     </div>
   }
@@ -79,74 +85,79 @@
       </h1>
       <p class="page__lede">{{ enrolledDetail()!.descripcion }}</p>
 
-      <!-- Metadata fields -->
-      @if (enrolledDetail()!.nivel) {
-        <span class="course-detail__nivel tag">{{ enrolledDetail()!.nivel }}</span>
-      }
-      @if (enrolledDetail()!.categorias.length > 0) {
-        <div class="course-detail__categorias">
+      <!-- Nivel + categorias -->
+      @if (enrolledDetail()!.nivel || enrolledDetail()!.categorias.length > 0) {
+        <div class="course-detail__meta">
+          @if (enrolledDetail()!.nivel) {
+            <span class="course-detail__nivel">{{ enrolledDetail()!.nivel }}</span>
+          }
           @for (cat of enrolledDetail()!.categorias; track cat.id) {
             <span class="tag">{{ cat.nombre }}</span>
           }
         </div>
       }
+
+      <!-- Stats -->
       <div class="course-detail__stats">
         @if (enrolledDetail()!.cantidadClases > 0) {
           <span><i class="pi pi-play-circle"></i> {{ enrolledDetail()!.cantidadClases }} clases</span>
         }
         @if (enrolledDetail()!.horasVideo > 0) {
-          <span><i class="pi pi-clock"></i> {{ enrolledDetail()!.horasVideo.toFixed(1) }}h video</span>
+          <span><i class="pi pi-clock"></i> {{ enrolledDetail()!.horasVideo.toFixed(1) }}h de video</span>
         }
         @if (enrolledDetail()!.horasPractico > 0) {
-          <span><i class="pi pi-wrench"></i> {{ enrolledDetail()!.horasPractico.toFixed(1) }}h practicas</span>
+          <span><i class="pi pi-wrench"></i> {{ enrolledDetail()!.horasPractico.toFixed(1) }}h de practica</span>
         }
       </div>
-
-      @if (enrolledDetail()!.miniaturaUrl) {
-        <img [src]="enrolledDetail()!.miniaturaUrl!" alt="{{ enrolledDetail()!.titulo }}" class="course-detail__miniatura" />
-      }
-
-      <!-- Mi certificado — visible when earned (C5.1) -->
-      @if (myCertificate()) {
-        <button
-          type="button"
-          class="btn btn--outline course-detail__cert-btn"
-          (click)="downloadCertificate(myCertificate()!.id!)"
-        >
-          Mi certificado
-        </button>
-      }
-
-      <!-- Rendir evaluación — visible when course has an evaluation -->
-      @if (evalSummary()) {
-        <button
-          type="button"
-          class="btn btn--cyan course-detail__eval-btn"
-          (click)="goToEvaluation(evalSummary()!.evaluationId)"
-        >
-          Rendir evaluación
-        </button>
-      }
     </header>
 
+    @if (enrolledDetail()!.miniaturaUrl) {
+      <img [src]="enrolledDetail()!.miniaturaUrl!" alt="{{ enrolledDetail()!.titulo }}" class="course-detail__miniatura" />
+    }
+
+    <!-- Acciones del alumno -->
+    @if (myCertificate() || evalSummary()) {
+      <div class="course-detail__actions">
+        @if (evalSummary()) {
+          <button
+            type="button"
+            class="btn btn--cyan course-detail__eval-btn"
+            (click)="goToEvaluation(evalSummary()!.evaluationId)"
+          >
+            <i class="pi pi-pencil"></i> Rendir evaluación
+          </button>
+        }
+        @if (myCertificate()) {
+          <button
+            type="button"
+            class="btn btn--outline course-detail__cert-btn"
+            (click)="downloadCertificate(myCertificate()!.id!)"
+          >
+            <i class="pi pi-verified"></i> Mi certificado
+          </button>
+        }
+      </div>
+    }
+
     <!-- Secciones con videos y materiales por video -->
-    @for (seccion of enrolledDetail()!.secciones; track seccion.id) {
+    @for (seccion of enrolledDetail()!.secciones; track seccion.id; let si = $index) {
       <section class="panel course-detail__seccion">
         <div class="panel__head">
-          <span>{{ seccion.titulo }}</span>
+          <span>Seccion {{ si + 1 }} · {{ seccion.titulo }}</span>
         </div>
         <div class="panel__body">
           @for (video of seccion.videos; track video.id) {
-            <div class="course-detail__video">
-              <p class="course-detail__video-titulo">{{ video.titulo }}</p>
-              <app-video-embed [url]="video.url" [proveedor]="video.proveedor" />
+            <article class="course-detail__video">
+              <h3 class="course-detail__video-titulo">{{ video.titulo }}</h3>
 
-              <!-- Video descripcion (per-video, course-structure-v2) -->
+              <div class="course-detail__video-frame">
+                <app-video-embed [url]="video.url" [proveedor]="video.proveedor" />
+              </div>
+
               @if (video.descripcion) {
                 <p class="course-detail__video-desc">{{ video.descripcion }}</p>
               }
 
-              <!-- Per-video materiales (course-structure-v2: moved from course level) -->
               @if (video.materiales && video.materiales.length > 0) {
                 <div class="course-detail__video-materiales">
                   <p class="course-detail__materiales-label">
@@ -156,7 +167,7 @@
                     @for (mat of video.materiales; track mat.id) {
                       <li class="course-detail__material-item">
                         <i class="pi pi-file"></i>
-                        <span>{{ mat.nombre }}</span>
+                        <span class="course-detail__material-name">{{ mat.nombre }}</span>
                         <button
                           type="button"
                           class="icon-btn"
@@ -169,7 +180,7 @@
                   </ul>
                 </div>
               }
-            </div>
+            </article>
           }
         </div>
       </section>
