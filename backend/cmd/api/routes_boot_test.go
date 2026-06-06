@@ -22,6 +22,8 @@ import (
 	"github.com/yersonreyes/SkillMaker-/backend/internal/middleware"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/approvals"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/approvals/domain"
+	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/auth"
+	authDto "github.com/yersonreyes/SkillMaker-/backend/internal/modules/auth/dto"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/certificates"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses"
 	coursesService "github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses/service"
@@ -221,6 +223,22 @@ func (n *nilReportingSvc) TeamReport(_ context.Context, _ string) ([]reportingSe
 	return nil, nil
 }
 
+// nilAuthSvc is a nil-safe stub for auth.Service (C8.1 — session routes boot test).
+// Satisfies the 5-method Service interface. Never called during route registration.
+type nilAuthSvc struct{}
+
+func (n *nilAuthSvc) LoginWithGoogle(_ context.Context, _, _, _ string) (authDto.LoginResponse, error) {
+	return authDto.LoginResponse{}, nil
+}
+func (n *nilAuthSvc) Refresh(_ context.Context, _, _, _ string) (authDto.LoginResponse, error) {
+	return authDto.LoginResponse{}, nil
+}
+func (n *nilAuthSvc) Logout(_ context.Context, _ string) error { return nil }
+func (n *nilAuthSvc) ListActiveSessions(_ context.Context, _ string) ([]authDto.SessionResponse, error) {
+	return nil, nil
+}
+func (n *nilAuthSvc) RevokeSession(_ context.Context, _, _ string) error { return nil }
+
 // ── Boot test ─────────────────────────────────────────────────────────────────
 
 // TestRouteBoot_AllModules_NoPanic registers ALL module routes (courses + evaluations + approvals + catalog)
@@ -234,6 +252,7 @@ func TestRouteBoot_AllModules_NoPanic(t *testing.T) {
 	approvalSvc := &nilApprovalSvc{}
 	certSvc := &nilCertSvc{}
 	reportingSvc := &nilReportingSvc{}
+	authSvc := &nilAuthSvc{}
 
 	assert.NotPanics(t, func() {
 		r := gin.New()
@@ -244,6 +263,9 @@ func TestRouteBoot_AllModules_NoPanic(t *testing.T) {
 		creatorGrp := protected.Group("", middleware.RequireRole("creador"))
 		// C6.1: first use of supervisorGrp.
 		supervisorGrp := protected.Group("", middleware.RequireRole("supervisor"))
+
+		// C8.1: session-management routes on the protected group.
+		auth.RegisterSessionRoutes(protected, authSvc)
 
 		// Register all module routes (same order as main.go).
 		courses.RegisterRoutes(creatorGrp, courseSvc)
@@ -341,6 +363,12 @@ func TestRouteBoot_AllModules_NoPanic(t *testing.T) {
 			"[course-structure-v2] GET /api/courses/:courseId/materials must NOT be registered (removed)")
 		assert.False(t, routeMap["GET /api/courses/:id/materials/:materialId/download"],
 			"[course-structure-v2] old per-course material download route must NOT be registered (removed)")
+
+		// C8.1 session-management routes on protected group.
+		assert.True(t, routeMap["GET /api/auth/sessions/me"],
+			"[C8.1] GET /api/auth/sessions/me must be registered without panic")
+		assert.True(t, routeMap["DELETE /api/auth/sessions/:id"],
+			"[C8.1] DELETE /api/auth/sessions/:id must be registered without panic")
 	}, "registering all module routes must not panic (no Gin param-tree conflict)")
 
 	_ = time.Now() // suppress unused import

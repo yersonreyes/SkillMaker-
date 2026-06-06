@@ -324,6 +324,95 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/sessions/me": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retorna los refresh tokens activos (no revocados, no expirados) del caller,\nordenados por created_at DESC. ip y userAgent son informativos/forenses;\nno se usan para controlar la autenticacion.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Lista las sesiones activas del usuario autenticado",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dto.SessionResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "sin autenticacion",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "error interno",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/sessions/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Establece revoked_at en el refresh token indicado, siempre que pertenezca\nal caller y no este ya revocado. Retorna 404 en cualquier caso que no sea\npropiedad del caller (sin filtrar existencia para no dar info de otras sesiones).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Revoca una sesion activa por ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID de la sesion (refresh_token.id)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "sin autenticacion",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "sesion no encontrada o no pertenece al caller",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "error interno",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/badges/me": {
             "get": {
                 "security": [
@@ -4414,6 +4503,39 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/dto.VideoResponse"
                     }
+                }
+            }
+        },
+        "dto.SessionResponse": {
+            "description": "Active session for the authenticated user.",
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "description": "CreatedAt is the token row creation timestamp (RFC3339).",
+                    "type": "string"
+                },
+                "expiresAt": {
+                    "description": "ExpiresAt is the token expiry timestamp (RFC3339).",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "ID is the session (refresh token row) UUID.",
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "ip": {
+                    "description": "IP is the client IP captured at token issuance. May be absent.",
+                    "type": "string",
+                    "example": "10.0.0.1"
+                },
+                "usedAt": {
+                    "description": "UsedAt is the last rotation marker; null if this session has never been rotated.",
+                    "type": "string"
+                },
+                "userAgent": {
+                    "description": "UserAgent is the HTTP User-Agent captured at token issuance. May be absent.",
+                    "type": "string",
+                    "example": "Mozilla/5.0"
                 }
             }
         },

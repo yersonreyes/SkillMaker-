@@ -180,6 +180,60 @@ export interface paths {
       };
     };
   };
+  "/auth/sessions/me": {
+    /**
+     * Retorna los refresh tokens activos (no revocados, no expirados) del caller,
+     * ordenados por created_at DESC. ip y userAgent son informativos/forenses;
+     * no se usan para controlar la autenticacion.
+     */
+    get: {
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.SessionResponse"][];
+        };
+        /** sin autenticacion */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** error interno */
+        500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/auth/sessions/{id}": {
+    /**
+     * Establece revoked_at en el refresh token indicado, siempre que pertenezca
+     * al caller y no este ya revocado. Retorna 404 en cualquier caso que no sea
+     * propiedad del caller (sin filtrar existencia para no dar info de otras sesiones).
+     */
+    delete: {
+      parameters: {
+        path: {
+          /** UUID de la sesion (refresh_token.id) */
+          id: string;
+        };
+      };
+      responses: {
+        /** No Content */
+        204: never;
+        /** sin autenticacion */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** sesion no encontrada o no pertenece al caller */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** error interno */
+        500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
   "/badges/me": {
     /** Devuelve las insignias ganadas por el usuario autenticado. */
     get: {
@@ -2116,6 +2170,30 @@ export interface definitions {
     orden?: number;
     titulo?: string;
     videos?: definitions["dto.VideoResponse"][];
+  };
+  /** @description Active session for the authenticated user. */
+  "dto.SessionResponse": {
+    /** @description CreatedAt is the token row creation timestamp (RFC3339). */
+    createdAt?: string;
+    /** @description ExpiresAt is the token expiry timestamp (RFC3339). */
+    expiresAt?: string;
+    /**
+     * @description ID is the session (refresh token row) UUID.
+     * @example 550e8400-e29b-41d4-a716-446655440000
+     */
+    id?: string;
+    /**
+     * @description IP is the client IP captured at token issuance. May be absent.
+     * @example 10.0.0.1
+     */
+    ip?: string;
+    /** @description UsedAt is the last rotation marker; null if this session has never been rotated. */
+    usedAt?: string;
+    /**
+     * @description UserAgent is the HTTP User-Agent captured at token issuance. May be absent.
+     * @example Mozilla/5.0
+     */
+    userAgent?: string;
   };
   "dto.SubmitResponse": {
     aprobado?: boolean;

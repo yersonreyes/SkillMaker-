@@ -38,3 +38,10 @@ func NewService(cfg Config, u users.Service, r Repository) Service {
 func RegisterRoutes(rg *gin.RouterGroup, svc Service) {
 	handler.Register(rg, svc)
 }
+
+// RegisterSessionRoutes mounts GET /auth/sessions/me and DELETE /auth/sessions/:id
+// on the JWT-protected group. Must be called after the protected group is built
+// with middleware.JWT (C8.1 — session management, caller-scoped).
+func RegisterSessionRoutes(protected *gin.RouterGroup, svc Service) {
+	handler.RegisterSessionRoutes(protected, svc)
+}

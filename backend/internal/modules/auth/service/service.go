@@ -28,6 +28,7 @@ var (
 	ErrUnauthorizedDomain  = errors.New("cuenta no pertenece al dominio corporativo")
 	ErrInvalidRefreshToken = errors.New("refresh token invalido o expirado")
 	ErrRefreshTokenReused  = errors.New("refresh token reutilizado: sesiones revocadas")
+	ErrSessionNotFound     = errors.New("sesion no encontrada")
 )
 
 // Config holds the runtime configuration injected at startup.
@@ -42,9 +43,11 @@ type Config struct {
 // Service is the public interface of the auth module.
 // Callers (handlers) only depend on this interface.
 type Service interface {
-	LoginWithGoogle(ctx context.Context, idTokenStr string) (dto.LoginResponse, error)
-	Refresh(ctx context.Context, refreshTokenPlain string) (dto.LoginResponse, error)
+	LoginWithGoogle(ctx context.Context, idTokenStr, ip, userAgent string) (dto.LoginResponse, error)
+	Refresh(ctx context.Context, refreshTokenPlain, ip, userAgent string) (dto.LoginResponse, error)
 	Logout(ctx context.Context, refreshTokenPlain string) error
+	ListActiveSessions(ctx context.Context, userID string) ([]dto.SessionResponse, error)
+	RevokeSession(ctx context.Context, userID, sessionID string) error
 }
 
 type service struct {
@@ -72,7 +75,7 @@ func New(cfg Config, u users.Service, r repository.Repository) Service {
 // Gmail account, since personal accounts do not carry the `hd` claim),
 // the domain check is skipped. Production deployments MUST set this to
 // the corporate Workspace domain to satisfy RT-13.
-func (s *service) LoginWithGoogle(ctx context.Context, idTokenStr string) (dto.LoginResponse, error) {
+func (s *service) LoginWithGoogle(ctx context.Context, idTokenStr, ip, userAgent string) (dto.LoginResponse, error) {
 	payload, err := s.validateToken(ctx, idTokenStr, s.cfg.GoogleClientID)
 	if err != nil {
 		return dto.LoginResponse{}, ErrInvalidGoogleToken
@@ -105,7 +108,7 @@ func (s *service) LoginWithGoogle(ctx context.Context, idTokenStr string) (dto.L
 		return dto.LoginResponse{}, err
 	}
 
-	refreshToken, err := s.issueRefreshToken(ctx, u.ID, "")
+	refreshToken, err := s.issueRefreshToken(ctx, u.ID, "", ip, userAgent)
 	if err != nil {
 		return dto.LoginResponse{}, err
 	}
@@ -126,7 +129,7 @@ func (s *service) LoginWithGoogle(ctx context.Context, idTokenStr string) (dto.L
 // Refresh rotates a refresh token: validates the presented token, detects
 // OWASP replay attacks (a used token re-presented = revoke all), marks the
 // old token as used+revoked, and issues a fresh JWT + refresh token pair.
-func (s *service) Refresh(ctx context.Context, refreshTokenPlain string) (dto.LoginResponse, error) {
+func (s *service) Refresh(ctx context.Context, refreshTokenPlain, ip, userAgent string) (dto.LoginResponse, error) {
 	sum := sha256.Sum256([]byte(refreshTokenPlain))
 	hash := hex.EncodeToString(sum[:])
 
@@ -169,7 +172,7 @@ func (s *service) Refresh(ctx context.Context, refreshTokenPlain string) (dto.Lo
 		return dto.LoginResponse{}, err
 	}
 
-	newRefresh, err := s.issueRefreshToken(ctx, u.ID, rt.ID)
+	newRefresh, err := s.issueRefreshToken(ctx, u.ID, rt.ID, ip, userAgent)
 	if err != nil {
 		return dto.LoginResponse{}, err
 	}
@@ -221,7 +224,9 @@ func (s *service) issueJWT(u users.UserSummary) (string, time.Time, error) {
 // encodes it as base64url (opaque to the client), persists only its
 // SHA-256 hash, and returns the plaintext. The plaintext is never stored —
 // only the client holds it.
-func (s *service) issueRefreshToken(ctx context.Context, userID, parentID string) (string, error) {
+// ip and userAgent are informational/forensic metadata only — they do NOT
+// gate authentication. Empty strings are stored as NULL (inet rejects ”).
+func (s *service) issueRefreshToken(ctx context.Context, userID, parentID, ip, userAgent string) (string, error) {
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return "", err
@@ -242,9 +247,46 @@ func (s *service) issueRefreshToken(ctx context.Context, userID, parentID string
 		TokenHash: tokenHash,
 		ParentID:  parent,
 		ExpiresAt: time.Now().UTC().Add(s.cfg.RefreshTokenExpiresIn),
+		IP:        strPtr(ip),
+		UserAgent: strPtr(userAgent),
 	}
 	if err := s.repo.Insert(ctx, rt); err != nil {
 		return "", err
 	}
 	return tokenPlain, nil
+}
+
+// ListActiveSessions returns the caller's active sessions (revoked_at IS NULL
+// AND expires_at > NOW()), ordered newest-first.
+func (s *service) ListActiveSessions(ctx context.Context, userID string) ([]dto.SessionResponse, error) {
+	rows, err := s.repo.ListActiveByUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]dto.SessionResponse, 0, len(rows))
+	for _, rt := range rows {
+		out = append(out, dto.NewSessionResponse(rt))
+	}
+	return out, nil
+}
+
+// RevokeSession revokes a single session by ID, enforcing caller scoping.
+// Returns ErrSessionNotFound when the row does not exist, belongs to another
+// user, or is already revoked — no existence leak.
+func (s *service) RevokeSession(ctx context.Context, userID, sessionID string) error {
+	err := s.repo.RevokeByID(ctx, sessionID, userID)
+	if errors.Is(err, repository.ErrNotAffected) {
+		return ErrSessionNotFound
+	}
+	return err
+}
+
+// strPtr converts a string to *string, returning nil for empty strings.
+// This is required for Postgres inet columns: inserting a pointer to ""
+// would fail the inet cast. Store NULL instead.
+func strPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }

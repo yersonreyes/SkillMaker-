@@ -718,6 +718,33 @@ definitions:
           $ref: '#/definitions/dto.VideoResponse'
         type: array
     type: object
+  dto.SessionResponse:
+    description: Active session for the authenticated user.
+    properties:
+      createdAt:
+        description: CreatedAt is the token row creation timestamp (RFC3339).
+        type: string
+      expiresAt:
+        description: ExpiresAt is the token expiry timestamp (RFC3339).
+        type: string
+      id:
+        description: ID is the session (refresh token row) UUID.
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      ip:
+        description: IP is the client IP captured at token issuance. May be absent.
+        example: 10.0.0.1
+        type: string
+      usedAt:
+        description: UsedAt is the last rotation marker; null if this session has
+          never been rotated.
+        type: string
+      userAgent:
+        description: UserAgent is the HTTP User-Agent captured at token issuance.
+          May be absent.
+        example: Mozilla/5.0
+        type: string
+    type: object
   dto.SubmitResponse:
     properties:
       aprobado:
@@ -1143,6 +1170,68 @@ paths:
           schema:
             $ref: '#/definitions/httperr.Error'
       summary: Renueva el access token rotando el refresh token
+      tags:
+      - auth
+  /auth/sessions/{id}:
+    delete:
+      description: |-
+        Establece revoked_at en el refresh token indicado, siempre que pertenezca
+        al caller y no este ya revocado. Retorna 404 en cualquier caso que no sea
+        propiedad del caller (sin filtrar existencia para no dar info de otras sesiones).
+      parameters:
+      - description: UUID de la sesion (refresh_token.id)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: sin autenticacion
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: sesion no encontrada o no pertenece al caller
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "500":
+          description: error interno
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Revoca una sesion activa por ID
+      tags:
+      - auth
+  /auth/sessions/me:
+    get:
+      description: |-
+        Retorna los refresh tokens activos (no revocados, no expirados) del caller,
+        ordenados por created_at DESC. ip y userAgent son informativos/forenses;
+        no se usan para controlar la autenticacion.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.SessionResponse'
+            type: array
+        "401":
+          description: sin autenticacion
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "500":
+          description: error interno
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Lista las sesiones activas del usuario autenticado
       tags:
       - auth
   /badges/me:

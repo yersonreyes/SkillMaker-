@@ -173,3 +173,159 @@ func TestFindByHash_ReturnsNilForUnknownHash(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Nil(t, found)
 }
+
+// ── C8.1: ip/ua round-trip + caller-scoped list/revoke ────────────────────────
+
+// TestInsert_WithIPAndUserAgent_RoundTrip verifies that ip and user_agent fields
+// are stored and retrieved correctly (inet round-trip, text round-trip).
+func TestInsert_WithIPAndUserAgent_RoundTrip(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := New(db)
+	ctx := context.Background()
+	userID := seedUser(t, repo)
+
+	ip := "10.0.0.1"
+	ua := "TestAgent/1.0"
+	rt := &domain.RefreshToken{
+		ID:        uuid.NewString(),
+		UserID:    userID,
+		TokenHash: hashPlainToken("token-ip-ua"),
+		ExpiresAt: time.Now().UTC().Add(7 * 24 * time.Hour),
+		IP:        &ip,
+		UserAgent: &ua,
+	}
+	require.NoError(t, repo.Insert(ctx, rt))
+
+	found, err := repo.FindByHash(ctx, rt.TokenHash)
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	require.NotNil(t, found.IP, "IP should round-trip through inet column")
+	require.NotNil(t, found.UserAgent, "UserAgent should round-trip through text column")
+	assert.Equal(t, ip, *found.IP)
+	assert.Equal(t, ua, *found.UserAgent)
+}
+
+// TestListActiveByUser_OnlyActiveAndCallerScoped verifies:
+// - Only active (not revoked, not expired) sessions are returned.
+// - Only the caller's sessions are returned (user B's row never appears).
+// - Results are ordered created_at DESC.
+// SECURITY-CRITICAL: cross-user exclusion is the primary authz boundary.
+func TestListActiveByUser_OnlyActiveAndCallerScoped(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := New(db)
+	ctx := context.Background()
+
+	userA := seedUser(t, repo)
+	userB := seedUser(t, repo)
+
+	now := time.Now().UTC()
+
+	// userA: 1 active, 1 revoked, 1 expired
+	activeA := &domain.RefreshToken{
+		ID:        uuid.NewString(),
+		UserID:    userA,
+		TokenHash: hashPlainToken("active-a"),
+		ExpiresAt: now.Add(7 * 24 * time.Hour),
+	}
+	require.NoError(t, repo.Insert(ctx, activeA))
+
+	revokedA := &domain.RefreshToken{
+		ID:        uuid.NewString(),
+		UserID:    userA,
+		TokenHash: hashPlainToken("revoked-a"),
+		ExpiresAt: now.Add(7 * 24 * time.Hour),
+	}
+	require.NoError(t, repo.Insert(ctx, revokedA))
+	require.NoError(t, repo.Revoke(ctx, revokedA.ID, now))
+
+	expiredA := &domain.RefreshToken{
+		ID:        uuid.NewString(),
+		UserID:    userA,
+		TokenHash: hashPlainToken("expired-a"),
+		ExpiresAt: now.Add(-time.Minute), // already expired
+	}
+	require.NoError(t, repo.Insert(ctx, expiredA))
+
+	// userB: 1 active
+	activeB := &domain.RefreshToken{
+		ID:        uuid.NewString(),
+		UserID:    userB,
+		TokenHash: hashPlainToken("active-b"),
+		ExpiresAt: now.Add(7 * 24 * time.Hour),
+	}
+	require.NoError(t, repo.Insert(ctx, activeB))
+
+	rows, err := repo.ListActiveByUser(ctx, userA)
+	require.NoError(t, err)
+
+	// Must return exactly 1 row — the active A row only.
+	require.Len(t, rows, 1, "ListActiveByUser must return exactly 1 active row for userA")
+	assert.Equal(t, activeA.ID, rows[0].ID)
+
+	// userB's session must never appear.
+	for _, r := range rows {
+		assert.NotEqual(t, userB, r.UserID, "userB's sessions must never appear in userA's list")
+	}
+}
+
+// TestRevokeByID_CallerScoped verifies:
+// - A can revoke their own session (RowsAffected 1).
+// - A cannot revoke B's session (ErrNotAffected AND B's row.revoked_at stays NULL).
+// - Already-revoked session → ErrNotAffected.
+// SECURITY-CRITICAL: cross-user revoke no-op is the primary authz boundary.
+func TestRevokeByID_CallerScoped(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := New(db)
+	ctx := context.Background()
+
+	userA := seedUser(t, repo)
+	userB := seedUser(t, repo)
+
+	now := time.Now().UTC()
+
+	rowA := &domain.RefreshToken{
+		ID:        uuid.NewString(),
+		UserID:    userA,
+		TokenHash: hashPlainToken("row-a"),
+		ExpiresAt: now.Add(7 * 24 * time.Hour),
+	}
+	require.NoError(t, repo.Insert(ctx, rowA))
+
+	rowB := &domain.RefreshToken{
+		ID:        uuid.NewString(),
+		UserID:    userB,
+		TokenHash: hashPlainToken("row-b"),
+		ExpiresAt: now.Add(7 * 24 * time.Hour),
+	}
+	require.NoError(t, repo.Insert(ctx, rowB))
+
+	// A revokes their own row — must succeed.
+	err := repo.RevokeByID(ctx, rowA.ID, userA)
+	assert.NoError(t, err, "A revoking their own session must succeed")
+
+	// Verify A's row is now revoked.
+	foundA, err := repo.FindByHash(ctx, rowA.TokenHash)
+	require.NoError(t, err)
+	require.NotNil(t, foundA)
+	assert.NotNil(t, foundA.RevokedAt, "A's row must be revoked after RevokeByID")
+
+	// A tries to revoke B's row — must return ErrNotAffected.
+	err = repo.RevokeByID(ctx, rowB.ID, userA)
+	assert.ErrorIs(t, err, ErrNotAffected, "A revoking B's session must return ErrNotAffected")
+
+	// Verify B's row is NOT modified (revoked_at still NULL).
+	foundB, err := repo.FindByHash(ctx, rowB.TokenHash)
+	require.NoError(t, err)
+	require.NotNil(t, foundB)
+	assert.Nil(t, foundB.RevokedAt, "B's session must remain unrevoked after A's failed cross-user revoke attempt")
+
+	// Already-revoked A row → ErrNotAffected (idempotent-safe).
+	err = repo.RevokeByID(ctx, rowA.ID, userA)
+	assert.ErrorIs(t, err, ErrNotAffected, "revoking an already-revoked session must return ErrNotAffected")
+}

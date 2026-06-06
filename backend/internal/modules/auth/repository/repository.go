@@ -13,6 +13,12 @@ import (
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/auth/domain"
 )
 
+// ErrNotAffected is returned by RevokeByID when the UPDATE matched zero rows.
+// This happens when the session does not exist, belongs to a different user,
+// or is already revoked. The service maps this to ErrSessionNotFound (no
+// existence leak between the three cases).
+var ErrNotAffected = errors.New("no rows affected")
+
 // Repository defines the persistence contract for refresh tokens.
 // The service depends on this interface, never on gormRepository directly.
 type Repository interface {
@@ -44,6 +50,16 @@ type Repository interface {
 	// RevokeAllForUser revokes all active refresh tokens for a given user.
 	// Called during OWASP reuse detection when a replay attack is suspected.
 	RevokeAllForUser(ctx context.Context, userID string) error
+
+	// ListActiveByUser returns all non-expired, non-revoked sessions for the
+	// given user, ordered by created_at DESC (newest first).
+	// SECURITY: caller-scoped at SQL layer — user_id = callerID.
+	ListActiveByUser(ctx context.Context, userID string) ([]*domain.RefreshToken, error)
+
+	// RevokeByID sets revoked_at = now() on the row matching id AND user_id.
+	// Returns ErrNotAffected when zero rows are updated (not found, wrong user,
+	// or already revoked). SECURITY: WHERE user_id = callerID prevents cross-user revoke.
+	RevokeByID(ctx context.Context, id, userID string) error
 }
 
 type gormRepository struct {
@@ -108,4 +124,32 @@ func (r *gormRepository) RevokeAllForUser(ctx context.Context, userID string) er
 		Model(&domain.RefreshToken{}).
 		Where("user_id = ? AND revoked_at IS NULL", userID).
 		Update("revoked_at", time.Now().UTC()).Error
+}
+
+// ListActiveByUser returns the caller's active (not revoked, not expired) sessions
+// ordered newest-first. SECURITY: user_id = callerID enforced at SQL layer.
+func (r *gormRepository) ListActiveByUser(ctx context.Context, userID string) ([]*domain.RefreshToken, error) {
+	var rows []*domain.RefreshToken
+	err := r.db.WithContext(ctx).
+		Where("user_id = ? AND revoked_at IS NULL AND expires_at > NOW()", userID).
+		Order("created_at DESC").
+		Find(&rows).Error
+	return rows, err
+}
+
+// RevokeByID sets revoked_at = now() on the matching row, enforcing caller
+// scoping at the SQL layer. Returns ErrNotAffected when zero rows are updated.
+// SECURITY: WHERE user_id = callerID prevents cross-user revoke.
+func (r *gormRepository) RevokeByID(ctx context.Context, id, userID string) error {
+	res := r.db.WithContext(ctx).
+		Model(&domain.RefreshToken{}).
+		Where("id = ? AND user_id = ? AND revoked_at IS NULL", id, userID).
+		Update("revoked_at", time.Now().UTC())
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrNotAffected
+	}
+	return nil
 }

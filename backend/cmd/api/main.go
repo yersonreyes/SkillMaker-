@@ -96,6 +96,10 @@ func main() {
 	// Protected route groups — shared across modules that need JWT / RBAC.
 	// usersRepo/usersSvc are already built above (lines 64-65); reused here.
 	protected := api.Group("", middleware.JWT(cfg.Auth.JWTSecret))
+
+	// C8.1 — session management (caller-scoped) on the JWT-protected group.
+	auth.RegisterSessionRoutes(protected, authSvc)
+
 	adminGrp := protected.Group("", middleware.RequireRole("administrador"))
 	users.RegisterRoutes(adminGrp, protected, usersSvc)
 

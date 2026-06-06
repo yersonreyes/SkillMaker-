@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/yersonreyes/SkillMaker-/backend/internal/middleware"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/auth/dto"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/auth/service"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/platform/httperr"
@@ -51,7 +52,9 @@ func (h *Handler) LoginWithGoogle(c *gin.Context) {
 		return
 	}
 
-	res, err := h.svc.LoginWithGoogle(c.Request.Context(), req.IDToken)
+	ip := c.ClientIP()
+	ua := c.Request.UserAgent()
+	res, err := h.svc.LoginWithGoogle(c.Request.Context(), req.IDToken, ip, ua)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrInvalidGoogleToken):
@@ -90,7 +93,9 @@ func (h *Handler) Refresh(c *gin.Context) {
 		return
 	}
 
-	res, err := h.svc.Refresh(c.Request.Context(), req.RefreshToken)
+	ip := c.ClientIP()
+	ua := c.Request.UserAgent()
+	res, err := h.svc.Refresh(c.Request.Context(), req.RefreshToken, ip, ua)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrInvalidRefreshToken),
@@ -118,5 +123,74 @@ func (h *Handler) Logout(c *gin.Context) {
 	var req dto.RefreshRequest
 	_ = c.ShouldBindJSON(&req) // logout is silent even if body is missing or malformed
 	_ = h.svc.Logout(c.Request.Context(), req.RefreshToken)
+	c.Status(http.StatusNoContent)
+}
+
+// RegisterSessionRoutes mounts the session-management routes on the JWT-protected
+// group. The protected group MUST already carry the JWT middleware so that
+// middleware.UserIDFrom(c) returns the authenticated caller's ID.
+//
+// Routes:
+//
+//	GET    /auth/sessions/me     → GetMySessions
+//	DELETE /auth/sessions/:id    → RevokeSession
+func RegisterSessionRoutes(protected *gin.RouterGroup, svc service.Service) {
+	h := &Handler{svc: svc}
+	protected.GET("/auth/sessions/me", h.GetMySessions)
+	protected.DELETE("/auth/sessions/:id", h.RevokeSession)
+}
+
+// GetMySessions godoc
+// @Summary     Lista las sesiones activas del usuario autenticado
+// @Description Retorna los refresh tokens activos (no revocados, no expirados) del caller,
+// @Description ordenados por created_at DESC. ip y userAgent son informativos/forenses;
+// @Description no se usan para controlar la autenticacion.
+// @Tags        auth
+// @Produce     json
+// @Security    BearerAuth
+// @Success     200 {array}  dto.SessionResponse
+// @Failure     401 {object} httperr.Error "sin autenticacion"
+// @Failure     500 {object} httperr.Error "error interno"
+// @Router      /auth/sessions/me [get]
+func (h *Handler) GetMySessions(c *gin.Context) {
+	userID := middleware.UserIDFrom(c)
+
+	sessions, err := h.svc.ListActiveSessions(c.Request.Context(), userID)
+	if err != nil {
+		slog.Error("auth.sessions.me: unexpected error", "err", err)
+		httperr.Render(c, httperr.Internal(err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, sessions)
+}
+
+// RevokeSession godoc
+// @Summary     Revoca una sesion activa por ID
+// @Description Establece revoked_at en el refresh token indicado, siempre que pertenezca
+// @Description al caller y no este ya revocado. Retorna 404 en cualquier caso que no sea
+// @Description propiedad del caller (sin filtrar existencia para no dar info de otras sesiones).
+// @Tags        auth
+// @Produce     json
+// @Security    BearerAuth
+// @Param       id path string true "UUID de la sesion (refresh_token.id)"
+// @Success     204
+// @Failure     401 {object} httperr.Error "sin autenticacion"
+// @Failure     404 {object} httperr.Error "sesion no encontrada o no pertenece al caller"
+// @Failure     500 {object} httperr.Error "error interno"
+// @Router      /auth/sessions/{id} [delete]
+func (h *Handler) RevokeSession(c *gin.Context) {
+	userID := middleware.UserIDFrom(c)
+	id := c.Param("id")
+
+	err := h.svc.RevokeSession(c.Request.Context(), userID, id)
+	if err != nil {
+		if errors.Is(err, service.ErrSessionNotFound) {
+			httperr.Render(c, httperr.NotFound("SESSION_NOT_FOUND", "sesion no encontrada"))
+			return
+		}
+		slog.Error("auth.sessions.revoke: unexpected error", "err", err)
+		httperr.Render(c, httperr.Internal(err.Error()))
+		return
+	}
 	c.Status(http.StatusNoContent)
 }

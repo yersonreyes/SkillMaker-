@@ -62,6 +62,19 @@ func (m *MockRepository) RevokeAllForUser(ctx context.Context, userID string) er
 	return args.Error(0)
 }
 
+func (m *MockRepository) ListActiveByUser(ctx context.Context, userID string) ([]*domain.RefreshToken, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.RefreshToken), args.Error(1)
+}
+
+func (m *MockRepository) RevokeByID(ctx context.Context, id, userID string) error {
+	args := m.Called(ctx, id, userID)
+	return args.Error(0)
+}
+
 // MockUsersService is a testify/mock implementation of users.Service.
 // It covers ALL methods of the Service interface, including the C1.1 additions.
 // This is required to keep auth/service/service_test.go compiling after the
