@@ -24,3 +24,13 @@ export interface JwtPayload {
   exp: number;
   iat: number;
 }
+
+/** C8.1 — one active refresh-token session for the caller. */
+export interface SessionResponse {
+  id: string;
+  ip?: string;
+  userAgent?: string;
+  createdAt: string; // ISO 8601
+  expiresAt: string; // ISO 8601
+  usedAt?: string;   // ISO 8601 — null if session has never rotated
+}

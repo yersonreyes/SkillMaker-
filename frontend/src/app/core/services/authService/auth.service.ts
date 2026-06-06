@@ -3,7 +3,7 @@ import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '@env/environment';
-import type { LoginResponse, RefreshTokenResponse, UserPublic, UserRole, JwtPayload } from './auth.res.dto';
+import type { LoginResponse, RefreshTokenResponse, UserPublic, UserRole, JwtPayload, SessionResponse } from './auth.res.dto';
 
 declare const google: { accounts: { id: { disableAutoSelect: () => void } } };
 
@@ -170,6 +170,22 @@ export class AuthService {
     } else {
       this.sessionExpired.set(true);
     }
+  }
+
+  // ─── Session management (C8.1) ──────────────────────────
+  /** Returns the caller's active sessions. Bearer is attached by interceptor
+   *  because /auth/sessions/me is NOT in the SKIP_PATTERNS list. */
+  async getMySessions(): Promise<SessionResponse[]> {
+    return firstValueFrom(
+      this.http.get<SessionResponse[]>(`${this.baseUrl}/sessions/me`),
+    );
+  }
+
+  /** Revokes a session by id. Returns void on 204. */
+  async revokeSession(id: string): Promise<void> {
+    await firstValueFrom(
+      this.http.delete<void>(`${this.baseUrl}/sessions/${id}`),
+    );
   }
 
   // ─── Logout ──────────────────────────────────────────────

@@ -47,4 +47,54 @@
     <p class="empty">No hay datos de usuario cargados.</p>
   }
 
+  <!-- C8.1 — Sesiones activas -->
+  <section class="sheet sessions-sheet" aria-label="Sesiones activas">
+    <div class="sheet__head">
+      <span class="sheet__head-tag">// SESIONES</span>
+      <span class="sheet__head-code">ACTIVAS</span>
+    </div>
+
+    @if (loadingSessions()) {
+      <div class="sessions-skeleton">
+        <p-skeleton height="2.5rem" styleClass="sessions-skeleton__row" />
+        <p-skeleton height="2.5rem" styleClass="sessions-skeleton__row" />
+        <p-skeleton height="2.5rem" styleClass="sessions-skeleton__row" />
+      </div>
+    } @else if (sessions().length === 0) {
+      <p class="empty sessions-empty">No hay sesiones activas registradas.</p>
+    } @else {
+      <p-table
+        [value]="sessions()"
+        [tableStyle]="{ 'min-width': '100%' }"
+        styleClass="sessions-table"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th>IP</th>
+            <th>Navegador</th>
+            <th>Iniciada</th>
+            <th></th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-sess>
+          <tr>
+            <td>{{ sess.ip ?? '—' }}</td>
+            <td>{{ browserOf(sess.userAgent) }}</td>
+            <td>{{ sess.createdAt | date: 'dd/MM/yyyy HH:mm' }}</td>
+            <td class="sessions-table__actions">
+              <button
+                pButton
+                type="button"
+                icon="pi pi-sign-out"
+                label="Revocar"
+                class="p-button-sm p-button-outlined p-button-danger"
+                (click)="onRevoke(sess)"
+              ></button>
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+    }
+  </section>
+
 </div>

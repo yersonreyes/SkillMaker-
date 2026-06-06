@@ -4,6 +4,8 @@
  *
  * Test bed: Angular TestBed + provideHttpClient/provideHttpClientTesting (modern API).
  * Fake timers via vi.useFakeTimers().
+ *
+ * C8.1 additions: getMySessions() + revokeSession(id) — T2.1 (RED → GREEN)
  */
 import { TestBed } from '@angular/core/testing';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -13,6 +15,7 @@ import {
   teardown,
   type AuthServiceHarness,
 } from '../../../../testing/auth-service-harness';
+import type { SessionResponse } from './auth.res.dto';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -33,6 +36,23 @@ function buildJwt(exp: number): string {
 }
 
 const REFRESH_URL = 'http://localhost:3000/api/auth/refresh';
+const SESSIONS_ME_URL = 'http://localhost:3000/api/auth/sessions/me';
+const SESSION_REVOKE_URL = (id: string) => `http://localhost:3000/api/auth/sessions/${id}`;
+
+const MOCK_SESSIONS: SessionResponse[] = [
+  {
+    id: 'sess-001',
+    ip: '10.0.0.1',
+    userAgent: 'Chrome/120',
+    createdAt: '2026-06-01T10:00:00Z',
+    expiresAt: '2026-06-08T10:00:00Z',
+  },
+  {
+    id: 'sess-002',
+    createdAt: '2026-06-02T08:00:00Z',
+    expiresAt: '2026-06-09T08:00:00Z',
+  },
+];
 
 const MOCK_LOGIN_RESPONSE = {
   access_token: buildJwt(Math.floor(Date.now() / 1000) + 3600),
@@ -80,6 +100,57 @@ describe('AuthService', () => {
     // Advance time by 3 seconds — token should now be expired.
     vi.advanceTimersByTime(3000);
     expect(harness.service.isTokenExpired()).toBe(true);
+  });
+
+  // ── C8.1 T2.1: getMySessions() ────────────────────────────────────────────
+
+  it('getMySessions() sends GET /api/auth/sessions/me and returns session array', async () => {
+    const promise = harness.service.getMySessions();
+
+    const req = harness.httpMock.expectOne(SESSIONS_ME_URL);
+    expect(req.request.method).toBe('GET');
+    req.flush(MOCK_SESSIONS);
+
+    const result = await promise;
+    expect(result).toHaveLength(2);
+    expect(result[0].id).toBe('sess-001');
+    expect(result[0].ip).toBe('10.0.0.1');
+    expect(result[1].userAgent).toBeUndefined();
+  });
+
+  it('getMySessions() URL does NOT match any SKIP_PATTERN (Bearer is attached by interceptor)', () => {
+    // Verify the URL path: /auth/sessions/me does NOT contain /auth/google, /auth/refresh, /auth/logout
+    const skipPatterns = ['/auth/google', '/auth/refresh', '/auth/logout'];
+    const url = SESSIONS_ME_URL;
+    for (const pattern of skipPatterns) {
+      expect(url.includes(pattern)).toBe(false);
+    }
+    // Flush the pending request to avoid verify() failure
+    harness.service.getMySessions().catch(() => undefined);
+    harness.httpMock.expectOne(SESSIONS_ME_URL).flush([]);
+  });
+
+  // ── C8.1 T2.1: revokeSession(id) ─────────────────────────────────────────
+
+  it('revokeSession(id) sends DELETE /api/auth/sessions/:id and resolves void', async () => {
+    const sessionId = 'sess-001';
+    const promise = harness.service.revokeSession(sessionId);
+
+    const req = harness.httpMock.expectOne(SESSION_REVOKE_URL(sessionId));
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null, { status: 204, statusText: 'No Content' });
+
+    await expect(promise).resolves.toBeUndefined();
+  });
+
+  it('revokeSession URL does NOT match any SKIP_PATTERN (Bearer is attached by interceptor)', () => {
+    const skipPatterns = ['/auth/google', '/auth/refresh', '/auth/logout'];
+    const url = SESSION_REVOKE_URL('any-id');
+    for (const pattern of skipPatterns) {
+      expect(url.includes(pattern)).toBe(false);
+    }
+    harness.service.revokeSession('any-id').catch(() => undefined);
+    harness.httpMock.expectOne(SESSION_REVOKE_URL('any-id')).flush(null, { status: 204, statusText: 'No Content' });
   });
 
   // ── AC3 Scenario 2: refresh clears expired state ────────────────────────
