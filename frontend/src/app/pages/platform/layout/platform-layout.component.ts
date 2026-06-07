@@ -1,9 +1,11 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
+import { RouterLink, RouterLinkActive, RouterOutlet, Router } from '@angular/router';
 import { TooltipModule } from 'primeng/tooltip';
 import { PopoverModule } from 'primeng/popover';
 import { AuthService } from '@core/services/authService/auth.service';
 import { HasRoleDirective } from '@shared/directives/has-role.directive';
+import { NotificationService } from '@core/services/notificationService/notification.service';
+import type { NotificationItem } from '@core/services/notificationService/notification.dto';
 
 interface NavItem {
   label: string;
@@ -26,10 +28,17 @@ interface NavItem {
   templateUrl: './platform-layout.component.html',
   styleUrl: './platform-layout.component.sass',
 })
-export class PlatformLayoutComponent implements OnInit {
+export class PlatformLayoutComponent implements OnInit, OnDestroy {
   protected auth = inject(AuthService);
+  private readonly notifService = inject(NotificationService);
+  private readonly router = inject(Router);
 
   protected collapsed = signal<boolean>(this.readSidebarState());
+
+  notifications = signal<NotificationItem[]>([]);
+  unreadCount = signal<number>(0);
+
+  private pollId: ReturnType<typeof setInterval> | null = null;
 
   protected userInitials = computed(() => {
     const name = this.auth.user()?.nombre ?? '';
@@ -76,7 +85,21 @@ export class PlatformLayoutComponent implements OnInit {
     { label: 'Reportes por curso', icon: 'pi pi-table',         route: '/platform/admin/course-reports' },
   ];
 
-  ngOnInit(): void {}
+  ngOnInit(): void {
+    void this.loadUnread();
+    void this.loadList();
+    this.pollId = setInterval(() => {
+      void this.loadUnread();
+      void this.loadList();
+    }, 30000);
+  }
+
+  ngOnDestroy(): void {
+    if (this.pollId !== null) {
+      clearInterval(this.pollId);
+      this.pollId = null;
+    }
+  }
 
   toggleSidebar(): void {
     const next = !this.collapsed();
@@ -90,5 +113,57 @@ export class PlatformLayoutComponent implements OnInit {
 
   async logout(): Promise<void> {
     await this.auth.logout();
+  }
+
+  // ── Notification methods ──────────────────────────────────────────────────────
+
+  onBellOpen(): void {
+    void this.loadList();
+  }
+
+  async onNotificationClick(n: NotificationItem): Promise<void> {
+    if (!n.leida) {
+      await this.notifService.markRead(n.id!);
+      this.unreadCount.update(c => Math.max(0, c - 1));
+    }
+    this.navigate(n);
+  }
+
+  async markAll(): Promise<void> {
+    await this.notifService.markAllRead();
+    this.unreadCount.set(0);
+    this.notifications.update(list => list.map(x => ({ ...x, leida: true })));
+  }
+
+  relativeTime(iso: string | undefined): string {
+    if (!iso) return '';
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Ahora';
+    if (mins < 60) return `Hace ${mins}m`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `Hace ${hours}h`;
+    const days = Math.floor(hours / 24);
+    return `Hace ${days}d`;
+  }
+
+  private async loadUnread(): Promise<void> {
+    const count = await this.notifService.getUnreadCount();
+    this.unreadCount.set(count);
+  }
+
+  private async loadList(): Promise<void> {
+    const items = await this.notifService.getMine(1, 20);
+    this.notifications.set(items);
+  }
+
+  private navigate(n: NotificationItem): void {
+    const tipo = n.tipo ?? '';
+    const refId = n.refId ?? '';
+    if (tipo === 'curso_aprobado' || tipo === 'curso_rechazado') {
+      void this.router.navigate(['/platform/courses', refId]);
+    } else if (tipo === 'certificado_emitido') {
+      void this.router.navigate(['/platform/certificates', refId]);
+    }
   }
 }

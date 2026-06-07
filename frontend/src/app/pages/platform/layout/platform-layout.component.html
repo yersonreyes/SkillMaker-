@@ -147,38 +147,87 @@
         <span class="bar__channel">RED INTERNA DE CONOCIMIENTO</span>
       </div>
 
-      <button
-        type="button"
-        class="bar__user"
-        (click)="userMenu.toggle($event)"
-        [attr.aria-label]="'Menu de usuario'">
-        <span class="bar__avatar">{{ userInitials() }}</span>
-        <span class="bar__user-info">
-          <span class="bar__name">{{ auth.user()?.nombre || 'Usuario' }}</span>
-          <span class="bar__role">// {{ primaryRole() }}</span>
-        </span>
-        <i class="pi pi-chevron-down bar__chev"></i>
-      </button>
+      <div class="bar__actions">
+        <!-- Bell button (BEFORE user-menu) -->
+        <button
+          type="button"
+          class="bar__bell"
+          (click)="bellPanel.toggle($event); onBellOpen()"
+          [attr.aria-label]="'Notificaciones'">
+          <i class="pi pi-bell"></i>
+          @if (unreadCount() > 0) {
+            <span class="bar__badge">{{ unreadCount() }}</span>
+          }
+        </button>
 
-      <p-popover #userMenu>
-        <div class="menu">
-          <a
-            routerLink="/platform/profile"
-            (click)="userMenu.hide()"
-            class="menu__item">
-            <i class="pi pi-user"></i>
-            Mi perfil
-          </a>
-          <span class="menu__divider" aria-hidden="true"></span>
-          <button
-            type="button"
-            class="menu__item menu__item--danger"
-            (click)="logout(); userMenu.hide()">
-            <i class="pi pi-sign-out"></i>
-            Cerrar sesion
-          </button>
-        </div>
-      </p-popover>
+        <!-- Notification popover -->
+        <p-popover #bellPanel>
+          <div class="notif-panel">
+            <div class="notif-panel__header">
+              <span class="notif-panel__title">Notificaciones</span>
+              @if (unreadCount() > 0) {
+                <button
+                  type="button"
+                  class="notif-panel__mark-all"
+                  (click)="markAll()">
+                  Marcar todas como leidas
+                </button>
+              }
+            </div>
+            <div class="notif-panel__list">
+              @if (notifications().length === 0) {
+                <div class="notif-panel__empty">Sin notificaciones</div>
+              } @else {
+                @for (n of notifications(); track n.id) {
+                  <button
+                    type="button"
+                    class="notif"
+                    [class.notif--unread]="!n.leida"
+                    (click)="onNotificationClick(n); bellPanel.hide()">
+                    <span class="notif__titulo">{{ n.titulo }}</span>
+                    <span class="notif__cuerpo">{{ n.cuerpo }}</span>
+                    <span class="notif__time">{{ relativeTime(n.creadoEn) }}</span>
+                  </button>
+                }
+              }
+            </div>
+          </div>
+        </p-popover>
+
+        <!-- User menu button -->
+        <button
+          type="button"
+          class="bar__user"
+          (click)="userMenu.toggle($event)"
+          [attr.aria-label]="'Menu de usuario'">
+          <span class="bar__avatar">{{ userInitials() }}</span>
+          <span class="bar__user-info">
+            <span class="bar__name">{{ auth.user()?.nombre || 'Usuario' }}</span>
+            <span class="bar__role">// {{ primaryRole() }}</span>
+          </span>
+          <i class="pi pi-chevron-down bar__chev"></i>
+        </button>
+
+        <p-popover #userMenu>
+          <div class="menu">
+            <a
+              routerLink="/platform/profile"
+              (click)="userMenu.hide()"
+              class="menu__item">
+              <i class="pi pi-user"></i>
+              Mi perfil
+            </a>
+            <span class="menu__divider" aria-hidden="true"></span>
+            <button
+              type="button"
+              class="menu__item menu__item--danger"
+              (click)="logout(); userMenu.hide()">
+              <i class="pi pi-sign-out"></i>
+              Cerrar sesion
+            </button>
+          </div>
+        </p-popover>
+      </div>
     </header>
 
     <!-- Area de trabajo (con grid blueprint) -->
