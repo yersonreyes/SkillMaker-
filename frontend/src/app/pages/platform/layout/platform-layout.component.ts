@@ -160,11 +160,15 @@ export class PlatformLayoutComponent implements OnInit, OnDestroy {
   private navigate(n: NotificationItem): void {
     const tipo = n.tipo ?? '';
     const refId = n.refId ?? '';
-    if (tipo === 'curso_aprobado' || tipo === 'curso_rechazado') {
-      // Course approve/reject notifications go to the CREATOR — send them to
-      // their editor (shows the rejection comment + resubmit; the alumno
-      // /platform/courses/:id detail only serves aprobado courses).
+    if (tipo === 'curso_rechazado') {
+      // Rejected course: the creator must fix it. The editor shows the
+      // rejection comment + lets them resubmit. (The alumno catalog detail
+      // /platform/courses/:id only serves aprobado courses → 404 here.)
       void this.router.navigate(['/platform/creator/curso-editar', refId]);
+    } else if (tipo === 'curso_aprobado') {
+      // Approved course: now published + frozen in the editor → show the
+      // public/catalog view of the live course instead.
+      void this.router.navigate(['/platform/courses', refId]);
     } else if (tipo === 'certificado_emitido') {
       // Certificates is a list page (no per-id detail route) — land on the list.
       void this.router.navigate(['/platform/certificates']);
