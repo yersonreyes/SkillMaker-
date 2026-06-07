@@ -163,7 +163,8 @@ export class PlatformLayoutComponent implements OnInit, OnDestroy {
     if (tipo === 'curso_aprobado' || tipo === 'curso_rechazado') {
       void this.router.navigate(['/platform/courses', refId]);
     } else if (tipo === 'certificado_emitido') {
-      void this.router.navigate(['/platform/certificates', refId]);
+      // Certificates is a list page (no per-id detail route) — land on the list.
+      void this.router.navigate(['/platform/certificates']);
     }
   }
 }

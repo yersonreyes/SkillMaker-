@@ -165,7 +165,7 @@ describe('PlatformLayoutComponent — bell & notifications', () => {
     await fixture.componentInstance.onNotificationClick(MOCK_NOTIF_READ);
 
     expect(notifServiceSpy.markRead).not.toHaveBeenCalled();
-    expect(navigateSpy).toHaveBeenCalledWith(['/platform/certificates', 'cert-1']);
+    expect(navigateSpy).toHaveBeenCalledWith(['/platform/certificates']);
   });
 
   it('onNotificationClick calls markRead for curso_rechazado and navigates to courses', async () => {
