@@ -17,9 +17,53 @@
       class="field__input"
       type="search"
       placeholder="Buscar cursos..."
+      [value]="q()"
       (input)="onSearchInput($any($event.target).value)"
       aria-label="Buscar cursos"
     />
+  </div>
+
+  <!-- Filter bar -->
+  <div class="catalog__filters">
+    <p-select
+      [options]="nivelOptions"
+      [(ngModel)]="nivelModel"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="Nivel"
+      (onChange)="onFilterChange()"
+      aria-label="Filtrar por nivel"
+    />
+
+    <p-multiselect
+      [options]="categorias()"
+      [(ngModel)]="categoriaIdsModel"
+      optionLabel="nombre"
+      optionValue="id"
+      placeholder="Categorías"
+      (onChange)="onFilterChange()"
+      aria-label="Filtrar por categoría"
+    />
+
+    <p-select
+      [options]="sortOptions"
+      [(ngModel)]="sortModel"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="Ordenar"
+      (onChange)="onFilterChange()"
+      aria-label="Ordenar cursos"
+    />
+
+    @if (hasActiveFilters()) {
+      <button
+        class="catalog__clear-btn"
+        type="button"
+        (click)="clearFilters()"
+      >
+        Limpiar filtros
+      </button>
+    }
   </div>
 
   <!-- Loading skeletons -->
@@ -31,8 +75,16 @@
     </div>
   }
 
-  <!-- Empty state -->
-  @if (!loading() && courses().length === 0) {
+  <!-- Filtered empty state -->
+  @if (!loading() && courses().length === 0 && hasActiveFilters()) {
+    <div class="empty empty--filtered">
+      <i class="pi pi-filter-slash"></i>
+      <p>No hay cursos con esos filtros.</p>
+    </div>
+  }
+
+  <!-- Default empty state -->
+  @if (!loading() && courses().length === 0 && !hasActiveFilters()) {
     <div class="empty">
       <i class="pi pi-inbox"></i>
       <p>No hay cursos disponibles en este momento.</p>

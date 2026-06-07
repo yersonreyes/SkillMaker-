@@ -204,4 +204,84 @@ describe('CourseCatalogService', () => {
     expect(result).toHaveLength(1);
     expect(result[0].courseId).toBe('course-1');
   });
+
+  // ── getCatalog filter params (Phase 6 — WU-2) ────────────────────────────────
+
+  it('getCatalog() includes nivel param when provided', async () => {
+    const promise = service.getCatalog(1, 12, '', 'basico');
+
+    const req = httpMock.expectOne(r => r.url === CATALOG_BASE && r.method === 'GET');
+    expect(req.request.params.get('nivel')).toBe('basico');
+    req.flush(MOCK_PAGE);
+
+    await promise;
+  });
+
+  it('getCatalog() omits nivel param when undefined', async () => {
+    const promise = service.getCatalog(1, 12, '', undefined);
+
+    const req = httpMock.expectOne(r => r.url === CATALOG_BASE && r.method === 'GET');
+    expect(req.request.params.has('nivel')).toBe(false);
+    req.flush(MOCK_PAGE);
+
+    await promise;
+  });
+
+  it('getCatalog() sends repeated categoria params via queryParamArray', async () => {
+    const CAT_A = '11111111-1111-1111-1111-111111111111';
+    const CAT_B = '22222222-2222-2222-2222-222222222222';
+    const promise = service.getCatalog(1, 12, '', undefined, [CAT_A, CAT_B]);
+
+    const req = httpMock.expectOne(r => r.url === CATALOG_BASE && r.method === 'GET');
+    const cats = req.request.params.getAll('categoria');
+    expect(cats).toEqual([CAT_A, CAT_B]);
+    req.flush(MOCK_PAGE);
+
+    await promise;
+  });
+
+  it('getCatalog() omits categoria param when categoriaIds is empty array', async () => {
+    const promise = service.getCatalog(1, 12, '', undefined, []);
+
+    const req = httpMock.expectOne(r => r.url === CATALOG_BASE && r.method === 'GET');
+    expect(req.request.params.has('categoria')).toBe(false);
+    req.flush(MOCK_PAGE);
+
+    await promise;
+  });
+
+  it('getCatalog() includes sort param when provided', async () => {
+    const promise = service.getCatalog(1, 12, '', undefined, [], 'titulo');
+
+    const req = httpMock.expectOne(r => r.url === CATALOG_BASE && r.method === 'GET');
+    expect(req.request.params.get('sort')).toBe('titulo');
+    req.flush(MOCK_PAGE);
+
+    await promise;
+  });
+
+  it('getCatalog() omits sort param when undefined', async () => {
+    const promise = service.getCatalog(1, 12, '', undefined, [], undefined);
+
+    const req = httpMock.expectOne(r => r.url === CATALOG_BASE && r.method === 'GET');
+    expect(req.request.params.has('sort')).toBe(false);
+    req.flush(MOCK_PAGE);
+
+    await promise;
+  });
+
+  it('getCatalog() sends all filter params together (nivel + categorias + sort)', async () => {
+    const CAT_A = '11111111-1111-1111-1111-111111111111';
+    const CAT_B = '22222222-2222-2222-2222-222222222222';
+    const promise = service.getCatalog(1, 12, 'go', 'avanzado', [CAT_A, CAT_B], 'titulo');
+
+    const req = httpMock.expectOne(r => r.url === CATALOG_BASE && r.method === 'GET');
+    expect(req.request.params.get('q')).toBe('go');
+    expect(req.request.params.get('nivel')).toBe('avanzado');
+    expect(req.request.params.getAll('categoria')).toEqual([CAT_A, CAT_B]);
+    expect(req.request.params.get('sort')).toBe('titulo');
+    req.flush(MOCK_PAGE);
+
+    await promise;
+  });
 });

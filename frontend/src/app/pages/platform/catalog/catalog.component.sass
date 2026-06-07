@@ -1,5 +1,30 @@
 .catalog__search
+  margin-bottom: 1rem
+
+.catalog__filters
+  display: flex
+  flex-wrap: wrap
+  align-items: center
+  gap: 0.75rem
   margin-bottom: 1.5rem
+  padding: 0.75rem 1rem
+  background: var(--page-surface-1, rgba(0,0,0,0.03))
+  border-radius: var(--page-radius-md, 8px)
+  border: 1px solid var(--page-border, rgba(0,0,0,0.08))
+
+.catalog__clear-btn
+  margin-left: auto
+  padding: 0.35rem 0.85rem
+  border: 1px solid var(--page-accent, #0891b2)
+  border-radius: var(--page-radius-sm, 4px)
+  background: transparent
+  color: var(--page-accent, #0891b2)
+  font-size: 0.85rem
+  cursor: pointer
+  transition: background 0.15s, color 0.15s
+  &:hover
+    background: var(--page-accent, #0891b2)
+    color: #fff
 
 .catalog__grid
   display: grid

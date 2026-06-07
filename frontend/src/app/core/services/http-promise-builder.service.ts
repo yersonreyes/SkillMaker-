@@ -54,6 +54,20 @@ class HttpRequestBuilder<T> {
     return this;
   }
 
+  /**
+   * Appends a repeated query param for each value in the array.
+   * Uses HttpParams.append (NOT .set) so multiple calls produce repeated params.
+   * e.g. queryParamArray('categoria', [A, B]) → ?categoria=A&categoria=B
+   * Empty or falsy values within the array are skipped.
+   * An empty array emits nothing (param is omitted entirely).
+   */
+  queryParamArray(key: string, values: string[]): this {
+    for (const v of values ?? []) {
+      if (v) this._params = this._params.append(key, v);
+    }
+    return this;
+  }
+
   silent(): this {
     this._silent = true;
     return this;

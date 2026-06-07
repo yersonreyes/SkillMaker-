@@ -22,18 +22,31 @@ export class CourseCatalogService {
   private readonly meCoursesUrl = `${environment.apiBaseUrl}/users/me/courses`;
 
   /**
-   * GET /api/catalog?page=&size=&q=
+   * GET /api/catalog?page=&size=&q=&nivel=&categoria=&sort=
    * Returns paginated list of approved courses.
-   * Empty q is omitted (HttpPromiseBuilderService.queryParam skips empty strings).
+   * - Empty q is omitted (builder skips empty strings).
+   * - nivel/sort: omitted when undefined/empty (builder skips undefined/null/'').
+   * - categoriaIds: repeated params via queryParamArray (?categoria=A&categoria=B).
+   *   Empty array emits nothing.
    */
-  getCatalog(page: number, size: number, q: string): Promise<Page<CatalogCourseCard>> {
+  getCatalog(
+    page: number,
+    size: number,
+    q: string,
+    nivel?: string,
+    categoriaIds?: string[],
+    sort?: string,
+  ): Promise<Page<CatalogCourseCard>> {
     return this.http
       .request<Page<CatalogCourseCard>>()
       .get()
       .url(this.base)
       .queryParam('page', page)
       .queryParam('size', size)
-      .queryParam('q', q) // omitted when q === '' (builder skips empty strings)
+      .queryParam('q', q)
+      .queryParam('nivel', nivel)
+      .queryParamArray('categoria', categoriaIds ?? [])
+      .queryParam('sort', sort)
       .send();
   }
 
