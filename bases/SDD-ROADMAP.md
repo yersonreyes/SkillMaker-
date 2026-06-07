@@ -35,7 +35,7 @@
 > Esta seccion es el "punto de partida". Cualquier change posterior parte de este estado.
 > Actualizar cuando se archive un change importante.
 
-**Fecha del snapshot:** 2026-06-07 (actualizado tras P3 notifications-inapp archive — Post-MVP improvement program 3/4 complete)
+**Fecha del snapshot:** 2026-06-07 (actualizado tras P4 ux-polish archive — Post-MVP improvement program 4/4 COMPLETE)
 **Commits totales del scaffold:** 16 (+ 3 chained PRs para C1.1) (+ 2 PRs para C2.1) (+ 2 PRs para C2.2) (+ 2 PRs para C2.3) (+ 3 PRs para C3.1 incl. UI polish) (+ 3 PRs para C3.2) (+ 3 PRs para C4.1 incl. swagger fix) (+ 2 PRs para C2.4) (+ 2 PRs para C5.1 incl. bundled eval-summary slice) (+ 2 PRs para C6.1) (+ 2 PRs para course-structure-v2 + styling polish) (+ 2 PRs para C8.1 refresh-token-tracking) (+ 2 PRs para P1 catalog-filters) (+ post-merge fixes)
 **LOC totales (Go + TS + SQL):** ~2700 (+ ~900 LOC en C1.1) (+ ~1100 LOC en C2.1) (+ ~900 LOC en C2.2) (+ ~900 LOC en C2.3) (+ ~1200 LOC en C3.1) (+ ~1200 LOC en C3.2) (+ ~1100 LOC en C4.1) (+ ~1300 LOC en C2.4) (+ ~1700 LOC en C5.1 incl. bundled slice) (+ ~800 LOC en C6.1) (+ ~2150 LOC en course-structure-v2) (+ ~420 LOC en C8.1 refresh-token-tracking) (+ ~340 LOC en P1 catalog-filters)
 **HITO ALCANZADO**: ✅ **MVP FEATURE COMPLETE** (2026-06-05) — Todas las capas C1–C6 archivadas. El loop completo (register → create → approve → publish → consume → evaluate → certify → badge → rank → report) está funcional en main. **Post-MVP hardening INICIADO**: C8.1 refresh-token-tracking archivado 2026-06-06.
@@ -816,8 +816,8 @@ Polish (b310324):
 |---|--------|-------|----------|
 | P1 | `catalog-filters` ✅ ARCHIVED | GET /catalog gain `?nivel`, `?categoria` (repeated, OR), `?sort`; filter bar UI; backward compatible | P2 course-player-progress |
 | P2 | `course-player-progress` ✅ ARCHIVED | Per-video watched flag (manual toggle); resume to first-incomplete; progress bar (X/N · %); 2-column enrolled player | P3 notifications |
-| P3 | `notifications-inapp` ✅ ARCHIVED | In-app notification center (bell + panel in header, 4 endpoints, 30s poll); course-approved/rejected, certificate-issued events; non-fatal seam to approvals/certificates | P4 |
-| P4 | `ux-polish` (planned) | Accessibility audit, dark mode, mobile UX, empty states consistency | **MVP fully ready for users** |
+| P3 | `notifications-inapp` ✅ ARCHIVED | In-app notification center (bell + panel in header, 4 endpoints, 30s poll); course-approved/rejected, certificate-issued events; non-fatal seam to approvals/certificates | P4 ux-polish |
+| P4 | `ux-polish` ✅ ARCHIVED | Lazy-load images, client-side table sort, exam progress bar, inline field validation, page context breadcrumb (5 frontend-only items) | **MVP fully polished & ready for users** |
 
 ##### P1 — `catalog-filters` ✅ ARCHIVED (2026-06-06)
 
@@ -859,6 +859,37 @@ Polish (b310324):
 **Key Learnings:** (1) Notification navigation must match recipient + target's reachable route (approved→public /courses, rejected→creator editor, cert→list, not a naive /resource/:id); (2) Caller-scoping at SQL boundary (WHERE user_id=?) is dominant security property; (3) Acyclic leaf module + consumer-declares seam (no imports between notifications ↔ approvals/certificates) proven pattern from evaluations CertificateIssuer; (4) Non-fatal seam: capture source-op error FIRST, notify only on success, slog+swallow on Notifier failure; (5) Cert idempotent no-renotify: Notify inside first-issue branch, after idempotency early-return; (6) uuid.Parse at handler boundary (not 500, but 404 no-leak).
 
 **Unblocks:** P4 ux-polish (foundation for further notifications feature — email/push/websockets).
+
+---
+
+##### P4 — `ux-polish` ✅ ARCHIVED (2026-06-07)
+
+**Estado:** COMPLETE — Single frontend-only PR (exception-ok) merged to main. Manual smoke test PASSED. Post-MVP improvement program 4/4 COMPLETE.
+
+**Delivered:** 5 independent frontend UX refinements: (1) course-card miniatura `loading="lazy" decoding="async"` (defer image requests); (2) course-reports admin table `pSortableColumn` client-side sort on titulo/enrollments/attempts/approvalRate (in-memory data), user-management table deliberately untouched (server-paginated); (3) evaluacion-tomar "respondidas X/N" + progress bar from `answeredCount` signal (reactive); (4) inline `.field__error` on key fields (curso titulo, eval notaMinima/intentosMax, video titulo/url, question enunciado) with signal-based `touched` tracking + computed/method validity (no reactive-form migration); (5) platform-layout breadcrumb from deepest route `data.title` via `NavigationEnd` subscription + `takeUntilDestroyed`.
+
+**Spec Compliance:** 17/19 scenarios PASS, 1 partial (sort-click behavioral coverage gap — wiring proven, DOM reorder trusted to PrimeNG), 2 untested (breadcrumb navigation scenarios without actual routing test). All WARNINGs are coverage gaps, not regressions. Adversarial probes RED-confirmed: 4/5 full confirm, 1 partial (walker removed, specs still pass; fallback tested). 404/404 vitest, tsc 0 errors, ng build 0 errors, lint clean.
+
+**Key Learnings:** (1) Mixed form-binding styles (signals + plain objects) in the same app require per-form validation mechanisms; unified reactive migration not viable (regression risk). (2) Client-side table sort works only on in-memory [value], not server-paginated [lazy]; course-reports/user-management must differ by design. (3) PrimeNG sort behavioral flakiness in zoneless jsdom → assert wiring (attributes), not DOM reorder; framework responsibility. (4) Breadcrumb router subscription needs `takeUntilDestroyed` for cleanup; deepest-route walker straightforward. (5) Verify caught 2 coverage gaps (spec gaps, not behavioral bugs); all 5 features correct per static analysis + probes.
+
+**Deferred:** User-management table sort (needs backend param), dark mode, i18n, full a11y audit, mobile-specific work, optional PrimeNG-sort e2e test.
+
+---
+
+### ✅ POST-MVP IMPROVEMENT PROGRAM COMPLETE (2026-06-07)
+
+All 4 UX-focused changes shipped and archived. MVP loop fully closed and polished.
+
+| P# | Change | Archived | Benefit |
+|----|--------|----------|---------|
+| P1 | catalog-filters | 2026-06-06 | Discoverable: filter by nivel/categorias/sort |
+| P2 | course-player-progress | 2026-06-07 | Engagement: per-video progress tracking + resume-to-first-incomplete |
+| P3 | notifications-inapp | 2026-06-07 | Awareness: in-app bell + center for course/cert events |
+| P4 | ux-polish | **2026-06-07** | **Polish: lazy images, table sort, progress bar, inline validation, breadcrumb** |
+
+The platform is now **FEATURE COMPLETE + POLISHED**. Ready for broader user testing and feedback loops.
+
+**Next Phase**: Capa 7 Hardening (C8.2 pagination-policy for scale, C8.3 prod-deployment for operations). Not feature-driven, operational-focused.
 
 ---
 
