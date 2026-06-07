@@ -2,7 +2,7 @@
   <!-- Miniatura (or placeholder if null) -->
   <div class="course-card__cover">
     @if (card.miniaturaUrl) {
-      <img [src]="card.miniaturaUrl" [alt]="card.titulo" class="course-card__cover-img" />
+      <img [src]="card.miniaturaUrl" [alt]="card.titulo" class="course-card__cover-img" loading="lazy" decoding="async" />
     } @else {
       <div class="course-card__cover-placeholder" aria-hidden="true">
         <i class="pi pi-image"></i>

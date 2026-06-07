@@ -1,5 +1,7 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet, Router } from '@angular/router';
+import { Component, OnInit, OnDestroy, inject, signal, computed, DestroyRef } from '@angular/core';
+import { RouterLink, RouterLinkActive, RouterOutlet, Router, ActivatedRoute, NavigationEnd } from '@angular/router';
+import { filter } from 'rxjs/operators';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TooltipModule } from 'primeng/tooltip';
 import { PopoverModule } from 'primeng/popover';
 import { AuthService } from '@core/services/authService/auth.service';
@@ -32,8 +34,12 @@ export class PlatformLayoutComponent implements OnInit, OnDestroy {
   protected auth = inject(AuthService);
   private readonly notifService = inject(NotificationService);
   private readonly router = inject(Router);
+  private readonly route  = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected collapsed = signal<boolean>(this.readSidebarState());
+
+  readonly pageTitle = signal<string>('');
 
   notifications = signal<NotificationItem[]>([]);
   unreadCount = signal<number>(0);
@@ -92,6 +98,17 @@ export class PlatformLayoutComponent implements OnInit, OnDestroy {
       void this.loadUnread();
       void this.loadList();
     }, 30000);
+
+    // Breadcrumb: update pageTitle on each NavigationEnd
+    this.router.events.pipe(
+      filter(e => e instanceof NavigationEnd),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => {
+      this.pageTitle.set(this.deepestTitle());
+    });
+
+    // Set initial title for the current route
+    this.pageTitle.set(this.deepestTitle());
   }
 
   ngOnDestroy(): void {
@@ -105,6 +122,12 @@ export class PlatformLayoutComponent implements OnInit, OnDestroy {
     const next = !this.collapsed();
     this.collapsed.set(next);
     localStorage.setItem('ui.sidebar.collapsed', String(next));
+  }
+
+  private deepestTitle(): string {
+    let r = this.route;
+    while (r.firstChild) r = r.firstChild;
+    return (r.snapshot.data?.['title'] as string) ?? '';
   }
 
   private readSidebarState(): boolean {

@@ -155,6 +155,22 @@ export class CursoEditarComponent implements OnInit {
     descripcion: '',
   });
 
+
+  // ── Validation touched flags ─────────────────────────────────────────────────
+  readonly tituloTouched      = signal<boolean>(false);
+  readonly tituloInvalid      = computed(() => this.tituloTouched() && !this.titulo().trim());
+
+  readonly videoTituloTouched = signal<boolean>(false);
+  readonly videoTituloInvalid = computed(() => this.videoTituloTouched() && !this.videoForm().titulo.trim());
+
+  readonly videoUrlTouched    = signal<boolean>(false);
+
+  private readonly URL_REGEX = /^https?:\/\/.+/;
+
+  readonly videoUrlInvalid    = computed(() =>
+    this.videoUrlTouched() && (!this.videoForm().url.trim() || !this.URL_REGEX.test(this.videoForm().url.trim())),
+  );
+
   // ── Proveedor options ────────────────────────────────────────────────────────
   readonly proveedorOptions = [
     { label: 'YouTube', value: 'youtube' as const },
@@ -349,6 +365,8 @@ export class CursoEditarComponent implements OnInit {
   openAddVideoDialog(sectionId: string): void {
     this.addVideoSectionId.set(sectionId);
     this.videoForm.set({ titulo: '', url: '', proveedor: 'youtube', duracionS: undefined, descripcion: '' });
+    this.videoTituloTouched.set(false);
+    this.videoUrlTouched.set(false);
     this.addVideoVisible.set(true);
   }
 

@@ -16,15 +16,23 @@
  *  - Empty state DOM: .notif-panel__empty / "Sin notificaciones" renders when list is empty
  *  - Poll: setInterval is called on init (via fake timers)
  *  - ngOnDestroy clears the poll interval
+ *  - REQ-CRUMB: pageTitle() defaults to "" when no titled route is active
+ *  - REQ-CRUMB: .bar__crumb is NOT rendered when pageTitle is empty
+ *  - REQ-CRUMB (W-2 closure): NavigationEnd to a child route with data.title sets pageTitle + renders .bar__crumb
  */
 import { TestBed } from '@angular/core/testing';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { Component } from '@angular/core';
 import { provideRouter, Router } from '@angular/router';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { signal } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { Popover } from 'primeng/popover';
+
+/** Minimal stub component used as a navigation target to provide a real ActivatedRoute child. */
+@Component({ selector: 'app-stub-page', standalone: true, template: '<p>stub</p>' })
+class StubPageComponent {}
 
 import { PlatformLayoutComponent } from './platform-layout.component';
 import { NotificationService } from '@core/services/notificationService/notification.service';
@@ -288,5 +296,99 @@ describe('PlatformLayoutComponent — bell & notifications', () => {
 
     // After destroy, no more poll calls
     expect(notifServiceSpy.getUnreadCount).not.toHaveBeenCalled();
+  });
+
+  // ── REQ-CRUMB: pageTitle breadcrumb ──────────────────────────────────────────
+
+  it('REQ-CRUMB: pageTitle() defaults to "" on init with provideRouter([])', async () => {
+    const fixture = TestBed.createComponent(PlatformLayoutComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(fixture.componentInstance.pageTitle()).toBe('');
+  });
+
+  it('REQ-CRUMB: .bar__crumb is NOT rendered when pageTitle is empty', async () => {
+    const fixture = TestBed.createComponent(PlatformLayoutComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const crumb = fixture.nativeElement.querySelector('.bar__crumb');
+    expect(crumb).toBeNull();
+  });
+});
+
+// ── REQ-CRUMB W-2 closure: NavigationEnd walker exercises deepestTitle() ─────
+// This describe block uses its OWN TestBed configuration with a titled route so
+// it does NOT share state with the bell/notification suite above.
+//
+// WHY a separate describe: provideRouter config differs (adds a titled child route)
+// and TestBed.resetTestingModule() in the outer afterEach would interfere.
+//
+// This test makes the `while (r.firstChild)` walk LOAD-BEARING:
+// removing the walker (while r.firstChild loop) causes this test to fail because
+// the root ActivatedRoute has no data.title — only its firstChild does.
+
+describe('PlatformLayoutComponent — REQ-CRUMB navigation walker (W-2)', () => {
+  let notifServiceSpy: Partial<NotificationService>;
+  let authServiceSpy: Partial<AuthService>;
+
+  beforeEach(async () => {
+    notifServiceSpy = {
+      getMine: vi.fn().mockResolvedValue([]),
+      getUnreadCount: vi.fn().mockResolvedValue(0),
+      markRead: vi.fn().mockResolvedValue(undefined),
+      markAllRead: vi.fn().mockResolvedValue(undefined),
+    };
+
+    authServiceSpy = {
+      user: signal<UserPublic | null>({ id: 'u-1', nombre: 'Test User', email: 'test@test.com', roles: [] }),
+      userRoles: signal([]),
+      logout: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await TestBed.configureTestingModule({
+      imports: [PlatformLayoutComponent, StubPageComponent],
+      providers: [
+        { provide: NotificationService, useValue: notifServiceSpy },
+        { provide: AuthService, useValue: authServiceSpy },
+        // Route carries data.title — this is the titled child the walker must find.
+        provideRouter([{ path: 'x', component: StubPageComponent, data: { title: 'Test Page' } }]),
+        provideAnimationsAsync(),
+        ConfirmationService,
+        MessageService,
+      ],
+    }).compileComponents();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    TestBed.resetTestingModule();
+  });
+
+  it('REQ-CRUMB (W-2): NavigationEnd to a titled child route sets pageTitle() and renders .bar__crumb', async () => {
+    const fixture = TestBed.createComponent(PlatformLayoutComponent);
+    const router  = TestBed.inject(Router);
+
+    // Initial render — no navigation yet, pageTitle should be empty.
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // Navigate to the titled route.  navigateByUrl returns a Promise that
+    // resolves after the navigation completes (NavigationEnd has fired).
+    await router.navigateByUrl('/x');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // Assert: pageTitle signal was updated by the NavigationEnd handler.
+    expect(fixture.componentInstance.pageTitle()).toBe('Test Page');
+
+    // Assert: .bar__crumb is rendered with the page title text.
+    const crumb: HTMLElement | null = fixture.nativeElement.querySelector('.bar__crumb');
+    expect(crumb).not.toBeNull();
+    expect(crumb!.textContent).toContain('Test Page');
   });
 });

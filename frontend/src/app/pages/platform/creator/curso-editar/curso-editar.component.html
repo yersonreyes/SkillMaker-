@@ -38,7 +38,11 @@
               class="field__input"
               [ngModel]="titulo()"
               (ngModelChange)="titulo.set($event)"
+              (blur)="tituloTouched.set(true)"
               placeholder="Nombre del curso" />
+            @if (tituloInvalid()) {
+              <p class="field__error">El título es obligatorio.</p>
+            }
           </div>
 
           <div class="field">
@@ -335,7 +339,11 @@
       <input id="vid-titulo" pInputText type="text" class="field__input"
         [ngModel]="videoForm().titulo"
         (ngModelChange)="videoForm.update(f => ({ ...f, titulo: $event }))"
+        (blur)="videoTituloTouched.set(true)"
         placeholder="Nombre del video" />
+      @if (videoTituloInvalid()) {
+        <p class="field__error">El título es obligatorio.</p>
+      }
     </div>
 
     <div class="field field--span">
@@ -343,7 +351,11 @@
       <input id="vid-url" pInputText type="text" class="field__input"
         [ngModel]="videoForm().url"
         (ngModelChange)="videoForm.update(f => ({ ...f, url: $event }))"
+        (blur)="videoUrlTouched.set(true)"
         placeholder="https://www.youtube.com/watch?v=..." />
+      @if (videoUrlInvalid()) {
+        <p class="field__error">Ingresa una URL válida (http/https).</p>
+      }
     </div>
 
     <div class="field">

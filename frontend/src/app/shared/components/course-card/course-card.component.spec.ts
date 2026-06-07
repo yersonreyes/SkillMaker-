@@ -226,4 +226,32 @@ describe('CourseCardComponent', () => {
     const statItems = el.querySelectorAll('.course-card__stat');
     expect(statItems.length).toBe(0);
   });
+
+  // ── REQ-LAZY: lazy loading attributes ─────────────────────────────────────
+
+  it('REQ-LAZY: img has loading="lazy" and decoding="async" when miniaturaUrl is non-null', async () => {
+    const fixture = TestBed.createComponent(CourseCardComponent);
+    fixture.componentInstance.card = MOCK_CARD_FULL;
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const el: HTMLElement = fixture.nativeElement;
+    const img = el.querySelector('.course-card__cover-img') as HTMLImageElement;
+    expect(img).not.toBeNull();
+    expect(img.getAttribute('loading')).toBe('lazy');
+    expect(img.getAttribute('decoding')).toBe('async');
+  });
+
+  it('REQ-LAZY: placeholder renders (no lazy img) when miniaturaUrl is empty string', async () => {
+    const fixture = TestBed.createComponent(CourseCardComponent);
+    fixture.componentInstance.card = MOCK_CARD_MINIMAL;
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const el: HTMLElement = fixture.nativeElement;
+    const img = el.querySelector('[loading="lazy"]');
+    const placeholder = el.querySelector('.course-card__cover-placeholder');
+    expect(img).toBeNull();
+    expect(placeholder).not.toBeNull();
+  });
 });

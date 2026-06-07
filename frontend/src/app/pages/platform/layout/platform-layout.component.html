@@ -145,6 +145,9 @@
         <span class="bar__status-label">ONLINE</span>
         <span class="bar__sep" aria-hidden="true"></span>
         <span class="bar__channel">RED INTERNA DE CONOCIMIENTO</span>
+        @if (pageTitle()) {
+          <span class="bar__crumb">{{ primaryRole() }} <span class="bar__crumb-sep">/</span> {{ pageTitle() }}</span>
+        }
       </div>
 
       <div class="bar__actions">

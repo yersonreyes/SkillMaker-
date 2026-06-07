@@ -61,7 +61,13 @@
   @if (phase() === 'taking') {
     <section class="tomar__taking">
       <div class="tomar__progress-bar">
-        <p class="tomar__intento-label">Intento {{ attemptNumero() }}</p>
+        <div class="tomar__progress-meta">
+          <p class="tomar__intento-label">Intento {{ attemptNumero() }}</p>
+          <span class="tomar__progress-count">respondidas {{answeredCount()}}/{{totalQuestions()}}</span>
+        </div>
+        <div class="tomar__progress-track">
+          <div class="tomar__progress-fill" [style.width.%]="totalQuestions() ? (answeredCount()/totalQuestions())*100 : 0"></div>
+        </div>
       </div>
 
       @for (question of questions(); track question.id; let i = $index) {

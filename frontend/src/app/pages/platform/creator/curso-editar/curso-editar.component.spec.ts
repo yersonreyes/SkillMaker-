@@ -625,4 +625,104 @@ describe('CursoEditarComponent', () => {
 
     expect(sectionServiceSpy.listByCourse).toHaveBeenCalledWith('c-1');
   });
+
+  // ── REQ-VALIDATION: inline validation for curso-editar ────────────────────
+
+  it('REQ-VALIDATION: titulo .field__error is NOT visible when untouched', async () => {
+    const fixture = TestBed.createComponent(CursoEditarComponent);
+    const comp = fixture.componentInstance;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (comp as any)['courseId'] = 'c-1';
+    await comp.loadCourse();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // No error visible when untouched (even though titulo might be empty initially)
+    expect(comp.tituloTouched()).toBe(false);
+    expect(comp.tituloInvalid()).toBe(false);
+  });
+
+  it('REQ-VALIDATION: titulo .field__error appears when touched with empty value', async () => {
+    const fixture = TestBed.createComponent(CursoEditarComponent);
+    const comp = fixture.componentInstance;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (comp as any)['courseId'] = 'c-1';
+    // Load course — titulo will be 'Go avanzado' initially
+    await comp.loadCourse();
+
+    // Now clear titulo and touch
+    comp.titulo.set('');
+    comp.tituloTouched.set(true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(comp.tituloInvalid()).toBe(true);
+    const el: HTMLElement = fixture.nativeElement;
+    const error = el.querySelector('.field__error');
+    expect(error).not.toBeNull();
+  });
+
+  it('REQ-VALIDATION: titulo .field__error is hidden when titulo has valid value and touched', async () => {
+    const fixture = TestBed.createComponent(CursoEditarComponent);
+    const comp = fixture.componentInstance;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (comp as any)['courseId'] = 'c-1';
+    await comp.loadCourse();
+
+    comp.titulo.set('Go avanzado');
+    comp.tituloTouched.set(true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(comp.tituloInvalid()).toBe(false);
+  });
+
+  it('REQ-VALIDATION: videoUrlInvalid is true when url is empty and touched', () => {
+    const fixture = TestBed.createComponent(CursoEditarComponent);
+    const comp = fixture.componentInstance;
+
+    comp.videoForm.set({ titulo: 'Test', url: '', proveedor: 'youtube', duracionS: undefined, descripcion: '' });
+    comp.videoUrlTouched.set(true);
+
+    expect(comp.videoUrlInvalid()).toBe(true);
+  });
+
+  it('REQ-VALIDATION: videoUrlInvalid is true when url is invalid (no http) and touched', () => {
+    const fixture = TestBed.createComponent(CursoEditarComponent);
+    const comp = fixture.componentInstance;
+
+    comp.videoForm.set({ titulo: 'Test', url: 'not-a-url', proveedor: 'youtube', duracionS: undefined, descripcion: '' });
+    comp.videoUrlTouched.set(true);
+
+    expect(comp.videoUrlInvalid()).toBe(true);
+  });
+
+  it('REQ-VALIDATION: videoUrlInvalid is false when url is valid http and touched', () => {
+    const fixture = TestBed.createComponent(CursoEditarComponent);
+    const comp = fixture.componentInstance;
+
+    comp.videoForm.set({ titulo: 'Test', url: 'https://youtube.com/watch?v=abc', proveedor: 'youtube', duracionS: undefined, descripcion: '' });
+    comp.videoUrlTouched.set(true);
+
+    expect(comp.videoUrlInvalid()).toBe(false);
+  });
+
+  it('REQ-VALIDATION: video touched signals reset on openAddVideoDialog()', () => {
+    const fixture = TestBed.createComponent(CursoEditarComponent);
+    const comp = fixture.componentInstance;
+
+    comp.videoTituloTouched.set(true);
+    comp.videoUrlTouched.set(true);
+
+    comp.openAddVideoDialog('sec-1');
+
+    expect(comp.videoTituloTouched()).toBe(false);
+    expect(comp.videoUrlTouched()).toBe(false);
+  });
 });

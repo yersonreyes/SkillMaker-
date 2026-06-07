@@ -52,7 +52,9 @@ export class EvaluacionTomarComponent implements OnInit {
   // ── Computed ───────────────────────────────────────────────────────────────
 
   readonly isAprobado = computed(() => this.result()?.aprobado ?? false);
-  readonly puntaje    = computed(() => this.result()?.puntaje ?? 0);
+  readonly puntaje        = computed(() => this.result()?.puntaje ?? 0);
+  readonly answeredCount  = computed(() => Object.keys(this.answersMap()).length);
+  readonly totalQuestions = computed(() => this.questions().length);
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 

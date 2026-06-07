@@ -21,12 +21,20 @@
         <div class="field">
           <label class="field__label" for="cre-nota">Nota minima (0–100) <span class="req">*</span></label>
           <input id="cre-nota" pInputText type="number" class="field__input"
-            [(ngModel)]="createForm.notaMinima" min="0" max="100" placeholder="70" />
+            [(ngModel)]="createForm.notaMinima" min="0" max="100" placeholder="70"
+            (blur)="notaTouched.set(true)" />
+          @if (notaError()) {
+            <p class="field__error">La nota debe estar entre 0 y 100.</p>
+          }
         </div>
         <div class="field">
           <label class="field__label" for="cre-intentos">Intentos maximos <span class="req">*</span></label>
           <input id="cre-intentos" pInputText type="number" class="field__input"
-            [(ngModel)]="createForm.intentosMax" min="0" placeholder="0 = ilimitado" />
+            [(ngModel)]="createForm.intentosMax" min="0" placeholder="0 = ilimitado"
+            (blur)="intentosTouched.set(true)" />
+          @if (intentosError()) {
+            <p class="field__error">Los intentos no pueden ser negativos.</p>
+          }
         </div>
         <div class="eeval__form-actions">
           <button class="btn btn--cyan" type="button" [disabled]="saving()" (click)="createEvaluation()">
@@ -47,13 +55,21 @@
           <div class="field">
             <label class="field__label" for="ev-nota">Nota minima (0–100) <span class="req">*</span></label>
             <input id="ev-nota" pInputText type="number" class="field__input"
-              [(ngModel)]="createForm.notaMinima" min="0" max="100" />
+              [(ngModel)]="createForm.notaMinima" min="0" max="100"
+              (blur)="notaTouched.set(true)" />
+            @if (notaError()) {
+              <p class="field__error">La nota debe estar entre 0 y 100.</p>
+            }
           </div>
           <div class="field">
             <label class="field__label" for="ev-intentos">Intentos maximos</label>
             <input id="ev-intentos" pInputText type="number" class="field__input"
-              [(ngModel)]="createForm.intentosMax" min="0" />
+              [(ngModel)]="createForm.intentosMax" min="0"
+              (blur)="intentosTouched.set(true)" />
             <span class="field__hint">0 = intentos ilimitados</span>
+            @if (intentosError()) {
+              <p class="field__error">Los intentos no pueden ser negativos.</p>
+            }
           </div>
           <div class="eeval__form-actions">
             <button class="btn btn--cyan" type="button" [disabled]="saving()" (click)="saveEvaluation()">
@@ -173,7 +189,11 @@
   <div class="field">
     <label class="field__label" for="q-enunciado">Enunciado <span class="req">*</span></label>
     <textarea id="q-enunciado" pTextarea rows="3" class="field__input field__input--area"
-      [(ngModel)]="questionForm.enunciado" placeholder="Escribe la pregunta..."></textarea>
+      [(ngModel)]="questionForm.enunciado" placeholder="Escribe la pregunta..."
+      (blur)="enunciadoTouched.set(true)"></textarea>
+    @if (enunciadoError()) {
+      <p class="field__error">El enunciado es obligatorio.</p>
+    }
   </div>
 
   <div class="dlg__row">

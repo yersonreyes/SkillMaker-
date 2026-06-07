@@ -92,6 +92,28 @@ export class EvaluacionEditarComponent implements OnInit {
   /** Per-question draft text for the inline "add option" input on persisted questions. */
   readonly optionDrafts = signal<Record<string, string>>({});
 
+  // ── Validation touched flags (signal-based, works with both TWO-WAY ngModel over plain objects) ──
+
+  readonly notaTouched       = signal<boolean>(false);
+  readonly intentosTouched   = signal<boolean>(false);
+  readonly enunciadoTouched  = signal<boolean>(false);
+
+  /** Returns true when notaMinima is touched and out of [0, 100]. Uses a method (not computed)
+   * because createForm is a plain object field — computed() won't auto-track non-signal reads. */
+  notaError(): boolean {
+    return this.notaTouched() && (this.createForm.notaMinima < 0 || this.createForm.notaMinima > 100);
+  }
+
+  /** Returns true when intentosMax is touched and negative. */
+  intentosError(): boolean {
+    return this.intentosTouched() && this.createForm.intentosMax < 0;
+  }
+
+  /** Returns true when enunciado is touched and empty. */
+  enunciadoError(): boolean {
+    return this.enunciadoTouched() && !this.questionForm.enunciado.trim();
+  }
+
   // ── tipo options for the Select dropdown ─────────────────────────────────────
 
   readonly tipoOptions = [
@@ -186,6 +208,7 @@ export class EvaluacionEditarComponent implements OnInit {
     this.questionForm = { enunciado: '', tipo: 'opcion_multiple', puntaje: 10 };
     this.pendingOptions.set([]);
     this.optionValidationError.set('');
+    this.enunciadoTouched.set(false);
     this.addQuestionVisible.set(true);
   }
 

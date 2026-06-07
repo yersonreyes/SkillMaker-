@@ -34,11 +34,11 @@
     <p-table [value]="courses()" [tableStyle]="{ 'min-width': '50rem' }">
       <ng-template pTemplate="header">
         <tr>
-          <th>Curso</th>
+          <th pSortableColumn="titulo">Curso <p-sortIcon field="titulo" /></th>
           <th>Estado</th>
-          <th>Inscripciones</th>
-          <th>Intentos</th>
-          <th>Tasa de aprobacion</th>
+          <th pSortableColumn="enrollments">Inscripciones <p-sortIcon field="enrollments" /></th>
+          <th pSortableColumn="attempts">Intentos <p-sortIcon field="attempts" /></th>
+          <th pSortableColumn="approvalRate">Tasa de aprobacion <p-sortIcon field="approvalRate" /></th>
         </tr>
       </ng-template>
       <ng-template pTemplate="body" let-row>

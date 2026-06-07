@@ -342,6 +342,96 @@ describe('EvaluacionEditarComponent', () => {
     expect(questionServiceSpy.deleteOption).toHaveBeenCalledWith('opt-1');
   });
 
+  // ── REQ-VALIDATION: inline validation for evaluacion-editar ─────────────────
+
+  it('REQ-VALIDATION: notaError() is false when untouched', () => {
+    const fixture = TestBed.createComponent(EvaluacionEditarComponent);
+    const comp = fixture.componentInstance;
+
+    comp.createForm.notaMinima = 70;
+
+    expect(comp.notaError()).toBe(false);
+  });
+
+  it('REQ-VALIDATION: notaError() is true when touched and value out of range (110)', () => {
+    const fixture = TestBed.createComponent(EvaluacionEditarComponent);
+    const comp = fixture.componentInstance;
+
+    comp.createForm.notaMinima = 110;
+    comp.notaTouched.set(true);
+
+    expect(comp.notaError()).toBe(true);
+  });
+
+  it('REQ-VALIDATION: notaError() is true when touched and value negative (-1)', () => {
+    const fixture = TestBed.createComponent(EvaluacionEditarComponent);
+    const comp = fixture.componentInstance;
+
+    comp.createForm.notaMinima = -1;
+    comp.notaTouched.set(true);
+
+    expect(comp.notaError()).toBe(true);
+  });
+
+  it('REQ-VALIDATION: notaError() is false when touched and value valid (70)', () => {
+    const fixture = TestBed.createComponent(EvaluacionEditarComponent);
+    const comp = fixture.componentInstance;
+
+    comp.createForm.notaMinima = 70;
+    comp.notaTouched.set(true);
+
+    expect(comp.notaError()).toBe(false);
+  });
+
+  it('REQ-VALIDATION: intentosError() is true when touched and value negative (-1)', () => {
+    const fixture = TestBed.createComponent(EvaluacionEditarComponent);
+    const comp = fixture.componentInstance;
+
+    comp.createForm.intentosMax = -1;
+    comp.intentosTouched.set(true);
+
+    expect(comp.intentosError()).toBe(true);
+  });
+
+  it('REQ-VALIDATION: intentosError() is false when touched and value is 0', () => {
+    const fixture = TestBed.createComponent(EvaluacionEditarComponent);
+    const comp = fixture.componentInstance;
+
+    comp.createForm.intentosMax = 0;
+    comp.intentosTouched.set(true);
+
+    expect(comp.intentosError()).toBe(false);
+  });
+
+  it('REQ-VALIDATION: enunciadoError() is true when touched and enunciado is empty', () => {
+    const fixture = TestBed.createComponent(EvaluacionEditarComponent);
+    const comp = fixture.componentInstance;
+
+    comp.questionForm.enunciado = '';
+    comp.enunciadoTouched.set(true);
+
+    expect(comp.enunciadoError()).toBe(true);
+  });
+
+  it('REQ-VALIDATION: enunciadoError() is false when untouched', () => {
+    const fixture = TestBed.createComponent(EvaluacionEditarComponent);
+    const comp = fixture.componentInstance;
+
+    comp.questionForm.enunciado = '';
+
+    expect(comp.enunciadoError()).toBe(false);
+  });
+
+  it('REQ-VALIDATION: enunciadoTouched resets to false on openAddQuestionDialog()', () => {
+    const fixture = TestBed.createComponent(EvaluacionEditarComponent);
+    const comp = fixture.componentInstance;
+
+    comp.enunciadoTouched.set(true);
+    comp.openAddQuestionDialog();
+
+    expect(comp.enunciadoTouched()).toBe(false);
+  });
+
   // ── V/F radio: updateVFOption calls QuestionService.updateOption ─────────────
 
   it('setVFCorrect() calls QuestionService.updateOption with correcta=true for the selected option', async () => {

@@ -349,6 +349,70 @@ describe('EvaluacionTomarComponent', () => {
     expect(comp.startBlocked()).toBe(true);
     expect(comp.questions()).toHaveLength(0);
   });
+
+  // ── REQ-PROGRESS: answeredCount computed ────────────────────────────────────────
+
+  it('REQ-PROGRESS: answeredCount() is 0 on init (no answers)', async () => {
+    const fixture = await createComponent(attemptSpy, uiSpy);
+    const comp = fixture.componentInstance;
+
+    expect(comp.answeredCount()).toBe(0);
+  });
+
+  it('REQ-PROGRESS: answeredCount() increments to 1 after selectOption', async () => {
+    const fixture = await createComponent(attemptSpy, uiSpy);
+    const comp = fixture.componentInstance;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (comp as any)['evaluationId'] = 'eval-1';
+    await comp.startAttempt();
+    expect(comp.answeredCount()).toBe(0);
+
+    await comp.selectOption('q-1', 'opt-paris');
+    expect(comp.answeredCount()).toBe(1);
+  });
+
+  it('REQ-PROGRESS: totalQuestions() matches questions().length after start', async () => {
+    const fixture = await createComponent(attemptSpy, uiSpy);
+    const comp = fixture.componentInstance;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (comp as any)['evaluationId'] = 'eval-1';
+    await comp.startAttempt();
+
+    expect(comp.totalQuestions()).toBe(2);
+  });
+
+  it('REQ-PROGRESS: template shows "respondidas 0/2" on start (before any answer)', async () => {
+    const fixture = await createComponent(attemptSpy, uiSpy);
+    const comp = fixture.componentInstance;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (comp as any)['evaluationId'] = 'eval-1';
+    await comp.startAttempt();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.textContent).toContain('respondidas 0/2');
+  });
+
+  it('REQ-PROGRESS: template shows "respondidas 1/2" after one answer selected', async () => {
+    const fixture = await createComponent(attemptSpy, uiSpy);
+    const comp = fixture.componentInstance;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (comp as any)['evaluationId'] = 'eval-1';
+    await comp.startAttempt();
+    await comp.selectOption('q-1', 'opt-paris');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.textContent).toContain('respondidas 1/2');
+  });
 });
 
 // ── FE-4-F LOAD-BEARING: navigation uses absolute /platform path ───────────────────
