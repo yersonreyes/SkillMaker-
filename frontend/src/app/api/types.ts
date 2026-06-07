@@ -265,7 +265,7 @@ export interface paths {
     };
   };
   "/catalog": {
-    /** Retorna una página de cursos con estado='aprobado'. Soporta ?page, ?size, ?q (ILIKE titulo). */
+    /** Retorna una página de cursos con estado='aprobado'. Soporta ?page, ?size, ?q (ILIKE titulo), */
     get: {
       parameters: {
         query: {
@@ -275,12 +275,22 @@ export interface paths {
           size?: number;
           /** Filtro ILIKE en titulo */
           q?: string;
+          /** basico|intermedio|avanzado */
+          nivel?: string;
+          /** UUID(s) de categoría, repetible → semántica OR */
+          categoria?: string[];
+          /** recientes|titulo (default recientes) */
+          sort?: string;
         };
       };
       responses: {
         /** Página de CatalogCourseCard (items, page, size, total, totalPages) */
         200: {
           schema: { [key: string]: unknown };
+        };
+        /** filtro inválido (nivel o sort fuera del allow-list) */
+        400: {
+          schema: definitions["httperr.Error"];
         };
         /** Unauthorized */
         401: {

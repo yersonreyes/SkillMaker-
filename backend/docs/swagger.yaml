@@ -1276,7 +1276,7 @@ paths:
   /catalog:
     get:
       description: Retorna una página de cursos con estado='aprobado'. Soporta ?page,
-        ?size, ?q (ILIKE titulo).
+        ?size, ?q (ILIKE titulo),
       parameters:
       - description: Página (default 1)
         in: query
@@ -1290,6 +1290,21 @@ paths:
         in: query
         name: q
         type: string
+      - description: basico|intermedio|avanzado
+        in: query
+        name: nivel
+        type: string
+      - collectionFormat: csv
+        description: UUID(s) de categoría, repetible → semántica OR
+        in: query
+        items:
+          type: string
+        name: categoria
+        type: array
+      - description: recientes|titulo (default recientes)
+        in: query
+        name: sort
+        type: string
       produces:
       - application/json
       responses:
@@ -1297,6 +1312,10 @@ paths:
           description: Página de CatalogCourseCard (items, page, size, total, totalPages)
           schema:
             type: object
+        "400":
+          description: filtro inválido (nivel o sort fuera del allow-list)
+          schema:
+            $ref: '#/definitions/httperr.Error'
         "401":
           description: Unauthorized
           schema:

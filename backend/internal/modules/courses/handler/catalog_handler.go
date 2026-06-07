@@ -13,6 +13,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"github.com/yersonreyes/SkillMaker-/backend/internal/middleware"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses/dto"
@@ -48,24 +49,77 @@ func RegisterCatalog(protectedGrp *gin.RouterGroup, svc service.Service) {
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
+// validNivel reports whether nivel is a valid closed-allow-list value (or empty = no filter).
+// ADR-4: handler owns validation; empty = no filter; invalid = 400.
+func validNivel(s string) bool {
+	return s == "" || s == "basico" || s == "intermedio" || s == "avanzado"
+}
+
+// validSort reports whether sort is a valid closed-allow-list value (or empty = default).
+// ADR-4: handler owns validation; empty = default recientes; invalid = 400.
+func validSort(s string) bool {
+	return s == "" || s == "recientes" || s == "titulo"
+}
+
 // ListCatalog godoc
 // @Summary     Lista cursos aprobados (catálogo público para alumnos)
-// @Description Retorna una página de cursos con estado='aprobado'. Soporta ?page, ?size, ?q (ILIKE titulo).
+// @Description Retorna una página de cursos con estado='aprobado'. Soporta ?page, ?size, ?q (ILIKE titulo),
+//
+//	?nivel (basico|intermedio|avanzado), ?categoria (UUID, repetible, OR), ?sort (recientes|titulo).
+//
 // @Tags        catalog
 // @Produce     json
 // @Security    BearerAuth
-// @Param       page query int    false "Página (default 1)"
-// @Param       size query int    false "Tamaño de página (max 100, default 20)"
-// @Param       q    query string false "Filtro ILIKE en titulo"
+// @Param       page     query int      false "Página (default 1)"
+// @Param       size     query int      false "Tamaño de página (max 100, default 20)"
+// @Param       q        query string   false "Filtro ILIKE en titulo"
+// @Param       nivel    query string   false "basico|intermedio|avanzado"
+// @Param       categoria query []string false "UUID(s) de categoría, repetible → semántica OR"
+// @Param       sort     query string   false "recientes|titulo (default recientes)"
 // @Success     200 {object} object "Página de CatalogCourseCard (items, page, size, total, totalPages)"
+// @Failure     400 {object} httperr.Error "filtro inválido (nivel o sort fuera del allow-list)"
 // @Failure     401 {object} httperr.Error
 // @Failure     500 {object} httperr.Error
 // @Router      /catalog [get]
 func (h *CatalogHandler) ListCatalog(c *gin.Context) {
 	p := pagination.ParseParams(c)
-	q := c.Query("q")
 
-	page, err := h.svc.ListCatalog(c.Request.Context(), p, q)
+	nivel := c.Query("nivel")
+	sort := c.Query("sort")
+	cats := c.QueryArray("categoria") // repeated param: ?categoria=A&categoria=B (ADR-5)
+
+	// Validate closed allow-lists → 400 on invalid value (ADR-4).
+	if !validNivel(nivel) {
+		httperr.Render(c, httperr.BadRequest("INVALID_FILTER", "nivel inválido: debe ser basico, intermedio o avanzado"))
+		return
+	}
+	if !validSort(sort) {
+		httperr.Render(c, httperr.BadRequest("INVALID_FILTER", "sort inválido: debe ser recientes o titulo"))
+		return
+	}
+	// Validate categoria values are well-formed UUIDs (REQ-FILTER-CATEGORIA + REQ-SEC).
+	// A malformed value is rejected immediately (400); a well-formed but nonexistent UUID
+	// passes through and produces an empty result (match-nothing — ADR-4).
+	for _, cat := range cats {
+		if _, err := uuid.Parse(cat); err != nil {
+			httperr.Render(c, httperr.BadRequest("INVALID_FILTER", "categoria inválida: cada valor debe ser un UUID válido"))
+			return
+		}
+	}
+
+	// Default empty sort to "recientes" before forwarding.
+	if sort == "" {
+		sort = "recientes"
+	}
+
+	filter := service.CatalogFilter{
+		Q:            c.Query("q"),
+		Nivel:        nivel,
+		CategoriaIDs: cats,
+		Sort:         sort,
+	}
+
+	page, err := h.svc.ListCatalog(c.Request.Context(), p, filter)
 	if err != nil {
 		httperr.Render(c, httperr.Internal(err.Error()))
 		return

@@ -115,7 +115,7 @@ func (n *nilCourseSvc) ListByEstado(_ context.Context, _ string) ([]coursesServi
 }
 
 // ── C2.4 catalog + enrollment additions ──────────────────────────────────────
-func (n *nilCourseSvc) ListCatalog(_ context.Context, _ pagination.Params, _ string) (pagination.Page[coursesService.CatalogCourseModel], error) {
+func (n *nilCourseSvc) ListCatalog(_ context.Context, _ pagination.Params, _ coursesService.CatalogFilter) (pagination.Page[coursesService.CatalogCourseModel], error) {
 	return pagination.Page[coursesService.CatalogCourseModel]{}, nil
 }
 func (n *nilCourseSvc) GetCatalogDetail(_ context.Context, _, _ string) (*coursesService.CatalogDetailModel, error) {

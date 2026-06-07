@@ -482,7 +482,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Retorna una página de cursos con estado='aprobado'. Soporta ?page, ?size, ?q (ILIKE titulo).",
+                "description": "Retorna una página de cursos con estado='aprobado'. Soporta ?page, ?size, ?q (ILIKE titulo),",
                 "produces": [
                     "application/json"
                 ],
@@ -508,6 +508,28 @@ const docTemplate = `{
                         "description": "Filtro ILIKE en titulo",
                         "name": "q",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "basico|intermedio|avanzado",
+                        "name": "nivel",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "UUID(s) de categoría, repetible → semántica OR",
+                        "name": "categoria",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "recientes|titulo (default recientes)",
+                        "name": "sort",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -515,6 +537,12 @@ const docTemplate = `{
                         "description": "Página de CatalogCourseCard (items, page, size, total, totalPages)",
                         "schema": {
                             "type": "object"
+                        }
+                    },
+                    "400": {
+                        "description": "filtro inválido (nivel o sort fuera del allow-list)",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
                         }
                     },
                     "401": {

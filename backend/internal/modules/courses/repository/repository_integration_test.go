@@ -1211,7 +1211,7 @@ func TestListApproved_FiltersAndPaginates(t *testing.T) {
 	require.NoError(t, repo.UpdateEstado(context.Background(), aprobadoCourse.ID, domain.EstadoAprobado))
 
 	// ListApproved with no filter — only 1 aprobado should appear.
-	page, err := repo.ListApproved(context.Background(), pagination.Params{Page: 1, Size: 20}, "")
+	page, err := repo.ListApproved(context.Background(), pagination.Params{Page: 1, Size: 20}, repository.CatalogFilter{})
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), page.Total, "total must be 1 (only aprobado courses)")
 	assert.Len(t, page.Items, 1, "items must contain only the aprobado course")
@@ -1225,14 +1225,14 @@ func TestListApproved_FiltersAndPaginates(t *testing.T) {
 	require.NoError(t, repo.UpdateEstado(context.Background(), angularCourse.ID, domain.EstadoAprobado))
 
 	// Test ILIKE search: ?q=angular — must return only "Angular Avanzado".
-	filtered, err := repo.ListApproved(context.Background(), pagination.Params{Page: 1, Size: 20}, "angular")
+	filtered, err := repo.ListApproved(context.Background(), pagination.Params{Page: 1, Size: 20}, repository.CatalogFilter{Q: "angular"})
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), filtered.Total, "ILIKE filter must return only matching course")
 	assert.Equal(t, angularCourse.ID, filtered.Items[0].ID,
 		"ILIKE must find 'Angular Avanzado' via case-insensitive match on 'angular'")
 
 	// Pagination: 2 aprobado courses, size=1 → page 1 returns 1 item, totalPages=2.
-	paged, err := repo.ListApproved(context.Background(), pagination.Params{Page: 1, Size: 1}, "")
+	paged, err := repo.ListApproved(context.Background(), pagination.Params{Page: 1, Size: 1}, repository.CatalogFilter{})
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), paged.Total, "total must be 2 (two aprobado courses)")
 	assert.Equal(t, 2, paged.TotalPages, "totalPages must be ceil(2/1)=2")
@@ -1432,6 +1432,322 @@ func TestGetApprovedDetail_ReturnsOnlyAprobado(t *testing.T) {
 	_, err = repo.GetApprovedDetail(context.Background(), uuid.New().String())
 	assert.ErrorIs(t, err, repository.ErrCourseNotFound,
 		"GetApprovedDetail on missing id must return ErrCourseNotFound")
+}
+
+// ── catalog-filters integration tests (REQ-FILTER-NIVEL, REQ-FILTER-CATEGORIA, REQ-COMBINED, REQ-COMPAT) ──
+
+// seedAprobadoCourse creates a course with estado=aprobado and an optional nivel.
+// Returns the created course.
+func seedAprobadoCourse(t *testing.T, db *gorm.DB, repo repository.Repository, creadorID, titulo, nivel string) *domain.Course {
+	t.Helper()
+	c := seedCourse(t, repo, creadorID, titulo)
+	if nivel != "" {
+		err := db.Exec(`UPDATE course SET nivel = ? WHERE id = ?`, nivel, c.ID).Error
+		require.NoError(t, err, "seedAprobadoCourse: set nivel")
+	}
+	require.NoError(t, repo.UpdateEstado(context.Background(), c.ID, domain.EstadoAprobado))
+	return c
+}
+
+// seedCategoria inserts a categoria row with a unique nombre/slug (UUID-suffixed) and returns its id.
+// Uses a UUID suffix on both nombre and slug to avoid collisions with migration-seeded rows.
+func seedCategoria(t *testing.T, db *gorm.DB, nombre, slug string) string {
+	t.Helper()
+	id := uuid.New().String()
+	// Append UUID suffix to avoid UNIQUE constraint conflict with migration-seeded categorias.
+	suffix := id[:8]
+	uniqueNombre := nombre + "-" + suffix
+	uniqueSlug := slug + "-" + suffix
+	err := db.Exec(
+		`INSERT INTO categoria (id, nombre, slug) VALUES (?, ?, ?)`,
+		id, uniqueNombre, uniqueSlug,
+	).Error
+	require.NoError(t, err, "seedCategoria: insert")
+	return id
+}
+
+// tagCourse inserts a course_categoria row.
+func tagCourse(t *testing.T, db *gorm.DB, courseID, categoriaID string) {
+	t.Helper()
+	err := db.Exec(
+		`INSERT INTO course_categoria (course_id, categoria_id) VALUES (?, ?)`,
+		courseID, categoriaID,
+	).Error
+	require.NoError(t, err, "tagCourse: insert")
+}
+
+// TestListApproved_NivelFilter_ReturnsOnlyMatchingNivel verifies REQ-FILTER-NIVEL:
+// - Nivel:"intermedio" returns only intermedio courses; excludes basico/avanzado/NULL-nivel.
+// - Nivel:"" includes NULL-nivel aprobado courses (no filter = today's behavior).
+// Refs: REQ-FILTER-NIVEL, AC1.
+func TestListApproved_NivelFilter_ReturnsOnlyMatchingNivel(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+
+	cBasico := seedAprobadoCourse(t, db, repo, creadorID, "Basico Go", "basico")
+	cIntermedio := seedAprobadoCourse(t, db, repo, creadorID, "Intermedio Python", "intermedio")
+	cAvanzado := seedAprobadoCourse(t, db, repo, creadorID, "Avanzado Rust", "avanzado")
+	cNullNivel := seedAprobadoCourse(t, db, repo, creadorID, "Sin Nivel Course", "")
+
+	p := pagination.Params{Page: 1, Size: 20}
+
+	// Filter: intermedio — only cIntermedio must appear.
+	page, err := repo.ListApproved(context.Background(), p, repository.CatalogFilter{Nivel: "intermedio"})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), page.Total, "nivel=intermedio must return exactly 1 course")
+	assert.Equal(t, cIntermedio.ID, page.Items[0].ID, "must be the intermedio course")
+
+	// Filter: basico — only cBasico.
+	page, err = repo.ListApproved(context.Background(), p, repository.CatalogFilter{Nivel: "basico"})
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), page.Total, "nivel=basico must return 1")
+	assert.Equal(t, cBasico.ID, page.Items[0].ID)
+
+	// Filter: avanzado — only cAvanzado.
+	page, err = repo.ListApproved(context.Background(), p, repository.CatalogFilter{Nivel: "avanzado"})
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), page.Total, "nivel=avanzado must return 1")
+	assert.Equal(t, cAvanzado.ID, page.Items[0].ID)
+
+	// Filter: intermedio must NOT return basico/avanzado/null.
+	page, err = repo.ListApproved(context.Background(), p, repository.CatalogFilter{Nivel: "intermedio"})
+	require.NoError(t, err)
+	for _, item := range page.Items {
+		assert.Equal(t, cIntermedio.ID, item.ID,
+			"nivel=intermedio filter must not return other nivel courses")
+	}
+
+	// No filter (Nivel:"") — all 4 aprobado courses appear, including NULL-nivel.
+	page, err = repo.ListApproved(context.Background(), p, repository.CatalogFilter{})
+	require.NoError(t, err)
+	assert.Equal(t, int64(4), page.Total, "no nivel filter must include NULL-nivel courses")
+	ids := make(map[string]bool)
+	for _, item := range page.Items {
+		ids[item.ID] = true
+	}
+	assert.True(t, ids[cNullNivel.ID], "NULL-nivel aprobado course must appear when no nivel filter")
+}
+
+// TestListApproved_CategoriaFilter_EXISTSSemijoin verifies REQ-FILTER-CATEGORIA:
+// - CategoriaIDs:[A,B] returns courses tagged A OR B using EXISTS semantics.
+// - A course tagged with BOTH A and B appears EXACTLY ONCE and total=1 (COUNT guard).
+// - Nonexistent well-formed UUID → empty page, total 0.
+// This is the ADVERSARIAL regression guard: if EXISTS is replaced by JOIN, this test MUST FAIL.
+// Refs: REQ-FILTER-CATEGORIA, ADR-2, AC2, AC6d.
+func TestListApproved_CategoriaFilter_EXISTSSemijoin(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+
+	catA := seedCategoria(t, db, "Prog", "prog")
+	catB := seedCategoria(t, db, "DevOps", "devops")
+	catC := seedCategoria(t, db, "Cloud", "cloud")
+
+	// courseOnlyA: tagged catA only.
+	courseOnlyA := seedAprobadoCourse(t, db, repo, creadorID, "Only A Course", "")
+	tagCourse(t, db, courseOnlyA.ID, catA)
+
+	// courseOnlyB: tagged catB only.
+	courseOnlyB := seedAprobadoCourse(t, db, repo, creadorID, "Only B Course", "")
+	tagCourse(t, db, courseOnlyB.ID, catB)
+
+	// courseBothAB: tagged catA AND catB — THIS is the duplicate-COUNT guard course.
+	courseBothAB := seedAprobadoCourse(t, db, repo, creadorID, "Both AB Course", "")
+	tagCourse(t, db, courseBothAB.ID, catA)
+	tagCourse(t, db, courseBothAB.ID, catB)
+
+	// courseOnlyC: tagged catC only — must NOT appear when filtering [A,B].
+	courseOnlyC := seedAprobadoCourse(t, db, repo, creadorID, "Only C Course", "")
+	tagCourse(t, db, courseOnlyC.ID, catC)
+
+	// courseNoTag: no tag — must NOT appear.
+	_ = seedAprobadoCourse(t, db, repo, creadorID, "No Tag Course", "")
+
+	p := pagination.Params{Page: 1, Size: 20}
+
+	// Filter [A,B] — expects courseOnlyA, courseOnlyB, courseBothAB (3 unique courses).
+	page, err := repo.ListApproved(context.Background(), p, repository.CatalogFilter{CategoriaIDs: []string{catA, catB}})
+	require.NoError(t, err)
+	// CORRECTNESS-CRITICAL: total must be 3 (not 4 — courseBothAB is counted once by EXISTS).
+	require.Equal(t, int64(3), page.Total,
+		"[AC6d] EXISTS semi-join: course tagged A+B must be counted ONCE, total must be 3 not 4")
+	require.Len(t, page.Items, 3,
+		"[AC6d] page items must have 3 courses, not 4 (EXISTS prevents row fan-out)")
+
+	gotIDs := make(map[string]bool)
+	for _, item := range page.Items {
+		assert.False(t, gotIDs[item.ID],
+			"[AC6d] each course must appear at most once — duplicate detected for %s", item.ID)
+		gotIDs[item.ID] = true
+	}
+	assert.True(t, gotIDs[courseOnlyA.ID], "courseOnlyA must appear in [A,B] filter")
+	assert.True(t, gotIDs[courseOnlyB.ID], "courseOnlyB must appear in [A,B] filter")
+	assert.True(t, gotIDs[courseBothAB.ID], "courseBothAB must appear in [A,B] filter")
+	assert.False(t, gotIDs[courseOnlyC.ID], "courseOnlyC (catC only) must NOT appear in [A,B] filter")
+
+	// Filter [A] only — courseOnlyA + courseBothAB; courseOnlyB must NOT appear.
+	pageA, err := repo.ListApproved(context.Background(), p, repository.CatalogFilter{CategoriaIDs: []string{catA}})
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), pageA.Total, "filter [A] must return 2 courses")
+	gotIDsA := make(map[string]bool)
+	for _, item := range pageA.Items {
+		gotIDsA[item.ID] = true
+	}
+	assert.False(t, gotIDsA[courseOnlyB.ID], "[AC6b] courseOnlyB must NOT appear in [A] filter")
+
+	// Nonexistent well-formed UUID — empty result, NOT error (REQ-FILTER-CATEGORIA).
+	ghostID := uuid.New().String()
+	pageGhost, err := repo.ListApproved(context.Background(), p, repository.CatalogFilter{CategoriaIDs: []string{ghostID}})
+	require.NoError(t, err, "nonexistent categoria UUID must not error (match-nothing)")
+	assert.Equal(t, int64(0), pageGhost.Total, "nonexistent categoria UUID must yield total=0")
+	assert.Empty(t, pageGhost.Items, "nonexistent categoria UUID must yield empty items")
+}
+
+// TestListApproved_SortFilter verifies REQ-SORT:
+// - Sort:"titulo" → titulo ASC.
+// - Sort:"recientes" and Sort:"" → publicado_en DESC NULLS LAST then created_at DESC.
+// Refs: REQ-SORT, ADR-3, AC3.
+func TestListApproved_SortFilter(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+
+	// Seed 3 courses with distinct títulos.
+	cZ := seedAprobadoCourse(t, db, repo, creadorID, "Zeta Go", "")
+	cA := seedAprobadoCourse(t, db, repo, creadorID, "Alpha Python", "")
+	cM := seedAprobadoCourse(t, db, repo, creadorID, "Mu Rust", "")
+
+	p := pagination.Params{Page: 1, Size: 20}
+
+	// Sort:"titulo" → titulo ASC → Alpha, Mu, Zeta.
+	page, err := repo.ListApproved(context.Background(), p, repository.CatalogFilter{Sort: "titulo"})
+	require.NoError(t, err)
+	require.Len(t, page.Items, 3, "all 3 aprobado courses must appear")
+	assert.Equal(t, cA.ID, page.Items[0].ID, "titulo ASC: Alpha must be first")
+	assert.Equal(t, cM.ID, page.Items[1].ID, "titulo ASC: Mu must be second")
+	assert.Equal(t, cZ.ID, page.Items[2].ID, "titulo ASC: Zeta must be third")
+
+	// Sort:"recientes" (default) → publicado_en DESC NULLS LAST then created_at DESC.
+	// Since publicado_en is NULL for all (seeded via UpdateEstado not UpdateEstadoPublicado),
+	// NULLS LAST means all fall to created_at DESC — most recently created first.
+	pageR, err := repo.ListApproved(context.Background(), p, repository.CatalogFilter{Sort: "recientes"})
+	require.NoError(t, err)
+	require.Len(t, pageR.Items, 3)
+	// cM was created last — must be first in created_at DESC.
+	assert.Equal(t, cM.ID, pageR.Items[0].ID, "recientes: most recently created must be first")
+
+	// Sort:"" (empty = default recientes).
+	pageDefault, err := repo.ListApproved(context.Background(), p, repository.CatalogFilter{})
+	require.NoError(t, err)
+	require.Len(t, pageDefault.Items, 3)
+	assert.Equal(t, cM.ID, pageDefault.Items[0].ID, "empty sort defaults to recientes ordering")
+}
+
+// TestListApproved_CombinedFilter verifies REQ-COMBINED:
+// All params compose with AND semantics; total reflects filtered set.
+// Refs: REQ-COMBINED, AC4.
+func TestListApproved_CombinedFilter(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+
+	catGo := seedCategoria(t, db, "Go", "go")
+
+	// cMatch: titulo contains "go", nivel=avanzado, tagged catGo.
+	cMatch := seedAprobadoCourse(t, db, repo, creadorID, "Advanced Go Microservices", "avanzado")
+	tagCourse(t, db, cMatch.ID, catGo)
+
+	// cWrongNivel: titulo contains "go", nivel=basico, tagged catGo.
+	cWrongNivel := seedAprobadoCourse(t, db, repo, creadorID, "Intro go tutorial", "basico")
+	tagCourse(t, db, cWrongNivel.ID, catGo)
+
+	// cNoTag: titulo contains "go", nivel=avanzado, NOT tagged catGo.
+	_ = seedAprobadoCourse(t, db, repo, creadorID, "go language basics", "avanzado")
+
+	// cNoCat: no tag, avanzado.
+	_ = seedAprobadoCourse(t, db, repo, creadorID, "Java Spring Boot", "avanzado")
+
+	p := pagination.Params{Page: 1, Size: 10}
+	filter := repository.CatalogFilter{
+		Q:            "go",
+		Nivel:        "avanzado",
+		CategoriaIDs: []string{catGo},
+		Sort:         "titulo",
+	}
+
+	page, err := repo.ListApproved(context.Background(), p, filter)
+	require.NoError(t, err)
+	// Only cMatch satisfies ALL conditions: titulo ILIKE go, nivel=avanzado, tagged catGo.
+	assert.Equal(t, int64(1), page.Total, "combined filter must return exactly 1 matching course")
+	require.Len(t, page.Items, 1)
+	assert.Equal(t, cMatch.ID, page.Items[0].ID, "only cMatch satisfies all combined filters")
+	_ = cWrongNivel
+}
+
+// TestListApproved_BaselineNoFilter_BackwardCompat verifies REQ-COMPAT (AC5):
+// Empty CatalogFilter == today's behavior (all aprobado, no filter).
+// Regression guard: calling with empty filter must produce the same behavior as the old q="" call.
+func TestListApproved_BaselineNoFilter_BackwardCompat(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+
+	c1 := seedAprobadoCourse(t, db, repo, creadorID, "Course One", "basico")
+	c2 := seedAprobadoCourse(t, db, repo, creadorID, "Course Two", "")
+	_ = seedCourse(t, repo, creadorID, "Draft Course") // borrador — must NOT appear
+
+	p := pagination.Params{Page: 1, Size: 20}
+	page, err := repo.ListApproved(context.Background(), p, repository.CatalogFilter{})
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), page.Total, "baseline: only aprobado courses (borrador excluded)")
+	ids := map[string]bool{}
+	for _, item := range page.Items {
+		ids[item.ID] = true
+	}
+	assert.True(t, ids[c1.ID], "baseline must include aprobado c1")
+	assert.True(t, ids[c2.ID], "baseline must include aprobado c2 (nil nivel)")
+}
+
+// TestListApproved_PaginatedTotal_ReflectsFilters verifies REQ-COMBINED count invariant:
+// paginated total with active filter = FILTERED total, not unfiltered catalog count.
+// Refs: REQ-COMBINED, AC4, Count-before-Select invariant.
+func TestListApproved_PaginatedTotal_ReflectsFilters(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+
+	catX := seedCategoria(t, db, "X", "x")
+
+	// Seed 5 aprobado courses: 2 tagged catX, 3 untagged.
+	c1 := seedAprobadoCourse(t, db, repo, creadorID, "Tagged 1", "")
+	tagCourse(t, db, c1.ID, catX)
+	c2 := seedAprobadoCourse(t, db, repo, creadorID, "Tagged 2", "")
+	tagCourse(t, db, c2.ID, catX)
+	_ = seedAprobadoCourse(t, db, repo, creadorID, "Untagged 1", "")
+	_ = seedAprobadoCourse(t, db, repo, creadorID, "Untagged 2", "")
+	_ = seedAprobadoCourse(t, db, repo, creadorID, "Untagged 3", "")
+
+	// Page size 1 with filter: total must be 2 (filtered), not 5 (all aprobado).
+	p := pagination.Params{Page: 1, Size: 1}
+	page, err := repo.ListApproved(context.Background(), p, repository.CatalogFilter{CategoriaIDs: []string{catX}})
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), page.Total,
+		"paginated total must reflect filtered count (2), not total catalog count (5)")
+	assert.Equal(t, 2, page.TotalPages, "totalPages must be ceil(2/1)=2 (filtered total)")
+	assert.Len(t, page.Items, 1, "page size 1 must return 1 item per page")
 }
 
 // ── Phase 3 repository tests (course-structure-v2) ────────────────────────────

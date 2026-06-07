@@ -226,8 +226,8 @@ func (m *MockCoursesRepository) ListByEstado(ctx context.Context, estado domain.
 
 // ── C2.4 additions: catalog + enrollment methods ─────────────────────────────
 
-func (m *MockCoursesRepository) ListApproved(ctx context.Context, p pagination.Params, q string) (pagination.Page[repository.CatalogCourseModel], error) {
-	args := m.Called(ctx, p, q)
+func (m *MockCoursesRepository) ListApproved(ctx context.Context, p pagination.Params, f repository.CatalogFilter) (pagination.Page[repository.CatalogCourseModel], error) {
+	args := m.Called(ctx, p, f)
 	return args.Get(0).(pagination.Page[repository.CatalogCourseModel]), args.Error(1)
 }
 
@@ -1850,30 +1850,65 @@ func TestListByEstado_EmptyList(t *testing.T) {
 
 // ── C2.4 catalog + enrollment service unit tests ──────────────────────────────
 
-// TestListCatalog_DelegatesAndMapsPage verifies ListCatalog maps page+q to repo.
-// course-structure-v2: also mocks ListCategoriasForCourses (no N+1).
+// TestListCatalog_DelegatesAndMapsPage verifies ListCatalog passes CatalogFilter verbatim to repo.
+// Phase 2 (catalog-filters): updated to use CatalogFilter struct; ListCategoriasForCourses still called.
+// Refs: REQ-COMPAT; ADR-1.
 func TestListCatalog_DelegatesAndMapsPage(t *testing.T) {
 	repo := &MockCoursesRepository{}
 	store := &mockStorageClient{}
 	svc := newSvcWithStore(repo, store)
 
 	p := pagination.Params{Page: 1, Size: 20}
+	filter := repository.CatalogFilter{Q: "go"}
 	repoPage := pagination.Page[repository.CatalogCourseModel]{
 		Items: []repository.CatalogCourseModel{
 			{ID: "c1", Titulo: "Go", Descripcion: "Desc", CreadorNombre: "Alice", CreatedAt: time.Now()},
 		},
 		Page: 1, Size: 20, Total: 1, TotalPages: 1,
 	}
-	repo.On("ListApproved", mock.Anything, p, "go").Return(repoPage, nil)
+	repo.On("ListApproved", mock.Anything, p, filter).Return(repoPage, nil)
 	repo.On("ListCategoriasForCourses", mock.Anything, []string{"c1"}).
 		Return(map[string][]domain.Categoria{}, nil)
 
-	page, err := svc.ListCatalog(context.Background(), p, "go")
+	page, err := svc.ListCatalog(context.Background(), p, filter)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), page.Total)
 	assert.Len(t, page.Items, 1)
 	assert.Equal(t, "c1", page.Items[0].ID)
 	assert.Equal(t, "Alice", page.Items[0].CreadorNombre)
+	repo.AssertExpectations(t)
+}
+
+// TestListCatalog_PassesFullFilter_Verbatim verifies ListCatalog passes a full CatalogFilter
+// verbatim to repo.ListApproved and that ListCategoriasForCourses is still called on IDs.
+// Refs: REQ-COMBINED; ADR-1 (filter passthrough, no re-validation in service).
+func TestListCatalog_PassesFullFilter_Verbatim(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	store := &mockStorageClient{}
+	svc := newSvcWithStore(repo, store)
+
+	p := pagination.Params{Page: 1, Size: 10}
+	filter := repository.CatalogFilter{
+		Q:            "docker",
+		Nivel:        "avanzado",
+		CategoriaIDs: []string{"cat-uuid-1", "cat-uuid-2"},
+		Sort:         "titulo",
+	}
+	repoPage := pagination.Page[repository.CatalogCourseModel]{
+		Items: []repository.CatalogCourseModel{
+			{ID: "c2", Titulo: "Docker Avanzado", Descripcion: "D", CreadorNombre: "Bob", CreatedAt: time.Now()},
+		},
+		Page: 1, Size: 10, Total: 1, TotalPages: 1,
+	}
+	// Assert the filter is passed verbatim — NOT decomposed or re-built.
+	repo.On("ListApproved", mock.Anything, p, filter).Return(repoPage, nil)
+	repo.On("ListCategoriasForCourses", mock.Anything, []string{"c2"}).
+		Return(map[string][]domain.Categoria{}, nil)
+
+	page, err := svc.ListCatalog(context.Background(), p, filter)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), page.Total)
+	assert.Equal(t, "c2", page.Items[0].ID)
 	repo.AssertExpectations(t)
 }
 

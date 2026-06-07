@@ -37,6 +37,17 @@ type CatalogCourseModel struct {
 	HorasVideo     float64
 }
 
+// CatalogFilter carries the optional catalog narrowing predicates for ListApproved.
+// Empty fields mean "no filter for that dimension" (backward-compatible: empty == today's behavior).
+// Nivel and Sort are validated upstream (handler); repo applies them without re-validation.
+// CategoriaIDs uses EXISTS semi-join semantics — OR across selected categories, zero fan-out.
+type CatalogFilter struct {
+	Q            string   // titulo ILIKE (case-insensitive partial match)
+	Nivel        string   // "" | basico | intermedio | avanzado (validated upstream)
+	CategoriaIDs []string // OR semantics via EXISTS IN; empty = no categoria filter
+	Sort         string   // recientes (default, publicado_en DESC NULLS LAST then created_at DESC) | titulo ASC
+}
+
 // EnrollmentWithCourseModel is the read model for GET /users/me/courses.
 // It joins enrollment + course + "user" to get all fields needed by the alumno.
 type EnrollmentWithCourseModel struct {
@@ -141,10 +152,11 @@ type Repository interface {
 	// ── Catalog + enrollment methods (C2.4) ─────────────────────────────────────
 
 	// ListApproved returns a paginated page of courses with estado='aprobado',
-	// optionally filtered by titulo ILIKE (case-insensitive). The CatalogCourseModel
-	// carries the creator's nombre (joined from "user"), not the UUID.
+	// optionally filtered by CatalogFilter (Q ILIKE, Nivel, CategoriaIDs, Sort).
 	// Count runs BEFORE the Select chain to avoid the GORM Count+Select gotcha.
-	ListApproved(ctx context.Context, p pagination.Params, q string) (pagination.Page[CatalogCourseModel], error)
+	// CategoriaIDs filtering uses an EXISTS semi-join (never JOIN) to prevent row
+	// fan-out and keep paginated COUNT exact.
+	ListApproved(ctx context.Context, p pagination.Params, f CatalogFilter) (pagination.Page[CatalogCourseModel], error)
 
 	// GetApprovedDetail fetches one aprobado course + creator name.
 	// Returns ErrCourseNotFound when the course is missing OR not aprobado (draft-invisibility).
@@ -689,33 +701,63 @@ func (r *gormRepository) ListByEstado(ctx context.Context, estado domain.Estado)
 
 // ── Catalog + enrollment implementations (C2.4) ────────────────────────────────
 
-// ListApproved returns a paginated page of aprobado courses.
-// GOTCHA: Count must run on a base WITHOUT Select to avoid GORM "column ambiguous" errors.
-// Only AFTER Count does the chain apply Select + Order + Offset + Limit.
-func (r *gormRepository) ListApproved(ctx context.Context, p pagination.Params, q string) (pagination.Page[CatalogCourseModel], error) {
+// ListApproved returns a paginated page of aprobado courses filtered by CatalogFilter.
+//
+// CRITICAL INVARIANTS (do NOT simplify without understanding these):
+//  1. Count-before-Select: Count runs on `base` (only estado+filter WHERE clauses, no Select/Order).
+//     Adding Select or Order before Count causes GORM "column ambiguous" errors (§3).
+//  2. EXISTS semi-join for CategoriaIDs: NEVER use a JOIN here. A JOIN fans out one row per
+//     matching categoria tag, inflating Count and duplicating page rows. The regression test
+//     TestListApproved_CategoriaFilter_EXISTSSemijoin enforces this — if EXISTS is replaced
+//     by a JOIN, that test MUST fail.
+//  3. ORDER BY via hardcoded switch (ADR-3): no user-supplied string ever reaches ORDER BY.
+//     The `ordered` var is a copy of `base` with Order applied; Count never sees it.
+func (r *gormRepository) ListApproved(ctx context.Context, p pagination.Params, f CatalogFilter) (pagination.Page[CatalogCourseModel], error) {
 	base := r.db.WithContext(ctx).
 		Table("course").
 		Joins(`JOIN "user" ON "user".id = course.creador_id`).
 		Where("course.estado = ?", "aprobado")
-	if q != "" {
-		base = base.Where("course.titulo ILIKE ?", "%"+q+"%")
+
+	// Optional filters — each only applied when field is non-empty.
+	if f.Q != "" {
+		base = base.Where("course.titulo ILIKE ?", "%"+f.Q+"%")
+	}
+	if f.Nivel != "" {
+		base = base.Where("course.nivel = ?", f.Nivel)
+	}
+	if len(f.CategoriaIDs) > 0 {
+		// EXISTS semi-join: zero fan-out regardless of how many categorias a course has.
+		// DO NOT replace with JOIN — see invariant #2 above.
+		base = base.Where(
+			"EXISTS (SELECT 1 FROM course_categoria cc WHERE cc.course_id = course.id AND cc.categoria_id IN ?)",
+			f.CategoriaIDs,
+		)
 	}
 
-	// COUNT first (no Select) — avoids the GORM Count+Select gotcha (§3).
+	// COUNT first (no Select, no Order) — shares base+filters with Find.
+	// This is the Count-before-Select invariant (invariant #1).
 	var total int64
 	if err := base.Count(&total).Error; err != nil {
 		return pagination.Page[CatalogCourseModel]{}, err
 	}
 
+	// ORDER BY from a hardcoded switch — no user input ever reaches ORDER BY (invariant #3).
+	ordered := base
+	switch f.Sort {
+	case "titulo":
+		ordered = ordered.Order("course.titulo ASC")
+	default: // "recientes" and "" both map to recency intent (publicado_en first, created_at fallback).
+		ordered = ordered.Order("course.publicado_en DESC NULLS LAST").Order("course.created_at DESC")
+	}
+
 	var rows []CatalogCourseModel
-	err := base.
+	err := ordered.
 		Select(`course.id AS id, course.titulo AS titulo, course.descripcion AS descripcion,
 		         "user".nombre AS creador_nombre, course.created_at AS created_at,
 		         course.nivel AS nivel, course.miniatura_key AS miniatura_key,
 		         course.horas_practico AS horas_practico,
 		         (SELECT COUNT(*) FROM video v JOIN section s ON s.id = v.section_id WHERE s.course_id = course.id) AS cantidad_clases,
 		         (COALESCE((SELECT SUM(v2.duracion_s) FROM video v2 JOIN section s2 ON s2.id = v2.section_id WHERE s2.course_id = course.id), 0) / 3600.0) AS horas_video`).
-		Order("course.created_at DESC").
 		Offset(p.Offset()).Limit(p.Limit()).
 		Scan(&rows).Error
 	if err != nil {

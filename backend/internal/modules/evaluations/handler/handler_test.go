@@ -310,8 +310,8 @@ func (m *mockCourseSvc) ListByEstado(ctx context.Context, estado string) ([]cour
 
 // ── C2.4 catalog + enrollment additions ──────────────────────────────────────
 
-func (m *mockCourseSvc) ListCatalog(ctx context.Context, p pagination.Params, q string) (pagination.Page[coursesService.CatalogCourseModel], error) {
-	args := m.Called(ctx, p, q)
+func (m *mockCourseSvc) ListCatalog(ctx context.Context, p pagination.Params, f coursesService.CatalogFilter) (pagination.Page[coursesService.CatalogCourseModel], error) {
+	args := m.Called(ctx, p, f)
 	return args.Get(0).(pagination.Page[coursesService.CatalogCourseModel]), args.Error(1)
 }
 

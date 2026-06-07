@@ -73,6 +73,11 @@ type CategoriaModel struct {
 
 // ── C2.4 catalog read models ───────────────────────────────────────────────────
 
+// CatalogFilter is a type alias for repository.CatalogFilter.
+// Defined here so handlers can build service.CatalogFilter without importing the repository package
+// directly (R-IMPORTS guard: handler→service-only imports). ADR-1.
+type CatalogFilter = repository.CatalogFilter
+
 // CatalogCourseModel is the service-layer read model for an approved-course card.
 // course-structure-v2: Nivel, MiniaturaURL, HorasPractico, CantidadClases, HorasVideo, Categorias added.
 type CatalogCourseModel struct {
@@ -341,9 +346,10 @@ type Service interface {
 
 	// ── Catalog + enrollment methods (C2.4) ─────────────────────────────────────
 
-	// ListCatalog returns a paginated page of aprobado courses, optionally filtered
-	// by titulo ILIKE (q). Delegates to repo.ListApproved and maps to CatalogCourseModel.
-	ListCatalog(ctx context.Context, p pagination.Params, q string) (pagination.Page[CatalogCourseModel], error)
+	// ListCatalog returns a paginated page of aprobado courses filtered by CatalogFilter.
+	// Delegates to repo.ListApproved and maps to CatalogCourseModel.
+	// The filter is passed verbatim — service does NOT re-validate (handler owns validation, ADR-4).
+	ListCatalog(ctx context.Context, p pagination.Params, f CatalogFilter) (pagination.Page[CatalogCourseModel], error)
 
 	// GetCatalogDetail returns the detail for an aprobado course.
 	// Branches on enrollment: non-enrolled → preview (Enrolled=false, nil Sections);
@@ -830,8 +836,9 @@ func (s *serviceImpl) HasContent(ctx context.Context, courseID, creadorID string
 // ListCatalog delegates to repo.ListApproved and maps repository.CatalogCourseModel
 // → service.CatalogCourseModel. Handlers never import repository types.
 // course-structure-v2: loads categorias in one batch query, presigns miniatura if set.
-func (s *serviceImpl) ListCatalog(ctx context.Context, p pagination.Params, q string) (pagination.Page[CatalogCourseModel], error) {
-	rp, err := s.repo.ListApproved(ctx, p, q)
+// catalog-filters: filter is passed verbatim to repo; service does not validate (handler's job).
+func (s *serviceImpl) ListCatalog(ctx context.Context, p pagination.Params, f CatalogFilter) (pagination.Page[CatalogCourseModel], error) {
+	rp, err := s.repo.ListApproved(ctx, p, f)
 	if err != nil {
 		return pagination.Page[CatalogCourseModel]{}, err
 	}

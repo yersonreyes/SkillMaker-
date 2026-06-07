@@ -55,7 +55,7 @@ func TestListCatalog_Returns200_WithPage(t *testing.T) {
 		},
 		Page: 1, Size: 20, Total: 1, TotalPages: 1,
 	}
-	svc.On("ListCatalog", mock.Anything, p, "").Return(repoPage, nil)
+	svc.On("ListCatalog", mock.Anything, p, service.CatalogFilter{Sort: "recientes"}).Return(repoPage, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/catalog", http.NoBody)
 	w := httptest.NewRecorder()
@@ -78,7 +78,7 @@ func TestListCatalog_WithQ_PassesFilter(t *testing.T) {
 
 	p := pagination.Params{Page: 1, Size: 20}
 	empty := pagination.Page[service.CatalogCourseModel]{Items: []service.CatalogCourseModel{}, Page: 1, Size: 20, Total: 0, TotalPages: 0}
-	svc.On("ListCatalog", mock.Anything, p, "angular").Return(empty, nil)
+	svc.On("ListCatalog", mock.Anything, p, service.CatalogFilter{Q: "angular", Sort: "recientes"}).Return(empty, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/catalog?q=angular", http.NoBody)
 	w := httptest.NewRecorder()
@@ -261,7 +261,7 @@ func TestListCatalog_EmptyUserID_StillWorks(t *testing.T) {
 
 	p := pagination.Params{Page: 1, Size: 20}
 	empty := pagination.Page[service.CatalogCourseModel]{Items: []service.CatalogCourseModel{}, Page: 1, Size: 20, Total: 0, TotalPages: 0}
-	svc.On("ListCatalog", mock.Anything, p, "").Return(empty, nil)
+	svc.On("ListCatalog", mock.Anything, p, service.CatalogFilter{Sort: "recientes"}).Return(empty, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/catalog", http.NoBody)
 	w := httptest.NewRecorder()
@@ -310,4 +310,181 @@ func TestGinRouteBoot_CatalogRoutes_NoPanic(t *testing.T) {
 		handler.Register(creatorGrp, svc)
 		handler.RegisterCatalog(protected, svc)
 	}, "catalog routes must register without panic alongside creator routes")
+}
+
+// ── catalog-filters handler tests (Phase 3 — REQ-FILTER-NIVEL, REQ-SORT, ADR-4) ──────────────────
+
+// TestListCatalog_InvalidNivel_Returns400 verifies ?nivel=expert → 400 INVALID_FILTER.
+// Refs: REQ-FILTER-NIVEL, AC7; ADR-4 (handler owns validation).
+func TestListCatalog_InvalidNivel_Returns400(t *testing.T) {
+	svc := &mockCourseSvc{}
+	r := setupCatalogEngine(svc, "user-1")
+
+	req := httptest.NewRequest(http.MethodGet, "/catalog?nivel=expert", http.NoBody)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code, "invalid nivel must return 400")
+	assert.Equal(t, "INVALID_FILTER", respCode(w), "error code must be INVALID_FILTER")
+	svc.AssertNotCalled(t, "ListCatalog")
+}
+
+// TestListCatalog_InvalidSort_Returns400 verifies ?sort=random → 400 INVALID_FILTER.
+// Refs: REQ-SORT, AC7; ADR-4 (handler owns validation).
+func TestListCatalog_InvalidSort_Returns400(t *testing.T) {
+	svc := &mockCourseSvc{}
+	r := setupCatalogEngine(svc, "user-1")
+
+	req := httptest.NewRequest(http.MethodGet, "/catalog?sort=random", http.NoBody)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code, "invalid sort must return 400")
+	assert.Equal(t, "INVALID_FILTER", respCode(w), "error code must be INVALID_FILTER")
+	svc.AssertNotCalled(t, "ListCatalog")
+}
+
+// TestListCatalog_FilterPassthrough_NivelCategoriaSort verifies full filter passthrough.
+// ?nivel=basico&categoria=A&categoria=B&sort=titulo → service receives CatalogFilter verbatim.
+// Refs: REQ-FILTER-NIVEL, REQ-FILTER-CATEGORIA, REQ-SORT; ADR-4, ADR-5.
+func TestListCatalog_FilterPassthrough_NivelCategoriaSort(t *testing.T) {
+	svc := &mockCourseSvc{}
+	r := setupCatalogEngine(svc, "user-1")
+
+	p := pagination.Params{Page: 1, Size: 20}
+	empty := pagination.Page[service.CatalogCourseModel]{Items: []service.CatalogCourseModel{}, Page: 1, Size: 20, Total: 0, TotalPages: 0}
+	// Use real well-formed UUIDs — after CRITICAL-1 fix, handler validates UUID format.
+	catA := "550e8400-e29b-41d4-a716-446655440001"
+	catB := "550e8400-e29b-41d4-a716-446655440002"
+	expectedFilter := service.CatalogFilter{
+		Nivel:        "basico",
+		CategoriaIDs: []string{catA, catB},
+		Sort:         "titulo",
+	}
+	svc.On("ListCatalog", mock.Anything, p, expectedFilter).Return(empty, nil)
+
+	req := httptest.NewRequest(http.MethodGet,
+		"/catalog?nivel=basico&categoria="+catA+"&categoria="+catB+"&sort=titulo",
+		http.NoBody,
+	)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code, "valid filter params must return 200")
+	svc.AssertExpectations(t)
+}
+
+// TestListCatalog_AbsentSort_DefaultsToRecientes verifies that absent ?sort defaults to "recientes"
+// in the forwarded CatalogFilter. Refs: REQ-SORT (default recientes); ADR-4.
+func TestListCatalog_AbsentSort_DefaultsToRecientes(t *testing.T) {
+	svc := &mockCourseSvc{}
+	r := setupCatalogEngine(svc, "user-1")
+
+	p := pagination.Params{Page: 1, Size: 20}
+	empty := pagination.Page[service.CatalogCourseModel]{Items: []service.CatalogCourseModel{}, Page: 1, Size: 20, Total: 0, TotalPages: 0}
+	// No sort param — must default to "recientes" in filter.
+	svc.On("ListCatalog", mock.Anything, p, service.CatalogFilter{Sort: "recientes"}).Return(empty, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/catalog", http.NoBody)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	svc.AssertExpectations(t)
+}
+
+// ── catalog-filters CRITICAL-1 fix: categoria UUID validation (REQ-FILTER-CATEGORIA + REQ-SEC) ─────
+
+// TestListCatalog_MalformedCategoriaUUID_Returns400 verifies that ?categoria=notauuid (a non-UUID
+// string) returns HTTP 400 with code INVALID_FILTER — NOT 500 (Postgres SQLSTATE 22P02).
+// The service must NOT be called when the input is malformed.
+// Refs: REQ-FILTER-CATEGORIA "malformed UUID MUST return HTTP 400", REQ-SEC "categoria ids MUST
+// be validated as UUIDs; only validated ids passed to EXISTS IN clause".
+// STRICT TDD: RED — currently returns 500 (SQL error) and calls the service. This test is RED.
+func TestListCatalog_MalformedCategoriaUUID_Returns400(t *testing.T) {
+	svc := &mockCourseSvc{}
+	r := setupCatalogEngine(svc, "user-1")
+
+	req := httptest.NewRequest(http.MethodGet, "/catalog?categoria=notauuid", http.NoBody)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code, "malformed categoria UUID must return 400")
+	assert.Equal(t, "INVALID_FILTER", respCode(w), "error code must be INVALID_FILTER")
+	// Service must NOT be called — validation short-circuits before reaching the service layer.
+	svc.AssertNotCalled(t, "ListCatalog")
+}
+
+// TestListCatalog_MultipleCategoriasOneMalformed_Returns400 verifies that if ANY categoria value
+// in a multi-value query is not a valid UUID, the entire request returns 400.
+// Refs: REQ-FILTER-CATEGORIA, REQ-SEC.
+func TestListCatalog_MultipleCategoriasOneMalformed_Returns400(t *testing.T) {
+	svc := &mockCourseSvc{}
+	r := setupCatalogEngine(svc, "user-1")
+
+	// One valid UUID + one malformed → the whole request must 400.
+	req := httptest.NewRequest(http.MethodGet,
+		"/catalog?categoria=550e8400-e29b-41d4-a716-446655440000&categoria=not-a-uuid",
+		http.NoBody,
+	)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code, "any malformed categoria UUID must cause 400")
+	assert.Equal(t, "INVALID_FILTER", respCode(w), "error code must be INVALID_FILTER")
+	svc.AssertNotCalled(t, "ListCatalog")
+}
+
+// TestListCatalog_WellFormedNonexistentUUID_Returns200 verifies that a well-formed but
+// nonexistent UUID categoria passes validation and returns 200 (match-nothing, no error).
+// Refs: ADR-4 "nonexistent categoria = match-nothing NOT 400".
+func TestListCatalog_WellFormedNonexistentUUID_Returns200(t *testing.T) {
+	svc := &mockCourseSvc{}
+	r := setupCatalogEngine(svc, "user-1")
+
+	ghostUUID := "550e8400-e29b-41d4-a716-446655440000"
+	p := pagination.Params{Page: 1, Size: 20}
+	empty := pagination.Page[service.CatalogCourseModel]{Items: []service.CatalogCourseModel{}, Page: 1, Size: 20, Total: 0, TotalPages: 0}
+	svc.On("ListCatalog", mock.Anything, p, service.CatalogFilter{
+		CategoriaIDs: []string{ghostUUID},
+		Sort:         "recientes",
+	}).Return(empty, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/catalog?categoria="+ghostUUID, http.NoBody)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code, "well-formed nonexistent UUID must return 200 (match-nothing)")
+	svc.AssertExpectations(t)
+}
+
+// TestListCatalog_ResponseShapeUnchanged verifies response shape compatibility (REQ-COMPAT).
+// The CatalogCourseCard page envelope must remain unchanged after filter addition.
+func TestListCatalog_ResponseShapeUnchanged(t *testing.T) {
+	svc := &mockCourseSvc{}
+	r := setupCatalogEngine(svc, "user-1")
+
+	p := pagination.Params{Page: 1, Size: 20}
+	repoPage := pagination.Page[service.CatalogCourseModel]{
+		Items: []service.CatalogCourseModel{
+			{ID: "c1", Titulo: "Go", Descripcion: "Desc", CreadorNombre: "Alice", CreatedAt: time.Now()},
+		},
+		Page: 1, Size: 20, Total: 1, TotalPages: 1,
+	}
+	svc.On("ListCatalog", mock.Anything, p, service.CatalogFilter{Sort: "recientes"}).Return(repoPage, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/catalog", http.NoBody)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	// Verify page envelope fields present.
+	assert.Contains(t, body, "items", "response must have items field (REQ-COMPAT)")
+	assert.Contains(t, body, "total", "response must have total field (REQ-COMPAT)")
+	assert.Contains(t, body, "page", "response must have page field (REQ-COMPAT)")
+	assert.Contains(t, body, "size", "response must have size field (REQ-COMPAT)")
+	assert.Contains(t, body, "totalPages", "response must have totalPages field (REQ-COMPAT)")
+	svc.AssertExpectations(t)
 }
