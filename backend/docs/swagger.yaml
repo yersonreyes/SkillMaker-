@@ -495,6 +495,38 @@ definitions:
       titulo:
         type: string
     type: object
+  dto.NotificationListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/dto.NotificationResponse'
+        type: array
+      page:
+        type: integer
+      size:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
+  dto.NotificationResponse:
+    properties:
+      creadoEn:
+        type: string
+      cuerpo:
+        type: string
+      id:
+        type: string
+      leida:
+        type: boolean
+      refId:
+        type: string
+      tipo:
+        type: string
+      titulo:
+        type: string
+    type: object
   dto.OptionCreateRequest:
     properties:
       correcta:
@@ -807,6 +839,11 @@ definitions:
       nombre:
         type: string
       total:
+        type: integer
+    type: object
+  dto.UnreadCountResponse:
+    properties:
+      unread:
         type: integer
     type: object
   dto.UpdateCourseRequest:
@@ -2301,6 +2338,107 @@ paths:
       summary: Genera URL presignada para descargar un material
       tags:
       - materials
+  /notifications/{id}/read:
+    patch:
+      description: Marca una notificación específica como leída. Solo el propietario
+        puede hacerlo.
+      parameters:
+      - description: Notification UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: boolean
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Marcar notificación como leída
+      tags:
+      - notifications
+  /notifications/me:
+    get:
+      description: Devuelve las notificaciones del usuario autenticado, paginadas
+        por creado_en DESC.
+      parameters:
+      - description: Página (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: Tamaño (default 20)
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.NotificationListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Lista mis notificaciones
+      tags:
+      - notifications
+  /notifications/me/read-all:
+    patch:
+      description: Marca todas las notificaciones del usuario autenticado como leídas.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: boolean
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Marcar todas las notificaciones como leídas
+      tags:
+      - notifications
+  /notifications/me/unread-count:
+    get:
+      description: Devuelve el número de notificaciones no leídas del usuario autenticado.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.UnreadCountResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Conteo de notificaciones sin leer
+      tags:
+      - notifications
   /options/{id}:
     delete:
       parameters:

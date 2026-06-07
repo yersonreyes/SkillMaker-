@@ -29,6 +29,8 @@ import (
 	coursesService "github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses/service"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/evaluations"
 	evalService "github.com/yersonreyes/SkillMaker-/backend/internal/modules/evaluations/service"
+	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/notifications"
+	notifService "github.com/yersonreyes/SkillMaker-/backend/internal/modules/notifications/service"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/reporting"
 	reportingService "github.com/yersonreyes/SkillMaker-/backend/internal/modules/reporting/service"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/platform/pagination"
@@ -244,6 +246,18 @@ func (n *nilAuthSvc) ListActiveSessions(_ context.Context, _ string) ([]authDto.
 }
 func (n *nilAuthSvc) RevokeSession(_ context.Context, _, _ string) error { return nil }
 
+// nilNotifSvc is a nil-safe stub for notifications.Service (notifications-inapp).
+// Implements all 5 Service methods. Never called during route registration.
+type nilNotifSvc struct{}
+
+func (n *nilNotifSvc) Notify(_ context.Context, _, _, _, _, _ string) error { return nil }
+func (n *nilNotifSvc) ListMine(_ context.Context, _ string, _ pagination.Params) (pagination.Page[notifService.NotificationModel], error) {
+	return pagination.Page[notifService.NotificationModel]{}, nil
+}
+func (n *nilNotifSvc) UnreadCount(_ context.Context, _ string) (int64, error) { return 0, nil }
+func (n *nilNotifSvc) MarkRead(_ context.Context, _, _ string) error          { return nil }
+func (n *nilNotifSvc) MarkAllRead(_ context.Context, _ string) error          { return nil }
+
 // ── Boot test ─────────────────────────────────────────────────────────────────
 
 // TestRouteBoot_AllModules_NoPanic registers ALL module routes (courses + evaluations + approvals + catalog)
@@ -258,6 +272,7 @@ func TestRouteBoot_AllModules_NoPanic(t *testing.T) {
 	certSvc := &nilCertSvc{}
 	reportingSvc := &nilReportingSvc{}
 	authSvc := &nilAuthSvc{}
+	notifSvc := &nilNotifSvc{}
 
 	assert.NotPanics(t, func() {
 		r := gin.New()
@@ -291,6 +306,10 @@ func TestRouteBoot_AllModules_NoPanic(t *testing.T) {
 		reporting.RegisterAdminRoutes(adminGrp, reportingSvc)
 		reporting.RegisterSupervisorRoutes(supervisorGrp, reportingSvc)
 		reporting.RegisterSelfRoutes(protected, reportingSvc)
+
+		// Notifications routes (notifications-inapp) — JWT-only, no RequireRole.
+		// CRITICAL: validates no Gin panic on PATCH /:id/read vs PATCH /me/read-all sibling.
+		notifications.RegisterRoutes(protected, notifSvc)
 
 		// Verify all routes are registered.
 		routes := r.Routes()
@@ -378,6 +397,16 @@ func TestRouteBoot_AllModules_NoPanic(t *testing.T) {
 		// course-player-progress (Change 2): video progress route on protected group.
 		assert.True(t, routeMap["PUT /api/videos/:id/progress"],
 			"[course-player-progress] PUT /api/videos/:id/progress must be registered without panic")
+
+		// notifications-inapp: 4 notification routes (no panic on PATCH sibling).
+		assert.True(t, routeMap["GET /api/notifications/me"],
+			"[notifications-inapp] GET /api/notifications/me must be registered without panic")
+		assert.True(t, routeMap["GET /api/notifications/me/unread-count"],
+			"[notifications-inapp] GET /api/notifications/me/unread-count must be registered without panic")
+		assert.True(t, routeMap["PATCH /api/notifications/:id/read"],
+			"[notifications-inapp] PATCH /api/notifications/:id/read must be registered without panic")
+		assert.True(t, routeMap["PATCH /api/notifications/me/read-all"],
+			"[notifications-inapp] PATCH /api/notifications/me/read-all must be registered without panic")
 	}, "registering all module routes must not panic (no Gin param-tree conflict)")
 
 	_ = time.Now() // suppress unused import

@@ -1084,6 +1084,84 @@ export interface paths {
       };
     };
   };
+  "/notifications/me": {
+    /** Devuelve las notificaciones del usuario autenticado, paginadas por creado_en DESC. */
+    get: {
+      parameters: {
+        query: {
+          /** Página (default 1) */
+          page?: number;
+          /** Tamaño (default 20) */
+          size?: number;
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.NotificationListResponse"];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/notifications/me/read-all": {
+    /** Marca todas las notificaciones del usuario autenticado como leídas. */
+    patch: {
+      responses: {
+        /** OK */
+        200: {
+          schema: { [key: string]: boolean };
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/notifications/me/unread-count": {
+    /** Devuelve el número de notificaciones no leídas del usuario autenticado. */
+    get: {
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.UnreadCountResponse"];
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/notifications/{id}/read": {
+    /** Marca una notificación específica como leída. Solo el propietario puede hacerlo. */
+    patch: {
+      parameters: {
+        path: {
+          /** Notification UUID */
+          id: string;
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: { [key: string]: boolean };
+        };
+        /** Unauthorized */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Not Found */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
   "/options/{id}": {
     delete: {
       parameters: {
@@ -2115,6 +2193,22 @@ export interface definitions {
     inscritoEn?: string;
     titulo?: string;
   };
+  "dto.NotificationListResponse": {
+    items?: definitions["dto.NotificationResponse"][];
+    page?: number;
+    size?: number;
+    total?: number;
+    totalPages?: number;
+  };
+  "dto.NotificationResponse": {
+    creadoEn?: string;
+    cuerpo?: string;
+    id?: string;
+    leida?: boolean;
+    refId?: string;
+    tipo?: string;
+    titulo?: string;
+  };
   "dto.OptionCreateRequest": {
     correcta?: boolean;
     texto: string;
@@ -2273,6 +2367,9 @@ export interface definitions {
   "dto.TopCreatorItem": {
     nombre?: string;
     total?: number;
+  };
+  "dto.UnreadCountResponse": {
+    unread?: number;
   };
   "dto.UpdateCourseRequest": {
     categoriaIds?: string[];

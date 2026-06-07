@@ -21,6 +21,24 @@ import (
 	"github.com/yersonreyes/SkillMaker-/backend/internal/platform/storage"
 )
 
+// ── Notifier seam (NON-FATAL, cross-module, notifications-inapp) ──────────────
+
+// Notifier is the narrow outbound seam for sending notifications.
+// notifications.Service satisfies this structurally (duck typing — no import).
+// Each consuming module declares its OWN narrow interface; there is NO shared package.
+type Notifier interface {
+	Notify(ctx context.Context, userID, tipo, titulo, cuerpo, refID string) error
+}
+
+// Option is a functional option for the certificates service constructor.
+type Option func(*serviceImpl)
+
+// WithNotifier wires a Notifier into the certificates service.
+// If not provided, the notifier field is nil and Notify calls are skipped safely.
+func WithNotifier(n Notifier) Option {
+	return func(s *serviceImpl) { s.notifier = n }
+}
+
 // ── Cross-module seams ─────────────────────────────────────────────────────────
 
 // UserNameReader is the narrow read seam into the users module.
@@ -144,17 +162,20 @@ type serviceImpl struct {
 	courseTitulos CourseTituloReader
 	renderPDF     func(nombre, titulo string, fecha time.Time, codigo string) ([]byte, error)
 	presignTTL    time.Duration
+	notifier      Notifier // nil-safe; wired via WithNotifier in main.go
 }
 
 // New creates a Service backed by the given Repository, storage Client, and cross-module seams.
+// Variadic opts preserve backward compatibility: existing 5-arg call sites stay valid.
 func New(
 	repo Repository,
 	store storage.Client,
 	userNames UserNameReader,
 	courseTitulos CourseTituloReader,
 	presignTTL time.Duration,
+	opts ...Option,
 ) Service {
-	return &serviceImpl{
+	s := &serviceImpl{
 		repo:          repo,
 		store:         store,
 		userNames:     userNames,
@@ -162,6 +183,10 @@ func New(
 		renderPDF:     pdf.RenderCertificate,
 		presignTTL:    presignTTL,
 	}
+	for _, o := range opts {
+		o(s)
+	}
+	return s
 }
 
 // ── IssueOnPass ────────────────────────────────────────────────────────────────
@@ -231,6 +256,13 @@ func (s *serviceImpl) IssueOnPass(ctx context.Context, userID, courseID string) 
 	// 7. Evaluate badges — non-fatal.
 	if err := s.EvaluateBadges(ctx, userID); err != nil {
 		slog.Error("certificates: EvaluateBadges failed (non-fatal)", "userID", userID, "err", err)
+	}
+
+	// 8. NON-FATAL notify — fires ONLY on FIRST issue (not on the idempotency path at step 1).
+	if s.notifier != nil {
+		if err := s.notifier.Notify(ctx, userID, "certificado_emitido", "Certificado emitido", titulo, certID); err != nil {
+			slog.Error("certificates: notify seam failed (non-fatal)", "err", err, "userID", userID)
+		}
 	}
 
 	return nil

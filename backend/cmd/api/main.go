@@ -36,6 +36,7 @@ import (
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/certificates"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/evaluations"
+	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/notifications"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/reporting"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/users"
 	usersService "github.com/yersonreyes/SkillMaker-/backend/internal/modules/users/service"
@@ -109,6 +110,11 @@ func main() {
 	// Catalog + enrollment (C2.4) — alumno-facing, JWT-only (no RequireRole).
 	courses.RegisterCatalogRoutes(protected, coursesSvc)
 
+	// Notifications module (notifications-inapp) — MUST be built BEFORE certsSvc and approvalsSvc
+	// (both depend on it via WithNotifier). Pure leaf: imports nobody from other domain modules.
+	notificationsRepo := notifications.NewRepository(db)
+	notificationsSvc := notifications.NewService(notificationsRepo)
+
 	// Certificates module (C5.1) — MUST be built BEFORE evaluationsSvc (evaluations depends on it).
 	// userNameAdapter bridges users.Service.GetByID (*UserSummary) to certificates.UserNameReader.
 	// coursesSvc satisfies certificates.CourseTituloReader structurally (GetCourseTitulo added in C5.1).
@@ -119,6 +125,7 @@ func main() {
 		userNameAdapter{svc: usersSvc},
 		coursesSvc,
 		cfg.Storage.PresignTTL,
+		certificates.WithNotifier(notificationsSvc),
 	)
 
 	// Evaluations module (C3.1 + C3.2 + C2.4) — coursesSvc satisfies evaluations.CoursesChecker structurally.
@@ -136,13 +143,16 @@ func main() {
 
 	// Approvals module (C4.1) — coursesSvc satisfies CourseStateManager, evaluationsSvc satisfies EvaluationValidator (both structural).
 	approvalsRepo := approvals.NewRepository(db)
-	approvalsSvc := approvals.NewService(approvalsRepo, coursesSvc, evaluationsSvc)
+	approvalsSvc := approvals.NewService(approvalsRepo, coursesSvc, evaluationsSvc, approvals.WithNotifier(notificationsSvc))
 	approvals.RegisterCreatorRoutes(creatorGrp, approvalsSvc) // POST /courses/:courseId/submit
 	approvals.RegisterAdminRoutes(adminGrp, approvalsSvc)     // GET /approvals/pending, POST approve/reject
 	approvals.RegisterHistoryRoutes(protected, approvalsSvc)  // GET /courses/:id/approvals (owner-or-admin)
 
 	// Certificates module routes (C5.1) — JWT-only, no RequireRole.
 	certificates.RegisterRoutes(protected, certsSvc)
+
+	// Notifications module routes (notifications-inapp) — JWT-only, no RequireRole.
+	notifications.RegisterRoutes(protected, notificationsSvc)
 
 	// Reporting module (C6.1) — pure-SQL read-only, no migration.
 	reportingRepo := reporting.NewRepository(db)

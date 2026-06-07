@@ -37,7 +37,18 @@ type (
 	UserNameReader = service.UserNameReader
 	// CourseTituloReader is the narrow read seam into the courses module.
 	CourseTituloReader = service.CourseTituloReader
+
+	// Notifier is the narrow outbound seam for notifications (notifications-inapp).
+	// Re-exported so main.go can pass notifications.Service without importing internals.
+	Notifier = service.Notifier
+
+	// Option is a functional option for the certificates service constructor.
+	Option = service.Option
 )
+
+// WithNotifier wires a Notifier into the certificates service.
+// notifications.Service satisfies this structurally (duck typing).
+var WithNotifier = service.WithNotifier
 
 // Re-export sentinels so main.go and tests can use errors.Is without importing internals.
 var (
@@ -52,14 +63,16 @@ func NewRepository(db *gorm.DB) Repository {
 }
 
 // NewService constructs a Service backed by the given Repository and cross-module seams.
+// Variadic opts: pass certificates.WithNotifier(notificationsSvc) to wire the Notifier.
 func NewService(
 	repo Repository,
 	store storage.Client,
 	userNames UserNameReader,
 	courseTitulos CourseTituloReader,
 	presignTTL time.Duration,
+	opts ...Option,
 ) Service {
-	return service.New(repo, store, userNames, courseTitulos, presignTTL)
+	return service.New(repo, store, userNames, courseTitulos, presignTTL, opts...)
 }
 
 // RegisterRoutes mounts the certificates and badges routes onto the given JWT-protected route group.

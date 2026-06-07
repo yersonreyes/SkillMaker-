@@ -237,8 +237,9 @@ func TestMigration0004Down_ReversesSchema(t *testing.T) {
 	// NOTE (C5.1): migration 0010 was added; -6 now rolls back 0010+0009+0008+0007+0006+0005, so we need -7.
 	// NOTE (course-structure-v2): migrations 0011+0012+0013 added; +3 → need -10.
 	// NOTE (course-player-progress): migration 0014 added; +1 → need -11.
-	err := m.Steps(-11)
-	require.NoError(t, err, "m.Steps(-11) must roll back 0014+0013+0012+0011+0010+0009+0008+0007+0006+0005+0004 without error (SCH-1-B)")
+	// NOTE (notifications-inapp): migration 0015 added; +1 → need -12.
+	err := m.Steps(-12)
+	require.NoError(t, err, "m.Steps(-12) must roll back 0015+0014+0013+0012+0011+0010+0009+0008+0007+0006+0005+0004 without error (SCH-1-B)")
 
 	// Step 2: Assert storage_key is restored.
 	var storageKeyCount int64
@@ -692,8 +693,9 @@ func TestMigration0005RoundTrip(t *testing.T) {
 	// NOTE (C5.1): migration 0010 was added; -5 now rolls back 0010+0009+0008+0007+0006, so we need -6.
 	// NOTE (course-structure-v2): migrations 0011+0012+0013 added; +3 → need -9.
 	// NOTE (course-player-progress): migration 0014 added; +1 → need -10.
-	err = m.Steps(-10)
-	require.NoError(t, err, "m.Steps(-10) must roll back 0014+0013+0012+0011+0010+0009+0008+0007+0006+0005 without error (AC8)")
+	// NOTE (notifications-inapp): migration 0015 added; +1 → need -11.
+	err = m.Steps(-11)
+	require.NoError(t, err, "m.Steps(-11) must roll back 0015+0014+0013+0012+0011+0010+0009+0008+0007+0006+0005 without error (AC8)")
 
 	// Verify mime_type is gone after 0005 down.
 	err = db.Raw(
@@ -926,13 +928,14 @@ func TestMigration0009RoundTrip(t *testing.T) {
 	assert.Contains(t, columnDefault, "false",
 		"enrollment.completado must have DEFAULT false after 0009 up (AC-13)")
 
-	// Roll back 6 steps — drops 0014+0013+0012+0011+0010+0009 (completado column).
+	// Roll back 7 steps — drops 0015+0014+0013+0012+0011+0010+0009 (completado column).
 	// NOTE (C5.1): migration 0010 was added; -1 now rolls back 0010 only, so we need -2 to drop 0009.
 	// NOTE (course-structure-v2): migrations 0011+0012+0013 added; +3 → need -5.
 	// NOTE (course-player-progress): migration 0014 added; +1 → need -6.
-	err = m.Steps(-6)
+	// NOTE (notifications-inapp): migration 0015 added; +1 → need -7.
+	err = m.Steps(-7)
 	require.NoError(t, err,
-		"m.Steps(-6) must roll back 0014+0013+0012+0011+0010+0009 (completado column) without error (AC-13)")
+		"m.Steps(-7) must roll back 0015+0014+0013+0012+0011+0010+0009 (completado column) without error (AC-13)")
 
 	// Verify completado is gone after 0009 down.
 	err = db.Raw(
@@ -963,10 +966,11 @@ func TestMigration0011RoundTrip(t *testing.T) {
 	assert.Equal(t, int64(1), count,
 		"video.descripcion must exist after 0011 up (REQ-SCH-0011)")
 
-	// Roll back 4 steps (0014+0013+0012+0011).
+	// Roll back 5 steps (0015+0014+0013+0012+0011).
 	// NOTE (course-player-progress): migration 0014 added; +1 → need -4.
-	err = m.Steps(-4)
-	require.NoError(t, err, "m.Steps(-4) must roll back 0014+0013+0012+0011 without error")
+	// NOTE (notifications-inapp): migration 0015 added; +1 → need -5.
+	err = m.Steps(-5)
+	require.NoError(t, err, "m.Steps(-5) must roll back 0015+0014+0013+0012+0011 without error")
 
 	// Verify video.descripcion is gone after 0011 down.
 	err = db.Raw(
@@ -993,10 +997,11 @@ func TestMigration0012BackfillInvariant(t *testing.T) {
 	db, m, teardown := testutil.SetupPostgresWithMigrate(t)
 	defer teardown()
 
-	// Roll back to migration 0010 state (before 0011+0012+0013+0014).
+	// Roll back to migration 0010 state (before 0011+0012+0013+0014+0015).
 	// NOTE (course-player-progress): migration 0014 added; +1 → need -4.
-	err := m.Steps(-4)
-	require.NoError(t, err, "m.Steps(-4) to reach 0010 state")
+	// NOTE (notifications-inapp): migration 0015 added; +1 → need -5.
+	err := m.Steps(-5)
+	require.NoError(t, err, "m.Steps(-5) to reach 0010 state")
 
 	// Re-apply 0011 only (video.descripcion) so we can seed a video without descripcion issues.
 	err = m.Steps(1)
@@ -1166,10 +1171,11 @@ func TestMigration0013CourseMetaAndCategorias(t *testing.T) {
 	).Error
 	assert.Error(t, err, "CHECK constraint must reject nivel='experto' (REQ-SCH-0013)")
 
-	// Roll back 4 steps (0014+0013+0012+0011).
+	// Roll back 5 steps (0015+0014+0013+0012+0011).
 	// NOTE (course-player-progress): migration 0014 added; +1 → need -4.
-	err = m.Steps(-4)
-	require.NoError(t, err, "m.Steps(-4) rolls back 0014+0013+0012+0011")
+	// NOTE (notifications-inapp): migration 0015 added; +1 → need -5.
+	err = m.Steps(-5)
+	require.NoError(t, err, "m.Steps(-5) rolls back 0015+0014+0013+0012+0011")
 
 	// Verify categoria and course_categoria tables gone.
 	var tblCount int64
@@ -2016,9 +2022,10 @@ func TestMigration0014RoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), videoIdxCount, "idx_video_progress_video index must exist (REQ-SCH)")
 
-	// Roll back 1 step — drops 0014 (video_progress).
-	err = m.Steps(-1)
-	require.NoError(t, err, "m.Steps(-1) must roll back 0014 (video_progress) without error (REQ-SCH down)")
+	// Roll back 2 steps — drops 0015+0014 (video_progress + notifications).
+	// NOTE (notifications-inapp): migration 0015 added; +1 → need -2.
+	err = m.Steps(-2)
+	require.NoError(t, err, "m.Steps(-2) must roll back 0015+0014 (notifications+video_progress) without error (REQ-SCH down)")
 
 	// Verify table is gone after 0014 down.
 	err = db.Raw(

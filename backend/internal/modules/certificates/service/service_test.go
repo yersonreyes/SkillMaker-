@@ -9,10 +9,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/certificates/domain"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/platform/storage"
+	"github.com/yersonreyes/SkillMaker-/backend/internal/testutil"
 )
 
 // ── Mock repository ────────────────────────────────────────────────────────────
@@ -409,4 +411,93 @@ func TestUserNameReaderFailure_IsReturnedFromIssueOnPass(t *testing.T) {
 	// The error is returned from IssueOnPass — evaluations.SubmitAttempt swallows it.
 	require.Error(t, err)
 	assert.ErrorIs(t, err, userErr)
+}
+
+// ── Notifier seam tests (notifications-inapp) ─────────────────────────────────
+
+// TestIssueOnPass_FirstIssue_FiresNotifierOnce verifies that IssueOnPass fires
+// the Notifier exactly once on the FIRST issue path.
+func TestIssueOnPass_FirstIssue_FiresNotifierOnce(t *testing.T) {
+	repo := &mockRepo{}
+	store := &mockStore{}
+	notifier := &testutil.MockNotifier{}
+
+	svc := &serviceImpl{
+		repo:          repo,
+		store:         store,
+		userNames:     &mockUserNames{nombre: "Test User"},
+		courseTitulos: &mockCourseTitulos{titulo: "Test Course"},
+		renderPDF:     func(_, _ string, _ time.Time, _ string) ([]byte, error) { return []byte("PDF"), nil },
+		presignTTL:    15 * time.Minute,
+		notifier:      notifier,
+	}
+
+	userID := uuid.New().String()
+	courseID := uuid.New().String()
+
+	// The certID is generated inside IssueOnPass; we accept any non-empty string.
+	notifier.On("Notify", mock.Anything, userID, "certificado_emitido", "Certificado emitido", "Test Course", mock.MatchedBy(func(s string) bool {
+		return s != "" // certID must be non-empty
+	})).Return(nil).Once()
+
+	err := svc.IssueOnPass(context.Background(), userID, courseID)
+	require.NoError(t, err, "IssueOnPass first issue must return nil")
+	notifier.AssertExpectations(t)
+	notifier.AssertNumberOfCalls(t, "Notify", 1)
+}
+
+// TestIssueOnPass_IdempotentReissue_NotifierNotCalled verifies that when the cert
+// already exists (idempotent re-call), the Notifier is NOT called.
+func TestIssueOnPass_IdempotentReissue_NotifierNotCalled(t *testing.T) {
+	existing := &domain.Certificate{
+		ID:       uuid.New().String(),
+		UserID:   "u1",
+		CourseID: "c1",
+	}
+	repo := &mockRepo{
+		GetByUserCourseFn: func(_ context.Context, _, _ string) (*domain.Certificate, error) {
+			return existing, nil // already issued
+		},
+	}
+	store := &mockStore{}
+	notifier := &testutil.MockNotifier{}
+
+	svc := &serviceImpl{
+		repo:          repo,
+		store:         store,
+		userNames:     &mockUserNames{nombre: "Test User"},
+		courseTitulos: &mockCourseTitulos{titulo: "Test Course"},
+		renderPDF:     func(_, _ string, _ time.Time, _ string) ([]byte, error) { return []byte("PDF"), nil },
+		presignTTL:    15 * time.Minute,
+		notifier:      notifier,
+	}
+
+	err := svc.IssueOnPass(context.Background(), "u1", "c1")
+	require.NoError(t, err, "idempotent re-issue must return nil")
+	// Notifier must NOT be called on the idempotent re-issue path.
+	notifier.AssertNotCalled(t, "Notify")
+}
+
+// TestIssueOnPass_NotifierFails_StillReturnsNil verifies NON-FATAL: a failing
+// Notifier does not break IssueOnPass.
+func TestIssueOnPass_NotifierFails_StillReturnsNil(t *testing.T) {
+	repo := &mockRepo{}
+	store := &mockStore{}
+	notifier := &testutil.MockNotifier{}
+
+	svc := &serviceImpl{
+		repo:          repo,
+		store:         store,
+		userNames:     &mockUserNames{nombre: "Test User"},
+		courseTitulos: &mockCourseTitulos{titulo: "Test Course"},
+		renderPDF:     func(_, _ string, _ time.Time, _ string) ([]byte, error) { return []byte("PDF"), nil },
+		presignTTL:    15 * time.Minute,
+		notifier:      notifier,
+	}
+
+	notifier.On("Notify", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(errors.New("notification service down"))
+
+	err := svc.IssueOnPass(context.Background(), "u1", "c1")
+	assert.NoError(t, err, "NON-FATAL: IssueOnPass must return nil when Notifier fails")
 }

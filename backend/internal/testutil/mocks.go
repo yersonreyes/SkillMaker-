@@ -254,3 +254,27 @@ func (m *MockEvaluationValidator) ValidateSubmitReady(ctx context.Context, cours
 	args := m.Called(ctx, courseID)
 	return args.Error(0)
 }
+
+// ── notifications-inapp seam mocks ───────────────────────────────────────────
+
+// MockNotifier is a testify/mock implementation of the narrow Notifier interface
+// declared independently in approvals/service and certificates/service.
+// Used to verify seam invocation and non-fatal behavior.
+type MockNotifier struct {
+	mock.Mock
+}
+
+// Notify records the call and returns the mocked error.
+func (m *MockNotifier) Notify(ctx context.Context, userID, tipo, titulo, cuerpo, refID string) error {
+	args := m.Called(ctx, userID, tipo, titulo, cuerpo, refID)
+	return args.Error(0)
+}
+
+// GetCourseTitulo is added to MockCourseStateManager to satisfy the extended
+// approvals.CourseStateManager seam (notifications-inapp requires it to fetch
+// the course title for the notification body).
+// coursesSvc satisfies this structurally (GetCourseTitulo added in C5.1).
+func (m *MockCourseStateManager) GetCourseTitulo(ctx context.Context, courseID string) (string, error) {
+	args := m.Called(ctx, courseID)
+	return args.String(0), args.Error(1)
+}

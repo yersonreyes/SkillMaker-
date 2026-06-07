@@ -18,6 +18,8 @@ package service
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -471,4 +473,130 @@ func TestListHistory_NonOwnerNonAdmin_ReturnsErrNotOwner(t *testing.T) {
 	assert.ErrorIs(t, err, ErrNotOwner,
 		"non-owner non-admin must get ErrNotOwner for history")
 	repo.AssertNotCalled(t, "ListByCourse")
+}
+
+// ── Notifier seam tests (notifications-inapp) ─────────────────────────────────
+
+// TestApprove_FiresNotifierWithCreatorID verifies that after a successful Approve,
+// the Notifier is called with the course creator's ID and tipo='curso_aprobado'.
+func TestApprove_FiresNotifierWithCreatorID(t *testing.T) {
+	repo := &mockApprovalsRepo{}
+	csm := &testutil.MockCourseStateManager{}
+	ev := &testutil.MockEvaluationValidator{}
+	notifier := &testutil.MockNotifier{}
+
+	svc := New(repo, csm, ev, WithNotifier(notifier)).(*serviceImpl)
+
+	courseID := uuid.New().String()
+	adminID := uuid.New().String()
+	creatorID := uuid.New().String()
+	titulo := "My Course"
+
+	csm.On("GetCourseOwnership", mock.Anything, courseID).Return(creatorID, "en_revision", nil)
+	repo.On("Create", mock.Anything, mock.Anything).Return(nil)
+	csm.On("SetEstado", mock.Anything, courseID, "aprobado").Return(nil)
+	csm.On("GetCourseTitulo", mock.Anything, courseID).Return(titulo, nil)
+	notifier.On("Notify", mock.Anything, creatorID, "curso_aprobado", "Curso aprobado", titulo, courseID).Return(nil)
+
+	err := svc.Approve(context.Background(), courseID, adminID, "")
+	require.NoError(t, err)
+	notifier.AssertExpectations(t)
+}
+
+// TestReject_FiresNotifierWithComentario verifies that after a successful Reject,
+// the Notifier is called with tipo='curso_rechazado' and cuerpo containing the comentario.
+func TestReject_FiresNotifierWithComentario(t *testing.T) {
+	repo := &mockApprovalsRepo{}
+	csm := &testutil.MockCourseStateManager{}
+	ev := &testutil.MockEvaluationValidator{}
+	notifier := &testutil.MockNotifier{}
+
+	svc := New(repo, csm, ev, WithNotifier(notifier)).(*serviceImpl)
+
+	courseID := uuid.New().String()
+	adminID := uuid.New().String()
+	creatorID := uuid.New().String()
+	comentario := "Falta bibliografía"
+
+	csm.On("GetCourseOwnership", mock.Anything, courseID).Return(creatorID, "en_revision", nil)
+	repo.On("Create", mock.Anything, mock.Anything).Return(nil)
+	csm.On("SetEstado", mock.Anything, courseID, "rechazado").Return(nil)
+	csm.On("GetCourseTitulo", mock.Anything, courseID).Return("My Course", nil)
+	notifier.On("Notify", mock.Anything, creatorID, "curso_rechazado", "Curso rechazado", mock.MatchedBy(func(cuerpo string) bool {
+		return strings.Contains(cuerpo, comentario)
+	}), courseID).Return(nil)
+
+	err := svc.Reject(context.Background(), courseID, adminID, comentario)
+	require.NoError(t, err)
+	notifier.AssertExpectations(t)
+}
+
+// TestApprove_NotifierFails_StillReturnsNil verifies NON-FATAL: a failing Notifier
+// does not break Approve — it must still return nil.
+func TestApprove_NotifierFails_StillReturnsNil(t *testing.T) {
+	repo := &mockApprovalsRepo{}
+	csm := &testutil.MockCourseStateManager{}
+	ev := &testutil.MockEvaluationValidator{}
+	notifier := &testutil.MockNotifier{}
+
+	svc := New(repo, csm, ev, WithNotifier(notifier)).(*serviceImpl)
+
+	courseID := uuid.New().String()
+	adminID := uuid.New().String()
+
+	csm.On("GetCourseOwnership", mock.Anything, courseID).Return("creator", "en_revision", nil)
+	repo.On("Create", mock.Anything, mock.Anything).Return(nil)
+	csm.On("SetEstado", mock.Anything, courseID, "aprobado").Return(nil)
+	csm.On("GetCourseTitulo", mock.Anything, courseID).Return("", nil)
+	notifier.On("Notify", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(errors.New("notification service down"))
+
+	// NON-FATAL: Approve must return nil even when Notifier fails.
+	err := svc.Approve(context.Background(), courseID, adminID, "")
+	assert.NoError(t, err, "NON-FATAL: Approve must return nil when Notifier fails")
+}
+
+// TestReject_NotifierFails_StillReturnsNil verifies NON-FATAL for Reject.
+func TestReject_NotifierFails_StillReturnsNil(t *testing.T) {
+	repo := &mockApprovalsRepo{}
+	csm := &testutil.MockCourseStateManager{}
+	ev := &testutil.MockEvaluationValidator{}
+	notifier := &testutil.MockNotifier{}
+
+	svc := New(repo, csm, ev, WithNotifier(notifier)).(*serviceImpl)
+
+	courseID := uuid.New().String()
+	adminID := uuid.New().String()
+
+	csm.On("GetCourseOwnership", mock.Anything, courseID).Return("creator", "en_revision", nil)
+	repo.On("Create", mock.Anything, mock.Anything).Return(nil)
+	csm.On("SetEstado", mock.Anything, courseID, "rechazado").Return(nil)
+	csm.On("GetCourseTitulo", mock.Anything, courseID).Return("", nil)
+	notifier.On("Notify", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(errors.New("notification service down"))
+
+	err := svc.Reject(context.Background(), courseID, adminID, "valid comment")
+	assert.NoError(t, err, "NON-FATAL: Reject must return nil when Notifier fails")
+}
+
+// TestApprove_NilNotifier_NoPanic verifies that omitting WithNotifier causes no panic.
+func TestApprove_NilNotifier_NoPanic(t *testing.T) {
+	repo := &mockApprovalsRepo{}
+	csm := &testutil.MockCourseStateManager{}
+	ev := &testutil.MockEvaluationValidator{}
+
+	// No WithNotifier → notifier is nil.
+	svc := newSvc(repo, csm, ev)
+
+	courseID := uuid.New().String()
+	adminID := uuid.New().String()
+
+	csm.On("GetCourseOwnership", mock.Anything, courseID).Return("creator", "en_revision", nil)
+	repo.On("Create", mock.Anything, mock.Anything).Return(nil)
+	csm.On("SetEstado", mock.Anything, courseID, "aprobado").Return(nil)
+
+	assert.NotPanics(t, func() {
+		err := svc.Approve(context.Background(), courseID, adminID, "")
+		assert.NoError(t, err)
+	}, "nil Notifier must not panic")
 }

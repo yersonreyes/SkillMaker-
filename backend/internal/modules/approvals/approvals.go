@@ -21,14 +21,25 @@ type (
 	// Repository is the data-access contract for the approvals module.
 	Repository = repository.Repository
 
-	// CourseStateManager is the narrow cross-module seam into courses (C4.1).
+	// CourseStateManager is the narrow cross-module seam into courses (C4.1 + notifications-inapp).
 	// Re-exported so main.go can reference it if needed; coursesSvc satisfies it structurally.
 	CourseStateManager = service.CourseStateManager
 
 	// EvaluationValidator is the narrow cross-module seam into evaluations (C4.1).
 	// Re-exported so main.go can reference it if needed; evaluationsSvc satisfies it structurally.
 	EvaluationValidator = service.EvaluationValidator
+
+	// Notifier is the narrow outbound seam for notifications (notifications-inapp).
+	// Re-exported so main.go can pass notifications.Service without importing internals.
+	Notifier = service.Notifier
+
+	// Option is a functional option for the approvals service constructor.
+	Option = service.Option
 )
+
+// WithNotifier wires a Notifier into the approvals service.
+// notifications.Service satisfies this structurally (duck typing).
+var WithNotifier = service.WithNotifier
 
 // NewRepository constructs a GORM-backed Repository.
 func NewRepository(db *gorm.DB) Repository {
@@ -37,8 +48,9 @@ func NewRepository(db *gorm.DB) Repository {
 
 // NewService constructs a Service backed by the given Repository, CourseStateManager,
 // and EvaluationValidator. coursesSvc and evaluationsSvc satisfy the seams structurally.
-func NewService(r Repository, courses CourseStateManager, evals EvaluationValidator) Service {
-	return service.New(r, courses, evals)
+// Variadic opts: pass approvals.WithNotifier(notificationsSvc) to wire the Notifier.
+func NewService(r Repository, courses CourseStateManager, evals EvaluationValidator, opts ...Option) Service {
+	return service.New(r, courses, evals, opts...)
 }
 
 // RegisterCreatorRoutes mounts the creator-gated approvals routes:

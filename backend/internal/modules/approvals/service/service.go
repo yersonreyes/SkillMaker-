@@ -9,6 +9,7 @@ package service
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 
 	"github.com/google/uuid"
@@ -17,16 +18,37 @@ import (
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses"
 )
 
+// ── Notifier seam (NON-FATAL, cross-module, notifications-inapp) ──────────────
+
+// Notifier is the narrow outbound seam for sending notifications.
+// notifications.Service satisfies this structurally (duck typing — no import).
+// Each consuming module declares its OWN narrow interface; there is NO shared package.
+type Notifier interface {
+	Notify(ctx context.Context, userID, tipo, titulo, cuerpo, refID string) error
+}
+
+// Option is a functional option for the approvals service constructor.
+type Option func(*serviceImpl)
+
+// WithNotifier wires a Notifier into the approvals service.
+// If not provided, the notifier field is nil and Notify calls are skipped safely.
+func WithNotifier(n Notifier) Option {
+	return func(s *serviceImpl) { s.notifier = n }
+}
+
 // ── Cross-module seam interfaces ───────────────────────────────────────────────
 
 // CourseStateManager is the narrow cross-module seam into courses.
 // coursesSvc satisfies this structurally (Go structural typing on interfaces).
 // Defined here per design §2 — approvals/service, NOT domain.
+// GetCourseTitulo was added for the notifications-inapp seam (C8 / notifications-inapp);
+// coursesSvc satisfies it structurally (GetCourseTitulo added in C5.1).
 type CourseStateManager interface {
 	GetCourseOwnership(ctx context.Context, courseID string) (creadorID, estado string, err error)
 	HasContent(ctx context.Context, courseID, creadorID string) (bool, error)
 	SetEstado(ctx context.Context, courseID, estado string) error
 	ListByEstado(ctx context.Context, estado string) ([]courses.CourseSummary, error)
+	GetCourseTitulo(ctx context.Context, courseID string) (string, error)
 }
 
 // EvaluationValidator is the narrow cross-module seam into evaluations.
@@ -70,16 +92,20 @@ type Service interface {
 // ── concrete implementation ────────────────────────────────────────────────────
 
 type serviceImpl struct {
-	repo    Repository
-	courses CourseStateManager
-	evals   EvaluationValidator
+	repo     Repository
+	courses  CourseStateManager
+	evals    EvaluationValidator
+	notifier Notifier // nil-safe; wired via WithNotifier in main.go
 }
 
 // New creates a Service backed by the given Repository, CourseStateManager, and EvaluationValidator.
-// Constructor mirrors evaluations.New (service.go:54 pattern): func New(r repo, courses, opts).
-// No functional options needed for C4.1.
-func New(r Repository, courses CourseStateManager, evals EvaluationValidator) Service {
-	return &serviceImpl{repo: r, courses: courses, evals: evals}
+// Variadic opts preserve backward compatibility: existing 3-arg call sites stay valid.
+func New(r Repository, courses CourseStateManager, evals EvaluationValidator, opts ...Option) Service {
+	s := &serviceImpl{repo: r, courses: courses, evals: evals}
+	for _, o := range opts {
+		o(s)
+	}
+	return s
 }
 
 // ── SubmitToReview ─────────────────────────────────────────────────────────────
@@ -127,12 +153,10 @@ func (s *serviceImpl) SubmitToReview(ctx context.Context, courseID, callerID str
 
 // Approve approves a course.
 // TWO-WRITE ORDERING (D6/R1): Create audit row FIRST, then SetEstado.
-// If SetEstado fails after Create: audit row exists for a course whose estado did NOT change
-// → retry is safe (Approve re-checks estado==en_revision and writes a second audit row on retry;
-// acceptable for append-only history). The alternative (estado first) would leave a published
-// course with NO audit trail — the worse failure for a compliance feature.
+// NON-FATAL NOTIFIER: after SetEstado succeeds, fires Notify for the creator.
+// A Notify error is logged via slog.Error and SWALLOWED — never returned.
 func (s *serviceImpl) Approve(ctx context.Context, courseID, adminID, comentario string) error {
-	_, estado, err := s.courses.GetCourseOwnership(ctx, courseID)
+	creadorID, estado, err := s.courses.GetCourseOwnership(ctx, courseID)
 	if err != nil {
 		return wrapCourseNotFound(err, courses.ErrCourseNotFound)
 	}
@@ -153,20 +177,33 @@ func (s *serviceImpl) Approve(ctx context.Context, courseID, adminID, comentario
 	}
 
 	// (b) Set estado (stamps publicado_en via courses.SetEstado → UpdateEstadoPublicado).
-	return s.courses.SetEstado(ctx, courseID, "aprobado")
+	if err := s.courses.SetEstado(ctx, courseID, "aprobado"); err != nil {
+		return err
+	}
+
+	// (c) NON-FATAL notify — fires only on SetEstado success.
+	if s.notifier != nil {
+		titulo, _ := s.courses.GetCourseTitulo(ctx, courseID) // fail-soft: "" on error
+		if err := s.notifier.Notify(ctx, creadorID, "curso_aprobado", "Curso aprobado", titulo, courseID); err != nil {
+			slog.Error("approvals: notify seam failed (non-fatal)", "err", err, "courseID", courseID)
+		}
+	}
+
+	return nil
 }
 
 // ── Reject ─────────────────────────────────────────────────────────────────────
 
 // Reject rejects a course with a mandatory comment (SEC-7: comment checked FIRST).
 // Two-write ordering: Create audit row FIRST, then SetEstado (same as Approve).
+// NON-FATAL NOTIFIER: after SetEstado succeeds, fires Notify for the creator.
 func (s *serviceImpl) Reject(ctx context.Context, courseID, adminID, comentario string) error {
 	// SEC-7: Comment must be non-empty BEFORE any reads or writes.
 	if strings.TrimSpace(comentario) == "" {
 		return ErrCommentRequired
 	}
 
-	_, estado, err := s.courses.GetCourseOwnership(ctx, courseID)
+	creadorID, estado, err := s.courses.GetCourseOwnership(ctx, courseID)
 	if err != nil {
 		return wrapCourseNotFound(err, courses.ErrCourseNotFound)
 	}
@@ -187,7 +224,25 @@ func (s *serviceImpl) Reject(ctx context.Context, courseID, adminID, comentario 
 	}
 
 	// (b) Set estado to rechazado (does NOT clear publicado_en per XMOD-3).
-	return s.courses.SetEstado(ctx, courseID, "rechazado")
+	if err := s.courses.SetEstado(ctx, courseID, "rechazado"); err != nil {
+		return err
+	}
+
+	// (c) NON-FATAL notify — fires only on SetEstado success.
+	if s.notifier != nil {
+		titulo, _ := s.courses.GetCourseTitulo(ctx, courseID) // fail-soft
+		cuerpo := titulo
+		if cuerpo != "" {
+			cuerpo = titulo + " — " + comentario
+		} else {
+			cuerpo = comentario
+		}
+		if err := s.notifier.Notify(ctx, creadorID, "curso_rechazado", "Curso rechazado", cuerpo, courseID); err != nil {
+			slog.Error("approvals: notify seam failed (non-fatal)", "err", err, "courseID", courseID)
+		}
+	}
+
+	return nil
 }
 
 // ── ListPending ────────────────────────────────────────────────────────────────

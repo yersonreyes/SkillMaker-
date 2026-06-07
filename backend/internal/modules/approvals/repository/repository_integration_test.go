@@ -107,8 +107,9 @@ func TestMigration0008RoundTrip(t *testing.T) {
 	// NOTE (C5.1): migration 0010 was added; -2 now rolls back 0010+0009, so we need -3.
 	// NOTE (course-structure-v2): migrations 0011+0012+0013 added; +3 → need -6.
 	// NOTE (course-player-progress): migration 0014 added; +1 → need -7.
-	err = m.Steps(-7)
-	require.NoError(t, err, "m.Steps(-7) must roll back 0014+0013+0012+0011+0010+0009+0008 without error")
+	// NOTE (notifications-inapp): migration 0015 added; +1 → need -8.
+	err = m.Steps(-8)
+	require.NoError(t, err, "m.Steps(-8) must roll back 0015+0014+0013+0012+0011+0010+0009+0008 without error")
 
 	// Verify publicado_en is gone after 0008 down.
 	err = db.Raw(
