@@ -147,7 +147,7 @@ describe('PlatformLayoutComponent — bell & notifications', () => {
     await fixture.componentInstance.onNotificationClick(MOCK_NOTIF_UNREAD);
 
     expect(notifServiceSpy.markRead).toHaveBeenCalledWith('notif-1');
-    expect(navigateSpy).toHaveBeenCalledWith(['/platform/courses', 'course-1']);
+    expect(navigateSpy).toHaveBeenCalledWith(['/platform/creator/curso-editar', 'course-1']);
   });
 
   it('onNotificationClick navigates to certificates for certificado_emitido', async () => {
@@ -182,7 +182,7 @@ describe('PlatformLayoutComponent — bell & notifications', () => {
     await fixture.componentInstance.onNotificationClick(MOCK_NOTIF_RECHAZADO);
 
     expect(notifServiceSpy.markRead).toHaveBeenCalledWith('notif-3');
-    expect(navigateSpy).toHaveBeenCalledWith(['/platform/courses', 'course-2']);
+    expect(navigateSpy).toHaveBeenCalledWith(['/platform/creator/curso-editar', 'course-2']);
   });
 
   // ── markAll ───────────────────────────────────────────────────────────────────

@@ -161,7 +161,10 @@ export class PlatformLayoutComponent implements OnInit, OnDestroy {
     const tipo = n.tipo ?? '';
     const refId = n.refId ?? '';
     if (tipo === 'curso_aprobado' || tipo === 'curso_rechazado') {
-      void this.router.navigate(['/platform/courses', refId]);
+      // Course approve/reject notifications go to the CREATOR — send them to
+      // their editor (shows the rejection comment + resubmit; the alumno
+      // /platform/courses/:id detail only serves aprobado courses).
+      void this.router.navigate(['/platform/creator/curso-editar', refId]);
     } else if (tipo === 'certificado_emitido') {
       // Certificates is a list page (no per-id detail route) — land on the list.
       void this.router.navigate(['/platform/certificates']);
