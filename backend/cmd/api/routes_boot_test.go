@@ -130,6 +130,11 @@ func (n *nilCourseSvc) MarkEnrollmentCompleted(_ context.Context, _, _ string) e
 // GetCourseTitulo satisfies the C5.1 addition — certificates seam (CourseTituloReader).
 func (n *nilCourseSvc) GetCourseTitulo(_ context.Context, _ string) (string, error) { return "", nil }
 
+// MarkVideoProgress satisfies the course-player-progress change (Change 2) Service interface.
+func (n *nilCourseSvc) MarkVideoProgress(_ context.Context, _, _ string, _ bool, _ int) error {
+	return nil
+}
+
 // nilEvalSvc is a nil-safe stub for evaluations.Service.
 type nilEvalSvc struct{}
 
@@ -369,6 +374,10 @@ func TestRouteBoot_AllModules_NoPanic(t *testing.T) {
 			"[C8.1] GET /api/auth/sessions/me must be registered without panic")
 		assert.True(t, routeMap["DELETE /api/auth/sessions/:id"],
 			"[C8.1] DELETE /api/auth/sessions/:id must be registered without panic")
+
+		// course-player-progress (Change 2): video progress route on protected group.
+		assert.True(t, routeMap["PUT /api/videos/:id/progress"],
+			"[course-player-progress] PUT /api/videos/:id/progress must be registered without panic")
 	}, "registering all module routes must not panic (no Gin param-tree conflict)")
 
 	_ = time.Now() // suppress unused import

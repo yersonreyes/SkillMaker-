@@ -3,6 +3,7 @@
 // Material and Enrollment remain schema-only (C2.3/C2.4 will add endpoints).
 // course-structure-v2: Video gains Descripcion; Material moves from Course to Video;
 // Course gains Nivel/MiniaturaKey/HorasPractico; Categoria+CourseCategoria added.
+// course-player-progress (Change 2): VideoProgress added (migration 0014).
 package domain
 
 import "time"
@@ -123,3 +124,17 @@ type Enrollment struct {
 }
 
 func (Enrollment) TableName() string { return "enrollment" }
+
+// VideoProgress maps to the video_progress table (migration 0014).
+// Per-(user,video) learning fact. UNIQUE(user_id, video_id) enables idempotent upsert.
+// DECOUPLED from Enrollment.Completado (D4): per-video progress NEVER reads/writes enrollment.
+type VideoProgress struct {
+	ID            string    `gorm:"type:uuid;primaryKey"`
+	UserID        string    `gorm:"column:user_id;type:uuid;not null"`
+	VideoID       string    `gorm:"column:video_id;type:uuid;not null"`
+	Completado    bool      `gorm:"column:completado;not null;default:false"`
+	LastPositionS int       `gorm:"column:last_position_s;not null;default:0"`
+	UpdatedAt     time.Time `gorm:"column:updated_at;type:timestamptz;default:now()"`
+}
+
+func (VideoProgress) TableName() string { return "video_progress" }

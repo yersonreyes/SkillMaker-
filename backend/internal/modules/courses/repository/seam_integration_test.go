@@ -327,3 +327,206 @@ func TestMyCourseIsolation_UserACannotSeeUserBCourses(t *testing.T) {
 
 // unused import guard for evalsDomain.
 var _ = evalsDomain.Attempt{}
+
+// ── course-player-progress integration tests (Change 2 / REQ-PROGRESS-READ + REQ-DECOUPLE) ──
+
+// TestGetCatalogDetail_Tree_CarriesCallerCompletado verifies that GetCatalogDetail returns
+// caller-scoped completado flags for each video in the content tree.
+//
+// Satisfies REQ-PROGRESS-READ / AC-4 (progress is per-user).
+func TestGetCatalogDetail_Tree_CarriesCallerCompletado(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	ctx := context.Background()
+
+	creadorID := seedUser(t, db)
+	userA := seedUser(t, db)
+	userB := seedUser(t, db)
+
+	courseID := seedCatalogCourse(t, db, creadorID, "Progress Test Course")
+
+	cRepo := coursesRepo.New(db)
+	cSvc := coursesSvc.New(cRepo, &noopStorage{}, 15*time.Minute, 52_428_800)
+
+	// Create section + 2 videos directly in DB.
+	sectionID := uuid.New().String()
+	err := db.Exec(
+		`INSERT INTO section (id, course_id, titulo, orden) VALUES (?, ?, 'S1', 0)`,
+		sectionID, courseID,
+	).Error
+	require.NoError(t, err)
+
+	vid1 := uuid.New().String()
+	vid2 := uuid.New().String()
+	for i, vid := range []struct{ id, titulo string }{{vid1, "V1"}, {vid2, "V2"}} {
+		err = db.Exec(
+			`INSERT INTO video (id, section_id, titulo, descripcion, url, proveedor, duracion_s, orden)
+			 VALUES (?, ?, ?, '', 'https://youtube.com/v', 'youtube', 120, ?)`,
+			vid.id, sectionID, vid.titulo, i,
+		).Error
+		require.NoError(t, err)
+	}
+
+	// Enroll A and B in the course.
+	require.NoError(t, cSvc.Enroll(ctx, userA, courseID))
+	require.NoError(t, cSvc.Enroll(ctx, userB, courseID))
+
+	// A completes vid1 only.
+	require.NoError(t, cRepo.UpsertVideoProgress(ctx, userA, vid1, true, 0))
+
+	// A's detail: vid1 completado=true, vid2 completado=false.
+	detailA, err := cSvc.GetCatalogDetail(ctx, userA, courseID)
+	require.NoError(t, err)
+	require.True(t, detailA.Enrolled, "A must be enrolled")
+	require.Len(t, detailA.Sections, 1)
+	require.Len(t, detailA.Sections[0].Videos, 2)
+
+	progMap := make(map[string]bool)
+	for _, v := range detailA.Sections[0].Videos {
+		progMap[v.ID] = v.Completado
+	}
+	assert.True(t, progMap[vid1], "A: vid1 must have completado=true")
+	assert.False(t, progMap[vid2], "A: vid2 must have completado=false")
+
+	// B's detail: both videos completado=false (B has no progress rows). REQ-PROGRESS-READ §3.
+	detailB, err := cSvc.GetCatalogDetail(ctx, userB, courseID)
+	require.NoError(t, err)
+	require.True(t, detailB.Enrolled)
+	for _, v := range detailB.Sections[0].Videos {
+		assert.False(t, v.Completado, "B: video %s must have completado=false (B has no progress)", v.ID)
+	}
+}
+
+// TestMarkAllVideosComplete_DoesNotFlipEnrollmentCompletado verifies the decouple invariant:
+// marking ALL videos complete NEVER sets enrollment.completado=true (REQ-DECOUPLE / AC-5).
+func TestMarkAllVideosComplete_DoesNotFlipEnrollmentCompletado(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	ctx := context.Background()
+
+	creadorID := seedUser(t, db)
+	learnerID := seedUser(t, db)
+
+	courseID := seedCatalogCourse(t, db, creadorID, "Decouple Test Course")
+
+	cRepo := coursesRepo.New(db)
+	cSvc := coursesSvc.New(cRepo, &noopStorage{}, 15*time.Minute, 52_428_800)
+
+	// Create section + 2 videos directly in DB.
+	sectionID := uuid.New().String()
+	err := db.Exec(
+		`INSERT INTO section (id, course_id, titulo, orden) VALUES (?, ?, 'S1', 0)`,
+		sectionID, courseID,
+	).Error
+	require.NoError(t, err)
+
+	vid1 := uuid.New().String()
+	vid2 := uuid.New().String()
+	for i, vid := range []struct{ id, titulo string }{{vid1, "V1"}, {vid2, "V2"}} {
+		err = db.Exec(
+			`INSERT INTO video (id, section_id, titulo, descripcion, url, proveedor, duracion_s, orden)
+			 VALUES (?, ?, ?, '', 'https://youtube.com/v', 'youtube', 120, ?)`,
+			vid.id, sectionID, vid.titulo, i,
+		).Error
+		require.NoError(t, err)
+	}
+
+	// Enroll learner.
+	require.NoError(t, cSvc.Enroll(ctx, learnerID, courseID))
+
+	// Mark ALL videos complete via MarkVideoProgress (goes through IsEnrolled gate).
+	require.NoError(t, cSvc.MarkVideoProgress(ctx, learnerID, vid1, true, 0))
+	require.NoError(t, cSvc.MarkVideoProgress(ctx, learnerID, vid2, true, 0))
+
+	// Verify enrollment.completado is still false (REQ-DECOUPLE — AC-5).
+	var completado bool
+	err = db.Raw(
+		`SELECT completado FROM enrollment WHERE user_id = ? AND course_id = ?`,
+		learnerID, courseID,
+	).Scan(&completado).Error
+	require.NoError(t, err)
+	assert.False(t, completado,
+		"enrollment.completado must remain false after all videos marked complete (REQ-DECOUPLE)")
+}
+
+// TestSeam_EvalPass_DoesNotCreateVideoProgressRows verifies the OTHER decouple direction:
+// passing the evaluation (triggering MarkEnrollmentCompleted via the evaluations seam) MUST NOT
+// create or alter any video_progress rows for that user/course.
+//
+// Spec: REQ-DECOUPLE AC-5 — eval-pass and video progress are fully independent. The eval seam
+// only touches enrollment.completado; it has no knowledge of video_progress at all.
+//
+// SUGGESTION-1 from verify-report-be (#373): explicit test for the OTHER decouple direction.
+func TestSeam_EvalPass_DoesNotCreateVideoProgressRows(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	ctx := context.Background()
+
+	// ── 1. Seed course, enrollment, evaluation ────────────────────────────────────
+	creadorID := seedUser(t, db)
+	studentID := seedUser(t, db)
+	courseID := seedCourseAprobado(t, db, creadorID)
+
+	cRepo := coursesRepo.New(db)
+	cSvc := coursesSvc.New(cRepo, &noopStorage{}, 15*time.Minute, 52_428_800)
+
+	// Enroll student.
+	require.NoError(t, cSvc.Enroll(ctx, studentID, courseID), "Enroll must succeed")
+
+	// Verify no video_progress rows exist before the seam fires.
+	var countBefore int64
+	require.NoError(t, db.Raw(
+		`SELECT COUNT(*) FROM video_progress WHERE user_id = ? AND video_id IN
+		 (SELECT v.id FROM video v
+		  JOIN section s ON s.id = v.section_id
+		  WHERE s.course_id = ?)`,
+		studentID, courseID,
+	).Scan(&countBefore).Error)
+	assert.Equal(t, int64(0), countBefore,
+		"no video_progress rows must exist before seam fires")
+
+	// ── 2. Wire evaluationsSvc + seed a passing evaluation ────────────────────────
+	evalID, optionID := seedEvaluationWithPassingSetup(t, db, courseID)
+
+	eRepo := evalsRepo.New(db)
+	eSvc := evalsSvc.New(eRepo, cSvc, evalsSvc.WithEnrollmentCompleter(cSvc))
+
+	// Start + answer + submit a passing attempt → fires MarkEnrollmentCompleted seam.
+	attempt, err := eSvc.StartAttempt(ctx, evalID, studentID)
+	require.NoError(t, err)
+
+	state, err := eSvc.GetAttempt(ctx, attempt.ID, studentID)
+	require.NoError(t, err)
+	require.NotEmpty(t, state.Questions)
+
+	questionID := state.Questions[0].ID
+	require.NoError(t, eSvc.SaveAnswer(ctx, attempt.ID, studentID, questionID, optionID))
+
+	result, err := eSvc.SubmitAttempt(ctx, attempt.ID, studentID)
+	require.NoError(t, err)
+	require.True(t, result.Aprobado, "attempt must be aprobado (seam precondition)")
+
+	// ── 3. Verify enrollment.completado was flipped (seam fired) ─────────────────
+	var completado bool
+	require.NoError(t, db.Raw(
+		`SELECT completado FROM enrollment WHERE user_id = ? AND course_id = ?`,
+		studentID, courseID,
+	).Scan(&completado).Error)
+	assert.True(t, completado,
+		"enrollment.completado must be true after passing attempt (seam fired correctly)")
+
+	// ── 4. KEY ASSERTION: no video_progress rows created by the seam ─────────────
+	// MarkEnrollmentCompleted must ONLY touch enrollment.completado — it must NEVER
+	// create, update, or delete any video_progress rows (REQ-DECOUPLE, OTHER DIRECTION).
+	var countAfter int64
+	require.NoError(t, db.Raw(
+		`SELECT COUNT(*) FROM video_progress WHERE user_id = ?`,
+		studentID,
+	).Scan(&countAfter).Error)
+	assert.Equal(t, int64(0), countAfter,
+		"[REQ-DECOUPLE / SUGGESTION-1] eval-pass (MarkEnrollmentCompleted) must NOT create "+
+			"any video_progress rows — eval completion and video progress are fully independent")
+}

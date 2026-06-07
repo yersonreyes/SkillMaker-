@@ -231,13 +231,14 @@ func TestMigration0004Down_ReversesSchema(t *testing.T) {
 	db, m, teardown := testutil.SetupPostgresWithMigrate(t)
 	defer teardown()
 
-	// All migrations up (0001–0013) are applied by SetupPostgresWithMigrate.
-	// Roll back 10 steps: 0013+0012+0011+0010+0009+0008+0007+0006+0005+0004.
+	// All migrations up (0001–0014) are applied by SetupPostgresWithMigrate.
+	// Roll back 11 steps: 0014+0013+0012+0011+0010+0009+0008+0007+0006+0005+0004.
 	// NOTE (C2.4): migration 0009 was added; -5 now rolls back 0009+0008+0007+0006+0005, so we need -6 to also roll back 0004.
 	// NOTE (C5.1): migration 0010 was added; -6 now rolls back 0010+0009+0008+0007+0006+0005, so we need -7.
 	// NOTE (course-structure-v2): migrations 0011+0012+0013 added; +3 → need -10.
-	err := m.Steps(-10)
-	require.NoError(t, err, "m.Steps(-10) must roll back 0013+0012+0011+0010+0009+0008+0007+0006+0005+0004 without error (SCH-1-B)")
+	// NOTE (course-player-progress): migration 0014 added; +1 → need -11.
+	err := m.Steps(-11)
+	require.NoError(t, err, "m.Steps(-11) must roll back 0014+0013+0012+0011+0010+0009+0008+0007+0006+0005+0004 without error (SCH-1-B)")
 
 	// Step 2: Assert storage_key is restored.
 	var storageKeyCount int64
@@ -682,7 +683,7 @@ func TestMigration0005RoundTrip(t *testing.T) {
 	assert.Equal(t, int64(1), tamanoCount,
 		"material.tamano_bytes must exist after 0005 up (AC8)")
 
-	// Apply DOWN nine steps — rolls back 0013+0012+0011+0010+0009+0008+0007+0006+0005 (all migrations 0001–0013 applied).
+	// Apply DOWN ten steps — rolls back 0014+0013+0012+0011+0010+0009+0008+0007+0006+0005 (all migrations 0001–0014 applied).
 	// NOTE (C3.1): migration 0006 was added; -1 now rolls back 0006 only, so we need -2.
 	// NOTE (C3.2): migration 0007 was added; -2 now rolls back 0007+0006, so we need -3.
 	// NOTE (C4.1): migration 0008 was added; -3 now rolls back 0008+0007+0006, so we need -4.
@@ -690,8 +691,9 @@ func TestMigration0005RoundTrip(t *testing.T) {
 	// the post-0005-down state where mime_type and tamano_bytes are removed.
 	// NOTE (C5.1): migration 0010 was added; -5 now rolls back 0010+0009+0008+0007+0006, so we need -6.
 	// NOTE (course-structure-v2): migrations 0011+0012+0013 added; +3 → need -9.
-	err = m.Steps(-9)
-	require.NoError(t, err, "m.Steps(-9) must roll back 0013+0012+0011+0010+0009+0008+0007+0006+0005 without error (AC8)")
+	// NOTE (course-player-progress): migration 0014 added; +1 → need -10.
+	err = m.Steps(-10)
+	require.NoError(t, err, "m.Steps(-10) must roll back 0014+0013+0012+0011+0010+0009+0008+0007+0006+0005 without error (AC8)")
 
 	// Verify mime_type is gone after 0005 down.
 	err = db.Raw(
@@ -924,12 +926,13 @@ func TestMigration0009RoundTrip(t *testing.T) {
 	assert.Contains(t, columnDefault, "false",
 		"enrollment.completado must have DEFAULT false after 0009 up (AC-13)")
 
-	// Roll back 5 steps — drops 0013+0012+0011+0010+0009 (completado column).
+	// Roll back 6 steps — drops 0014+0013+0012+0011+0010+0009 (completado column).
 	// NOTE (C5.1): migration 0010 was added; -1 now rolls back 0010 only, so we need -2 to drop 0009.
 	// NOTE (course-structure-v2): migrations 0011+0012+0013 added; +3 → need -5.
-	err = m.Steps(-5)
+	// NOTE (course-player-progress): migration 0014 added; +1 → need -6.
+	err = m.Steps(-6)
 	require.NoError(t, err,
-		"m.Steps(-5) must roll back 0013+0012+0011+0010+0009 (completado column) without error (AC-13)")
+		"m.Steps(-6) must roll back 0014+0013+0012+0011+0010+0009 (completado column) without error (AC-13)")
 
 	// Verify completado is gone after 0009 down.
 	err = db.Raw(
@@ -960,9 +963,10 @@ func TestMigration0011RoundTrip(t *testing.T) {
 	assert.Equal(t, int64(1), count,
 		"video.descripcion must exist after 0011 up (REQ-SCH-0011)")
 
-	// Roll back 3 steps (0013+0012+0011).
-	err = m.Steps(-3)
-	require.NoError(t, err, "m.Steps(-3) must roll back 0013+0012+0011 without error")
+	// Roll back 4 steps (0014+0013+0012+0011).
+	// NOTE (course-player-progress): migration 0014 added; +1 → need -4.
+	err = m.Steps(-4)
+	require.NoError(t, err, "m.Steps(-4) must roll back 0014+0013+0012+0011 without error")
 
 	// Verify video.descripcion is gone after 0011 down.
 	err = db.Raw(
@@ -989,9 +993,10 @@ func TestMigration0012BackfillInvariant(t *testing.T) {
 	db, m, teardown := testutil.SetupPostgresWithMigrate(t)
 	defer teardown()
 
-	// Roll back to migration 0010 state (before 0011+0012+0013).
-	err := m.Steps(-3)
-	require.NoError(t, err, "m.Steps(-3) to reach 0010 state")
+	// Roll back to migration 0010 state (before 0011+0012+0013+0014).
+	// NOTE (course-player-progress): migration 0014 added; +1 → need -4.
+	err := m.Steps(-4)
+	require.NoError(t, err, "m.Steps(-4) to reach 0010 state")
 
 	// Re-apply 0011 only (video.descripcion) so we can seed a video without descripcion issues.
 	err = m.Steps(1)
@@ -1161,9 +1166,10 @@ func TestMigration0013CourseMetaAndCategorias(t *testing.T) {
 	).Error
 	assert.Error(t, err, "CHECK constraint must reject nivel='experto' (REQ-SCH-0013)")
 
-	// Roll back 3 steps (0013+0012+0011).
-	err = m.Steps(-3)
-	require.NoError(t, err, "m.Steps(-3) rolls back 0013+0012+0011")
+	// Roll back 4 steps (0014+0013+0012+0011).
+	// NOTE (course-player-progress): migration 0014 added; +1 → need -4.
+	err = m.Steps(-4)
+	require.NoError(t, err, "m.Steps(-4) rolls back 0014+0013+0012+0011")
 
 	// Verify categoria and course_categoria tables gone.
 	var tblCount int64
@@ -1930,4 +1936,211 @@ func TestCategoriasRepo(t *testing.T) {
 	gotCats, err = repo.GetCourseCategorias(context.Background(), course.ID)
 	require.NoError(t, err)
 	assert.Empty(t, gotCats, "empty set must clear all categorias")
+}
+
+// ── Migration 0014 round-trip tests (video_progress) ─────────────────────────
+
+// TestMigration0014RoundTrip verifies that migration 0014 creates the video_progress table
+// with the UNIQUE(user_id,video_id) constraint, 2 FK CASCADE constraints, and 2 indexes.
+// The down migration drops it cleanly. Satisfies REQ-SCH/Design §1.
+func TestMigration0014RoundTrip(t *testing.T) {
+	db, m, teardown := testutil.SetupPostgresWithMigrate(t)
+	defer teardown()
+
+	// All migrations 0001–0014 are applied by SetupPostgresWithMigrate.
+	// Verify video_progress table exists.
+	var tableCount int64
+	err := db.Raw(
+		`SELECT COUNT(*) FROM information_schema.tables
+		 WHERE table_schema = 'public' AND table_name = 'video_progress'`,
+	).Scan(&tableCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), tableCount, "video_progress table must exist after 0014 up (REQ-SCH)")
+
+	// Verify UNIQUE constraint exists.
+	var uniqueCount int64
+	err = db.Raw(
+		`SELECT COUNT(*) FROM information_schema.table_constraints
+		 WHERE table_schema = 'public'
+		   AND table_name = 'video_progress'
+		   AND constraint_name = 'uq_video_progress_user_video'
+		   AND constraint_type = 'UNIQUE'`,
+	).Scan(&uniqueCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), uniqueCount, "uq_video_progress_user_video UNIQUE constraint must exist (REQ-SCH)")
+
+	// Verify FK to "user" exists (ON DELETE CASCADE).
+	var userFKCount int64
+	err = db.Raw(
+		`SELECT COUNT(*) FROM information_schema.referential_constraints rc
+		 JOIN information_schema.key_column_usage kcu
+		   ON kcu.constraint_name = rc.constraint_name
+		 WHERE rc.constraint_schema = 'public'
+		   AND kcu.table_name = 'video_progress'
+		   AND kcu.column_name = 'user_id'`,
+	).Scan(&userFKCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), userFKCount, "FK user_id → user(id) must exist on video_progress (REQ-SCH)")
+
+	// Verify FK to video exists (ON DELETE CASCADE).
+	var videoFKCount int64
+	err = db.Raw(
+		`SELECT COUNT(*) FROM information_schema.referential_constraints rc
+		 JOIN information_schema.key_column_usage kcu
+		   ON kcu.constraint_name = rc.constraint_name
+		 WHERE rc.constraint_schema = 'public'
+		   AND kcu.table_name = 'video_progress'
+		   AND kcu.column_name = 'video_id'`,
+	).Scan(&videoFKCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), videoFKCount, "FK video_id → video(id) must exist on video_progress (REQ-SCH)")
+
+	// Verify indexes exist.
+	var userIdxCount int64
+	err = db.Raw(
+		`SELECT COUNT(*) FROM pg_indexes
+		 WHERE schemaname = 'public'
+		   AND tablename = 'video_progress'
+		   AND indexname = 'idx_video_progress_user'`,
+	).Scan(&userIdxCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), userIdxCount, "idx_video_progress_user index must exist (REQ-SCH)")
+
+	var videoIdxCount int64
+	err = db.Raw(
+		`SELECT COUNT(*) FROM pg_indexes
+		 WHERE schemaname = 'public'
+		   AND tablename = 'video_progress'
+		   AND indexname = 'idx_video_progress_video'`,
+	).Scan(&videoIdxCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), videoIdxCount, "idx_video_progress_video index must exist (REQ-SCH)")
+
+	// Roll back 1 step — drops 0014 (video_progress).
+	err = m.Steps(-1)
+	require.NoError(t, err, "m.Steps(-1) must roll back 0014 (video_progress) without error (REQ-SCH down)")
+
+	// Verify table is gone after 0014 down.
+	err = db.Raw(
+		`SELECT COUNT(*) FROM information_schema.tables
+		 WHERE table_schema = 'public' AND table_name = 'video_progress'`,
+	).Scan(&tableCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), tableCount, "video_progress table must be gone after 0014 down (REQ-SCH)")
+}
+
+// ── Video progress repository tests (REQ-PROGRESS-WRITE + REQ-SEC) ────────────
+
+// TestUpsertVideoProgress_InsertAndConflictUpdate verifies:
+//   - First call inserts a new row with correct completado.
+//   - Second call with same (user_id, video_id) updates completado (ON CONFLICT), no duplicate row.
+//
+// Satisfies REQ-PROGRESS-WRITE / Design §2.
+func TestUpsertVideoProgress_InsertAndConflictUpdate(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+	learnerID := seedUser(t, db)
+	course := seedCourse(t, repo, creadorID, "Upsert Progress Course")
+	section := seedSection(t, repo, course.ID, "S1", 0)
+	video := seedVideo(t, repo, section.ID, "V1")
+
+	ctx := context.Background()
+
+	// First call — insert (completado=false).
+	err := repo.UpsertVideoProgress(ctx, learnerID, video.ID, false, 0)
+	require.NoError(t, err, "first UpsertVideoProgress must succeed (insert)")
+
+	// Verify the row was inserted with completado=false.
+	var rowCount int64
+	err = db.Raw(
+		`SELECT COUNT(*) FROM video_progress WHERE user_id = ? AND video_id = ? AND completado = false`,
+		learnerID, video.ID,
+	).Scan(&rowCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), rowCount, "one row with completado=false must exist after first upsert")
+
+	// Second call — ON CONFLICT update (flip completado to true).
+	err = repo.UpsertVideoProgress(ctx, learnerID, video.ID, true, 60)
+	require.NoError(t, err, "second UpsertVideoProgress must succeed (conflict update)")
+
+	// Verify only ONE row exists (no duplicate) and completado is now true.
+	err = db.Raw(
+		`SELECT COUNT(*) FROM video_progress WHERE user_id = ? AND video_id = ?`,
+		learnerID, video.ID,
+	).Scan(&rowCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), rowCount, "ON CONFLICT must NOT create a duplicate row")
+
+	err = db.Raw(
+		`SELECT COUNT(*) FROM video_progress WHERE user_id = ? AND video_id = ? AND completado = true AND last_position_s = 60`,
+		learnerID, video.ID,
+	).Scan(&rowCount).Error
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), rowCount, "completado must be updated to true, last_position_s to 60")
+}
+
+// TestListVideoProgressByUserAndCourse_CallerScoped verifies:
+//   - Returns ONLY the caller's progress rows.
+//   - Returns ONLY rows for videos that belong to the specified course.
+//   - Never leaks another user's progress (SECURITY-CRITICAL, REQ-SEC).
+//
+// Satisfies REQ-SEC / Design §2.
+func TestListVideoProgressByUserAndCourse_CallerScoped(t *testing.T) {
+	db, teardown := testutil.SetupPostgres(t)
+	defer teardown()
+
+	repo := repository.New(db)
+	creadorID := seedUser(t, db)
+	userA := seedUser(t, db) // the caller
+	userB := seedUser(t, db) // another learner — must NOT appear in A's results
+
+	// Course C1 with 2 videos.
+	c1 := seedCourse(t, repo, creadorID, "Course C1")
+	s1 := seedSection(t, repo, c1.ID, "S1", 0)
+	vid1 := seedVideo(t, repo, s1.ID, "V1")
+	vid2 := seedVideo(t, repo, s1.ID, "V2")
+
+	// Course C2 with 1 video (must NOT appear in C1 results).
+	c2 := seedCourse(t, repo, creadorID, "Course C2")
+	s2 := seedSection(t, repo, c2.ID, "S2", 0)
+	vid3 := seedVideo(t, repo, s2.ID, "V3-in-C2")
+
+	ctx := context.Background()
+
+	// Seed progress: A completes vid1 and vid2 in C1; A also has progress in C2 (vid3).
+	require.NoError(t, repo.UpsertVideoProgress(ctx, userA, vid1.ID, true, 0))
+	require.NoError(t, repo.UpsertVideoProgress(ctx, userA, vid2.ID, false, 30))
+	require.NoError(t, repo.UpsertVideoProgress(ctx, userA, vid3.ID, true, 0))
+
+	// Seed progress for user B in C1 (must NOT appear in A's results).
+	require.NoError(t, repo.UpsertVideoProgress(ctx, userB, vid1.ID, false, 0))
+
+	// A's progress for C1 — must return exactly 2 rows (vid1 and vid2), NOT vid3 (C2).
+	rows, err := repo.ListVideoProgressByUserAndCourse(ctx, userA, c1.ID)
+	require.NoError(t, err)
+	assert.Len(t, rows, 2, "A must see exactly 2 rows for C1 (vid1+vid2)")
+
+	progressMap := make(map[string]bool, len(rows))
+	for _, r := range rows {
+		progressMap[r.VideoID] = r.Completado
+	}
+	assert.True(t, progressMap[vid1.ID], "vid1 must be completado=true for A")
+	assert.False(t, progressMap[vid2.ID], "vid2 must be completado=false for A")
+	assert.NotContains(t, progressMap, vid3.ID, "vid3 (C2) must NOT appear in A's C1 results")
+
+	// B must NOT appear in A's results (caller-scoped isolation, REQ-SEC).
+	for _, r := range rows {
+		assert.NotEqual(t, userB, r.VideoID,
+			"B's progress must never appear in A's query")
+	}
+
+	// B queries C1 — must see only B's row for vid1.
+	rowsB, err := repo.ListVideoProgressByUserAndCourse(ctx, userB, c1.ID)
+	require.NoError(t, err)
+	assert.Len(t, rowsB, 1, "B must see exactly 1 row for C1 (only vid1 has progress)")
+	assert.Equal(t, vid1.ID, rowsB[0].VideoID)
+	assert.False(t, rowsB[0].Completado)
 }

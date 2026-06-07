@@ -346,6 +346,11 @@ func (m *mockCourseSvc) GetCourseTitulo(_ context.Context, _ string) (string, er
 	return "", nil
 }
 
+// MarkVideoProgress satisfies the course-player-progress change (Change 2) Service interface.
+func (m *mockCourseSvc) MarkVideoProgress(_ context.Context, _, _ string, _ bool, _ int) error {
+	return nil
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 func injectIdentity(userID string, roles []string) gin.HandlerFunc {

@@ -3467,6 +3467,73 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/videos/{id}/progress": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "PUT /api/videos/:id/progress — upsert caller-scoped video progress.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalog"
+                ],
+                "summary": "Registra o actualiza el progreso del alumno en un video",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID del video",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Progreso del video",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.VideoProgressRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "sin contenido — progreso registrado"
+                    },
+                    "400": {
+                        "description": "cuerpo inválido",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "JWT requerido",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "video no encontrado o no inscrito (no-leak)",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -4800,9 +4867,23 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.VideoProgressRequest": {
+            "type": "object",
+            "properties": {
+                "completado": {
+                    "type": "boolean"
+                },
+                "lastPositionS": {
+                    "type": "integer"
+                }
+            }
+        },
         "dto.VideoResponse": {
             "type": "object",
             "properties": {
+                "completado": {
+                    "type": "boolean"
+                },
                 "createdAt": {
                     "type": "string"
                 },

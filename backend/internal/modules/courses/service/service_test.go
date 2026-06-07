@@ -262,6 +262,21 @@ func (m *MockCoursesRepository) MarkCompleted(ctx context.Context, userID, cours
 	return args.Error(0)
 }
 
+// ── course-player-progress additions (migration 0014) ─────────────────────────
+
+func (m *MockCoursesRepository) UpsertVideoProgress(ctx context.Context, userID, videoID string, completado bool, lastPositionS int) error {
+	args := m.Called(ctx, userID, videoID, completado, lastPositionS)
+	return args.Error(0)
+}
+
+func (m *MockCoursesRepository) ListVideoProgressByUserAndCourse(ctx context.Context, userID, courseID string) ([]repository.VideoProgressRow, error) {
+	args := m.Called(ctx, userID, courseID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]repository.VideoProgressRow), args.Error(1)
+}
+
 // ── MockStorageClient ─────────────────────────────────────────────────────────
 
 // mockStorageClient is a minimal mock for storage.Client using func fields.
@@ -1987,6 +2002,9 @@ func TestGetCatalogDetail_Enrolled_ReturnsTree(t *testing.T) {
 	repo.On("GetCourseCategorias", mock.Anything, courseID).Return([]domain.Categoria{}, nil)
 	repo.On("ListSectionsByCourse", mock.Anything, courseID).Return(sections, nil)
 	repo.On("ListMaterialsByCourseVideos", mock.Anything, courseID).Return(materials, nil)
+	// course-player-progress: ListVideoProgressByUserAndCourse is now called by buildContentTree.
+	repo.On("ListVideoProgressByUserAndCourse", mock.Anything, userID, courseID).
+		Return([]repository.VideoProgressRow{}, nil)
 	repo.On("ListVideosBySection", mock.Anything, sectionID).Return(videos, nil)
 
 	result, err := svc.GetCatalogDetail(context.Background(), userID, courseID)
@@ -2254,5 +2272,187 @@ func TestListMyCourses_DelegatesAndMaps(t *testing.T) {
 	require.Len(t, result, 1)
 	assert.Equal(t, "c1", result[0].CourseID)
 	assert.Equal(t, "Alice", result[0].CreadorNombre)
+	repo.AssertExpectations(t)
+}
+
+// ── MarkVideoProgress service unit tests (course-player-progress / REQ-PROGRESS-WRITE) ──
+
+// TestMarkVideoProgress_Enrolled_CallsUpsert verifies that an enrolled caller triggers UpsertVideoProgress.
+// Satisfies REQ-PROGRESS-WRITE / Design §3.
+func TestMarkVideoProgress_Enrolled_CallsUpsert(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	userID := uuid.New().String()
+	videoID := uuid.New().String()
+	courseID := uuid.New().String()
+	creadorID := uuid.New().String()
+
+	repo.On("ResolveVideoCourse", mock.Anything, videoID).
+		Return(courseID, creadorID, "aprobado", nil)
+	repo.On("IsEnrolled", mock.Anything, userID, courseID).Return(true, nil)
+	repo.On("UpsertVideoProgress", mock.Anything, userID, videoID, true, 0).Return(nil)
+
+	err := svc.MarkVideoProgress(context.Background(), userID, videoID, true, 0)
+	require.NoError(t, err)
+	repo.AssertExpectations(t)
+}
+
+// TestMarkVideoProgress_NotEnrolled_ReturnsErrNotEnrolled verifies that a non-enrolled caller
+// receives ErrNotEnrolled and UpsertVideoProgress is never called. REQ-SEC / REQ-DECOUPLE.
+func TestMarkVideoProgress_NotEnrolled_ReturnsErrNotEnrolled(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	userID := uuid.New().String()
+	videoID := uuid.New().String()
+	courseID := uuid.New().String()
+	creadorID := uuid.New().String()
+
+	repo.On("ResolveVideoCourse", mock.Anything, videoID).
+		Return(courseID, creadorID, "aprobado", nil)
+	repo.On("IsEnrolled", mock.Anything, userID, courseID).Return(false, nil)
+	// UpsertVideoProgress must NOT be called.
+
+	err := svc.MarkVideoProgress(context.Background(), userID, videoID, true, 0)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrNotEnrolled, "non-enrolled caller must receive ErrNotEnrolled")
+	repo.AssertNotCalled(t, "UpsertVideoProgress")
+	repo.AssertExpectations(t)
+}
+
+// TestMarkVideoProgress_VideoNotFound_ReturnsErrVideoNotFound verifies that a nonexistent video
+// returns ErrVideoNotFound and no upsert is attempted. REQ-SEC (404 no-leak).
+func TestMarkVideoProgress_VideoNotFound_ReturnsErrVideoNotFound(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	userID := uuid.New().String()
+	videoID := uuid.New().String()
+
+	repo.On("ResolveVideoCourse", mock.Anything, videoID).
+		Return("", "", "", repository.ErrVideoNotFound)
+	// IsEnrolled and UpsertVideoProgress must NOT be called.
+
+	err := svc.MarkVideoProgress(context.Background(), userID, videoID, true, 0)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrVideoNotFound, "nonexistent video must return ErrVideoNotFound")
+	repo.AssertNotCalled(t, "IsEnrolled")
+	repo.AssertNotCalled(t, "UpsertVideoProgress")
+	repo.AssertExpectations(t)
+}
+
+// TestMarkVideoProgress_NeverCallsMarkEnrollmentCompleted verifies that MarkVideoProgress
+// NEVER touches MarkEnrollmentCompleted or MarkCompleted (decouple invariant, REQ-DECOUPLE).
+func TestMarkVideoProgress_NeverCallsMarkEnrollmentCompleted(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	userID := uuid.New().String()
+	videoID := uuid.New().String()
+	courseID := uuid.New().String()
+	creadorID := uuid.New().String()
+
+	repo.On("ResolveVideoCourse", mock.Anything, videoID).
+		Return(courseID, creadorID, "aprobado", nil)
+	repo.On("IsEnrolled", mock.Anything, userID, courseID).Return(true, nil)
+	repo.On("UpsertVideoProgress", mock.Anything, userID, videoID, true, 0).Return(nil)
+
+	err := svc.MarkVideoProgress(context.Background(), userID, videoID, true, 0)
+	require.NoError(t, err)
+
+	// Assert decoupling: MarkCompleted must NEVER be called (REQ-DECOUPLE / D4).
+	repo.AssertNotCalled(t, "MarkCompleted")
+	repo.AssertExpectations(t)
+}
+
+// TestMarkVideoProgress_InvalidUUID_ReturnsErrVideoNotFound verifies that a malformed
+// (non-UUID) videoID returns ErrVideoNotFound immediately, without reaching the repository.
+// This prevents Postgres SQLSTATE 22P02 from escaping as a 500 (REQ-PROGRESS-WRITE / D3).
+// Fix: uuid.Parse(videoID) check at the top of MarkVideoProgress — invalid → ErrVideoNotFound.
+func TestMarkVideoProgress_InvalidUUID_ReturnsErrVideoNotFound(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	userID := uuid.New().String()
+	// "not-a-uuid" is NOT a valid UUID — must be caught BEFORE any repo call.
+
+	err := svc.MarkVideoProgress(context.Background(), userID, "not-a-uuid", true, 0)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrVideoNotFound,
+		"non-UUID videoID must return ErrVideoNotFound (prevents Postgres 22P02 → 500)")
+
+	// The repo must never be reached — no SQL call should occur.
+	repo.AssertNotCalled(t, "ResolveVideoCourse")
+	repo.AssertNotCalled(t, "IsEnrolled")
+	repo.AssertNotCalled(t, "UpsertVideoProgress")
+	repo.AssertExpectations(t)
+}
+
+// TestMarkVideoProgress_InvalidUUID_Triangulation verifies another malformed form
+// (empty string) also returns ErrVideoNotFound, triangulating the UUID guard.
+func TestMarkVideoProgress_InvalidUUID_Triangulation(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	userID := uuid.New().String()
+
+	err := svc.MarkVideoProgress(context.Background(), userID, "", true, 0)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrVideoNotFound,
+		"empty string videoID must also return ErrVideoNotFound (UUID validation catches it)")
+
+	repo.AssertNotCalled(t, "ResolveVideoCourse")
+	repo.AssertExpectations(t)
+}
+
+// ── buildContentTree completado attachment tests (REQ-PROGRESS-READ) ──────────
+
+// TestBuildContentTree_AttachesCompletadoFromOneBatchCall verifies:
+//   - ListVideoProgressByUserAndCourse is called EXACTLY ONCE (no N+1, REQ-PROGRESS-READ).
+//   - vm.Completado is set correctly from the progress map.
+//
+// Satisfies REQ-PROGRESS-READ / Design §3.
+func TestBuildContentTree_AttachesCompletadoFromOneBatchCall(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvcWithStore(repo, &mockStorageClient{})
+
+	ctx := context.Background()
+	courseID := uuid.New().String()
+	userID := uuid.New().String()
+	sectionID := uuid.New().String()
+	videoID1 := uuid.New().String()
+	videoID2 := uuid.New().String()
+
+	sections := []domain.Section{
+		{ID: sectionID, CourseID: courseID, Titulo: "S1", Orden: 0},
+	}
+	videos1 := []domain.Video{
+		{ID: videoID1, SectionID: sectionID, Titulo: "V1", URL: "http://x", Proveedor: "youtube"},
+		{ID: videoID2, SectionID: sectionID, Titulo: "V2", URL: "http://y", Proveedor: "youtube"},
+	}
+	progressRows := []repository.VideoProgressRow{
+		{VideoID: videoID1, Completado: true},
+		// videoID2 absent — should default to false.
+	}
+
+	repo.On("ListSectionsByCourse", mock.Anything, courseID).Return(sections, nil)
+	repo.On("ListMaterialsByCourseVideos", mock.Anything, courseID).Return([]domain.Material{}, nil)
+	// CRITICAL: called EXACTLY ONCE (no N+1).
+	repo.On("ListVideoProgressByUserAndCourse", mock.Anything, userID, courseID).
+		Return(progressRows, nil).Once()
+	repo.On("ListVideosBySection", mock.Anything, sectionID).Return(videos1, nil)
+
+	result, err := svc.buildContentTree(ctx, userID, courseID)
+	require.NoError(t, err)
+	require.Len(t, result, 1, "must return 1 section")
+	require.Len(t, result[0].Videos, 2, "must return 2 videos")
+
+	// videoID1 must be completado=true; videoID2 must be completado=false (default).
+	assert.True(t, result[0].Videos[0].Completado, "V1 must have Completado=true from progress row")
+	assert.False(t, result[0].Videos[1].Completado, "V2 must have Completado=false (no progress row)")
+
+	// Assert ListVideoProgressByUserAndCourse called exactly once (no N+1).
+	repo.AssertNumberOfCalls(t, "ListVideoProgressByUserAndCourse", 1)
 	repo.AssertExpectations(t)
 }

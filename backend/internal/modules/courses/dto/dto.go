@@ -131,6 +131,7 @@ type SectionWithVideosResponse struct {
 
 // VideoResponse is the wire shape for a video returned by the API.
 // course-structure-v2: Descripcion and Materiales added.
+// course-player-progress (Change 2): Completado added (caller-scoped, migration 0014).
 type VideoResponse struct {
 	ID          string             `json:"id"`
 	SectionID   string             `json:"sectionId"`
@@ -142,6 +143,7 @@ type VideoResponse struct {
 	Orden       int                `json:"orden"`
 	CreatedAt   time.Time          `json:"createdAt"`
 	Materiales  []MaterialResponse `json:"materiales"`
+	Completado  bool               `json:"completado"`
 }
 
 // ── Mapping functions ──────────────────────────────────────────────────────────
@@ -220,6 +222,7 @@ func ToSectionWithVideos(m *service.SectionWithVideosModel) SectionWithVideosRes
 
 // ToVideo converts a service.VideoModel to the VideoResponse wire shape.
 // course-structure-v2: Descripcion and Materiales included.
+// course-player-progress (Change 2): Completado included (caller-scoped, migration 0014).
 func ToVideo(m *service.VideoModel) VideoResponse {
 	materiales := make([]MaterialResponse, 0, len(m.Materiales))
 	for i := range m.Materiales {
@@ -236,10 +239,19 @@ func ToVideo(m *service.VideoModel) VideoResponse {
 		Orden:       m.Orden,
 		CreatedAt:   m.CreatedAt,
 		Materiales:  materiales,
+		Completado:  m.Completado,
 	}
 }
 
 // ── Material request bodies (C2.3) ────────────────────────────────────────────
+
+// VideoProgressRequest is the body for PUT /api/videos/:id/progress.
+// LastPositionS is forward-compat (D5): the manual flow leaves it 0/absent.
+// Caller-scoped: the body MUST NOT contain a userId field; userID comes from JWT only (REQ-SEC).
+type VideoProgressRequest struct {
+	Completado    bool `json:"completado"`
+	LastPositionS *int `json:"lastPositionS"`
+}
 
 // MaterialPresignRequest is the body for POST /api/videos/:id/materials/presign.
 type MaterialPresignRequest struct {

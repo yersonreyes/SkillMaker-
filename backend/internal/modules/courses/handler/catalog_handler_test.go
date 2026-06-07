@@ -14,6 +14,7 @@
 package handler_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -26,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/yersonreyes/SkillMaker-/backend/internal/middleware"
+	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses/dto"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses/handler"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/modules/courses/service"
 	"github.com/yersonreyes/SkillMaker-/backend/internal/platform/pagination"
@@ -486,5 +488,119 @@ func TestListCatalog_ResponseShapeUnchanged(t *testing.T) {
 	assert.Contains(t, body, "page", "response must have page field (REQ-COMPAT)")
 	assert.Contains(t, body, "size", "response must have size field (REQ-COMPAT)")
 	assert.Contains(t, body, "totalPages", "response must have totalPages field (REQ-COMPAT)")
+	svc.AssertExpectations(t)
+}
+
+// ── PUT /videos/:id/progress (MarkVideoProgress) handler tests ───────────────
+
+// doProgress fires a PUT request to /videos/:id/progress with the given body.
+func doProgress(r *gin.Engine, videoID string, body dto.VideoProgressRequest) *httptest.ResponseRecorder {
+	b, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPut, "/videos/"+videoID+"/progress", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w
+}
+
+// TestMarkVideoProgress_Enrolled_Returns204 verifies PUT /videos/:id/progress → 204 for enrolled caller.
+// Satisfies REQ-PROGRESS-WRITE / Design §5.
+func TestMarkVideoProgress_Enrolled_Returns204(t *testing.T) {
+	svc := &mockCourseSvc{}
+	r := setupCatalogEngine(svc, "user-jwt")
+
+	pos := 0
+	svc.On("MarkVideoProgress", mock.Anything, "user-jwt", "vid-1", true, pos).Return(nil)
+
+	w := doProgress(r, "vid-1", dto.VideoProgressRequest{Completado: true})
+	assert.Equal(t, http.StatusNoContent, w.Code,
+		"enrolled caller marking progress must return 204 No Content")
+	svc.AssertExpectations(t)
+}
+
+// TestMarkVideoProgress_NotEnrolled_Returns404 verifies ErrNotEnrolled → 404 (no-leak, D3).
+// A non-enrolled caller must receive 404, not 403, to avoid leaking enrollment/existence info.
+func TestMarkVideoProgress_NotEnrolled_Returns404(t *testing.T) {
+	svc := &mockCourseSvc{}
+	r := setupCatalogEngine(svc, "user-jwt")
+
+	svc.On("MarkVideoProgress", mock.Anything, "user-jwt", "vid-1", true, 0).Return(service.ErrNotEnrolled)
+
+	w := doProgress(r, "vid-1", dto.VideoProgressRequest{Completado: true})
+	assert.Equal(t, http.StatusNotFound, w.Code,
+		"ErrNotEnrolled must return 404 (no-leak — indistinguishable from nonexistent video, D3)")
+	svc.AssertExpectations(t)
+}
+
+// TestMarkVideoProgress_VideoNotFound_Returns404 verifies ErrVideoNotFound → 404 (no-leak).
+func TestMarkVideoProgress_VideoNotFound_Returns404(t *testing.T) {
+	svc := &mockCourseSvc{}
+	r := setupCatalogEngine(svc, "user-jwt")
+
+	svc.On("MarkVideoProgress", mock.Anything, "user-jwt", "nonexistent", true, 0).Return(service.ErrVideoNotFound)
+
+	w := doProgress(r, "nonexistent", dto.VideoProgressRequest{Completado: true})
+	assert.Equal(t, http.StatusNotFound, w.Code,
+		"ErrVideoNotFound must return 404 (no-leak — same as ErrNotEnrolled, D3)")
+	svc.AssertExpectations(t)
+}
+
+// TestMarkVideoProgress_MissingUserID_Returns401 verifies that a missing userID (empty JWT) returns 401.
+// Satisfies REQ-SEC / REQ-PROGRESS-WRITE "Missing JWT returns 401".
+func TestMarkVideoProgress_MissingUserID_Returns401(t *testing.T) {
+	svc := &mockCourseSvc{}
+	r := gin.New()
+	// NO identity injected — simulates missing/invalid JWT.
+	protected := r.Group("")
+	handler.RegisterCatalog(protected, svc)
+
+	w := doProgress(r, "vid-1", dto.VideoProgressRequest{Completado: true})
+	assert.Equal(t, http.StatusUnauthorized, w.Code,
+		"missing JWT (empty userID) must return 401")
+	svc.AssertNotCalled(t, "MarkVideoProgress")
+}
+
+// TestMarkVideoProgress_CallerScoped_BodyUserIDIgnored verifies that even if the body includes a
+// userId field, the handler uses the JWT userID (caller-scoped, REQ-SEC).
+// The mock asserts svc is called with the JWT userID "user-jwt", not any body userId.
+func TestMarkVideoProgress_CallerScoped_BodyUserIDIgnored(t *testing.T) {
+	svc := &mockCourseSvc{}
+	r := setupCatalogEngine(svc, "user-jwt")
+
+	// VideoProgressRequest has no userId field (by design). Even if extra fields were added
+	// in the JSON body they must be ignored. The service is called with "user-jwt" (JWT).
+	svc.On("MarkVideoProgress", mock.Anything, "user-jwt", "vid-1", true, 0).Return(nil)
+
+	// Send a body with an extra ignored userId field via raw JSON.
+	rawBody := `{"completado":true,"userId":"attacker-user"}`
+	req := httptest.NewRequest(http.MethodPut, "/videos/vid-1/progress", bytes.NewBufferString(rawBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	// The mock assertion: MarkVideoProgress was called with "user-jwt", NOT "attacker-user".
+	assert.Equal(t, http.StatusNoContent, w.Code, "caller-scoped: JWT user must be used, not body userId")
+	svc.AssertExpectations(t)
+}
+
+// TestMarkVideoProgress_InvalidUUID_Returns404 verifies that a malformed (non-UUID) video ID
+// in the path returns 404, NOT 500. REQ-PROGRESS-WRITE "Non-existent video gets 404".
+//
+// Root cause guarded against: a non-UUID string reaching ResolveVideoCourse hits Postgres
+// SQLSTATE 22P02 (invalid input syntax for uuid), which is NOT ErrVideoNotFound, causing
+// renderProgressError's default branch to fire → 500. The fix must return ErrVideoNotFound
+// before the SQL call when the videoID cannot be parsed as a UUID.
+func TestMarkVideoProgress_InvalidUUID_Returns404(t *testing.T) {
+	svc := &mockCourseSvc{}
+	r := setupCatalogEngine(svc, "user-jwt")
+
+	// A non-UUID path param must be caught BEFORE reaching the service/repo (UUID validation).
+	// The service must return ErrVideoNotFound (mapped to 404), never 500.
+	svc.On("MarkVideoProgress", mock.Anything, "user-jwt", "not-a-uuid", true, 0).
+		Return(service.ErrVideoNotFound)
+
+	w := doProgress(r, "not-a-uuid", dto.VideoProgressRequest{Completado: true})
+	assert.Equal(t, http.StatusNotFound, w.Code,
+		"malformed (non-UUID) video ID in path must return 404, not 500 (SQLSTATE 22P02 must not escape)")
 	svc.AssertExpectations(t)
 }

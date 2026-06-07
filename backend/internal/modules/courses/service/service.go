@@ -51,6 +51,7 @@ type SectionWithVideosModel struct {
 
 // VideoModel is the service-layer read model for a video.
 // course-structure-v2: Descripcion and Materiales added.
+// course-player-progress (Change 2): Completado added (migration 0014 / caller-scoped).
 type VideoModel struct {
 	ID          string
 	SectionID   string
@@ -62,6 +63,7 @@ type VideoModel struct {
 	Orden       int
 	CreatedAt   time.Time
 	Materiales  []MaterialModel // populated only in buildContentTree (per-video)
+	Completado  bool            // migration 0014: caller-scoped video progress (set in buildContentTree only)
 }
 
 // CategoriaModel is the service-layer read model for a categoria.
@@ -367,6 +369,13 @@ type Service interface {
 	// MarkEnrollmentCompleted satisfies the evaluations.EnrollmentCompleter seam.
 	// Sets completado=true for (userID, courseID). No-op if no enrollment row exists.
 	MarkEnrollmentCompleted(ctx context.Context, userID, courseID string) error
+
+	// MarkVideoProgress upserts the caller's progress for one video.
+	// Gate: caller MUST be enrolled in the video's course (resolve video→course→IsEnrolled).
+	// Non-existent video → ErrVideoNotFound; not enrolled → ErrNotEnrolled (both → 404 no-leak, D3).
+	// DECOUPLED from enrollment.completado (D4): NEVER touches MarkEnrollmentCompleted/MarkCompleted.
+	// Caller-scoped: userID comes from JWT, NEVER from the request body (REQ-SEC).
+	MarkVideoProgress(ctx context.Context, userID, videoID string, completado bool, lastPositionS int) error
 
 	// ── Categoria methods (course-structure-v2) ─────────────────────────────────
 
@@ -933,7 +942,7 @@ func (s *serviceImpl) GetCatalogDetail(ctx context.Context, userID, courseID str
 	}
 
 	if enrolled {
-		sections, err := s.buildContentTree(ctx, courseID)
+		sections, err := s.buildContentTree(ctx, userID, courseID)
 		if err != nil {
 			return nil, err
 		}
@@ -946,9 +955,10 @@ func (s *serviceImpl) GetCatalogDetail(ctx context.Context, userID, courseID str
 // buildContentTree fetches sections+videos+per-video-materials for a course WITHOUT an ownership check.
 // Called only from GetCatalogDetail (alumno enrolled → already verified).
 // course-structure-v2: materials are now nested per video (no course-level materiales).
-// Uses ONE ListMaterialsByCourseVideos query to avoid N+1.
+// course-player-progress (Change 2): now takes userID to attach caller-scoped Completado flags.
+// Uses ONE ListMaterialsByCourseVideos query + ONE ListVideoProgressByUserAndCourse query (no N+1).
 // GOTCHA: do NOT reuse ListContent — it is owner-gated and returns ErrNotOwner.
-func (s *serviceImpl) buildContentTree(ctx context.Context, courseID string) ([]SectionWithVideosModel, error) {
+func (s *serviceImpl) buildContentTree(ctx context.Context, userID, courseID string) ([]SectionWithVideosModel, error) {
 	sections, err := s.repo.ListSectionsByCourse(ctx, courseID)
 	if err != nil {
 		return nil, err
@@ -966,6 +976,17 @@ func (s *serviceImpl) buildContentTree(ctx context.Context, courseID string) ([]
 		matByVideo[rawMats[i].VideoID] = append(matByVideo[rawMats[i].VideoID], *vm)
 	}
 
+	// Load caller's video progress for ALL videos in this course in ONE query (no N+1). D2.
+	rawProg, err := s.repo.ListVideoProgressByUserAndCourse(ctx, userID, courseID)
+	if err != nil {
+		return nil, err
+	}
+	// Build progress map: videoID → completado. Absent key → false (correct default).
+	progByVideo := make(map[string]bool, len(rawProg))
+	for i := range rawProg {
+		progByVideo[rawProg[i].VideoID] = rawProg[i].Completado
+	}
+
 	sectionModels := make([]SectionWithVideosModel, 0, len(sections))
 	for i := range sections {
 		videos, err := s.repo.ListVideosBySection(ctx, sections[i].ID)
@@ -975,7 +996,8 @@ func (s *serviceImpl) buildContentTree(ctx context.Context, courseID string) ([]
 		videoModels := make([]VideoModel, 0, len(videos))
 		for j := range videos {
 			vm := toVideoModel(&videos[j])
-			vm.Materiales = matByVideo[videos[j].ID] // attach per-video materials
+			vm.Materiales = matByVideo[videos[j].ID]  // attach per-video materials
+			vm.Completado = progByVideo[videos[j].ID] // attach caller-scoped progress (absent key → false)
 			videoModels = append(videoModels, *vm)
 		}
 		sectionModels = append(sectionModels, SectionWithVideosModel{
@@ -1024,6 +1046,39 @@ func (s *serviceImpl) ListMyCourses(ctx context.Context, userID string) ([]MyCou
 // Delegates to repo.MarkCompleted which is no-op when no enrollment row exists (D4).
 func (s *serviceImpl) MarkEnrollmentCompleted(ctx context.Context, userID, courseID string) error {
 	return s.repo.MarkCompleted(ctx, userID, courseID)
+}
+
+// MarkVideoProgress upserts the caller's progress for one video.
+// Gate: caller MUST be enrolled in the video's course (resolve video→course→IsEnrolled).
+// Non-existent video → ErrVideoNotFound; not enrolled → ErrNotEnrolled (both → 404 no-leak, D3).
+// DECOUPLED from enrollment.completado (D4): NEVER touches MarkEnrollmentCompleted/MarkCompleted.
+// Decoupling boundary: this method deliberately does NOT call MarkEnrollmentCompleted.
+// Enrollment completion is handled exclusively by the evaluations seam (service.go MarkEnrollmentCompleted above).
+//
+// UUID pre-validation: a malformed videoID is rejected immediately as ErrVideoNotFound.
+// Without this guard, Postgres raises SQLSTATE 22P02 (invalid input syntax for type uuid)
+// which escapes renderProgressError's sentinel checks and causes a 500. This mirrors the
+// categoria UUID validation pattern in catalog_handler.go (ADR: validate before SQL).
+func (s *serviceImpl) MarkVideoProgress(ctx context.Context, userID, videoID string, completado bool, lastPositionS int) error {
+	// Validate videoID is a well-formed UUID before any SQL call.
+	// A malformed value (e.g., "not-a-uuid") reaching a uuid column triggers Postgres
+	// SQLSTATE 22P02, which is not ErrVideoNotFound and would escape to 500 (CRITICAL-1 fix).
+	if _, err := uuid.Parse(videoID); err != nil {
+		return ErrVideoNotFound
+	}
+
+	courseID, _, _, err := s.repo.ResolveVideoCourse(ctx, videoID)
+	if err != nil {
+		return wrapVideoNotFound(err) // repository.ErrVideoNotFound → service.ErrVideoNotFound
+	}
+	enrolled, err := s.repo.IsEnrolled(ctx, userID, courseID)
+	if err != nil {
+		return err
+	}
+	if !enrolled {
+		return ErrNotEnrolled
+	}
+	return s.repo.UpsertVideoProgress(ctx, userID, videoID, completado, lastPositionS)
 }
 
 // ── Cross-module seam (C3.1) ───────────────────────────────────────────────────

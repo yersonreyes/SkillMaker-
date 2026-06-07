@@ -67,4 +67,10 @@ var (
 	// or UpdateRequest does not exist in the categoria table.
 	// → 400 Bad Request
 	ErrInvalidCategoria = errors.New("one or more categoria IDs are invalid")
+
+	// ── course-player-progress sentinels (Change 2 / migration 0014) ────────────
+
+	// ErrNotEnrolled is returned when a non-enrolled caller attempts a video-progress write.
+	// Handler maps to 404 (no-leak: indistinguishable from a nonexistent video). D3.
+	ErrNotEnrolled = errors.New("caller is not enrolled in the video's course")
 )

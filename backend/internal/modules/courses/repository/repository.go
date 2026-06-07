@@ -67,6 +67,13 @@ var ErrVideoNotFound = errors.New("video not found")
 // ErrMaterialNotFound is returned when a material lookup finds no matching row.
 var ErrMaterialNotFound = errors.New("material not found")
 
+// VideoProgressRow is the batch read row for the content tree (caller-scoped).
+// Returned by ListVideoProgressByUserAndCourse for progress tree assembly in Go.
+type VideoProgressRow struct {
+	VideoID    string
+	Completado bool
+}
+
 // Repository defines the data-access contract for the courses module.
 // UpdateEstado is a seam for C2.2/C4.1; it is defined now but not called in C2.1.
 type Repository interface {
@@ -227,6 +234,18 @@ type Repository interface {
 	// ListCategoriasForCourses loads categorias for a batch of course IDs in ONE query
 	// (no N+1 on catalog list). Returns a map[courseID][]Categoria.
 	ListCategoriasForCourses(ctx context.Context, courseIDs []string) (map[string][]domain.Categoria, error)
+
+	// ── Video progress methods (course-player-progress / migration 0014) ─────────
+
+	// UpsertVideoProgress idempotently writes the caller's progress for one video.
+	// Keyed by (user_id, video_id); ON CONFLICT updates completado, last_position_s, updated_at.
+	// Caller-scoped: userID comes from the JWT caller, never from the request body.
+	UpsertVideoProgress(ctx context.Context, userID, videoID string, completado bool, lastPositionS int) error
+
+	// ListVideoProgressByUserAndCourse returns the caller's progress for ALL videos in a course
+	// in ONE query (no N+1). Mirrors ListMaterialsByCourseVideos: JOIN video→section, filter course_id + user_id.
+	// Returns only rows WHERE user_id = userID AND course videos match courseID (caller-scoped, REQ-SEC).
+	ListVideoProgressByUserAndCourse(ctx context.Context, userID, courseID string) ([]VideoProgressRow, error)
 }
 
 // ── gormRepository ─────────────────────────────────────────────────────────────
@@ -836,6 +855,39 @@ func (r *gormRepository) MarkCompleted(ctx context.Context, userID, courseID str
 		Model(&domain.Enrollment{}).
 		Where("user_id = ? AND course_id = ?", userID, courseID).
 		Update("completado", true).Error
+}
+
+// ── Video progress implementations (course-player-progress / migration 0014) ────
+
+// UpsertVideoProgress idempotently writes the caller's progress for one video.
+// Keyed by (user_id, video_id); ON CONFLICT updates completado, last_position_s, updated_at.
+// Mirror of CreateEnrollment ON CONFLICT pattern (repo.go:796).
+// CALLER-SCOPED: userID comes from JWT caller, never from the request body. REQ-SEC.
+func (r *gormRepository) UpsertVideoProgress(ctx context.Context, userID, videoID string, completado bool, lastPositionS int) error {
+	return r.db.WithContext(ctx).Exec(
+		`INSERT INTO video_progress (id, user_id, video_id, completado, last_position_s, updated_at)
+		 VALUES (gen_random_uuid(), ?, ?, ?, ?, now())
+		 ON CONFLICT (user_id, video_id)
+		 DO UPDATE SET completado = EXCLUDED.completado,
+		               last_position_s = EXCLUDED.last_position_s,
+		               updated_at = now()`,
+		userID, videoID, completado, lastPositionS,
+	).Error
+}
+
+// ListVideoProgressByUserAndCourse returns the caller's progress for ALL videos in a course
+// in ONE query (no N+1). Mirrors ListMaterialsByCourseVideos Raw/Scan pattern (repo.go:497).
+// Caller-scoped: WHERE user_id = userID AND course's videos (via JOIN video→section). REQ-SEC.
+func (r *gormRepository) ListVideoProgressByUserAndCourse(ctx context.Context, userID, courseID string) ([]VideoProgressRow, error) {
+	var rows []VideoProgressRow
+	err := r.db.WithContext(ctx).
+		Raw(`SELECT vp.video_id AS video_id, vp.completado AS completado
+		     FROM video_progress vp
+		     JOIN video v   ON v.id = vp.video_id
+		     JOIN section s ON s.id = v.section_id
+		     WHERE s.course_id = ? AND vp.user_id = ?`, courseID, userID).
+		Scan(&rows).Error
+	return rows, err
 }
 
 // isPgUniqueViolation reports whether err is a Postgres UNIQUE violation (23505).

@@ -22,6 +22,16 @@ import (
 	"github.com/yersonreyes/SkillMaker-/backend/internal/platform/pagination"
 )
 
+// Package-doc update: added MarkVideoProgress route (course-player-progress, Change 2).
+// Route table updated:
+//
+//	GET  /catalog             → ListCatalog
+//	GET  /catalog/:id         → GetCatalogDetail (discriminated: preview or full tree)
+//	POST /catalog/:id/enroll  → Enroll (idempotent)
+//	GET  /users/me/courses    → ListMyCourses
+//	GET  /categorias          → ListCategorias
+//	PUT  /videos/:id/progress → MarkVideoProgress (alumno, enrolled-gated)
+
 // CatalogHandler holds the service dependency for catalog + enrollment endpoints.
 type CatalogHandler struct {
 	svc service.Service
@@ -45,6 +55,11 @@ func RegisterCatalog(protectedGrp *gin.RouterGroup, svc service.Service) {
 
 	// Categorias (course-structure-v2): curated category list for any authenticated user.
 	protectedGrp.GET("/categorias", h.ListCategorias)
+
+	// Video progress (course-player-progress, Change 2): alumno-facing, enrolled-gated.
+	// PUT is a new method+path on /videos/:id/progress — no conflict with creatorGrp
+	// PATCH/DELETE /videos/:id or POST/GET /videos/:id/materials* (design §5 confirmed).
+	protectedGrp.PUT("/videos/:id/progress", h.MarkVideoProgress)
 }
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
@@ -262,4 +277,62 @@ func renderCatalogError(c *gin.Context, err error) {
 		return
 	}
 	httperr.Render(c, httperr.Internal(err.Error()))
+}
+
+// MarkVideoProgress godoc
+// @Summary     Registra o actualiza el progreso del alumno en un video
+// @Description PUT /api/videos/:id/progress — upsert caller-scoped video progress.
+//
+//	El alumno debe estar inscrito en el curso del video; de lo contrario → 404 (no-leak, D3).
+//	El userId del cuerpo es IGNORADO; siempre se usa el userID del JWT (REQ-SEC).
+//
+// @Tags        catalog
+// @Accept      json
+// @Produce     json
+// @Security    BearerAuth
+// @Param       id   path     string                      true "UUID del video"
+// @Param       body body     dto.VideoProgressRequest    true "Progreso del video"
+// @Success     204  "sin contenido — progreso registrado"
+// @Failure     400  {object} httperr.Error "cuerpo inválido"
+// @Failure     401  {object} httperr.Error "JWT requerido"
+// @Failure     404  {object} httperr.Error "video no encontrado o no inscrito (no-leak)"
+// @Failure     500  {object} httperr.Error
+// @Router      /videos/{id}/progress [put]
+func (h *CatalogHandler) MarkVideoProgress(c *gin.Context) {
+	userID := middleware.UserIDFrom(c)
+	if userID == "" {
+		httperr.Render(c, httperr.Unauthorized("MISSING_IDENTITY", "could not resolve user identity from token"))
+		return
+	}
+
+	videoID := c.Param("id")
+
+	var req dto.VideoProgressRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperr.Render(c, httperr.BadRequest("INVALID_BODY", err.Error()))
+		return
+	}
+
+	pos := 0
+	if req.LastPositionS != nil {
+		pos = *req.LastPositionS
+	}
+
+	if err := h.svc.MarkVideoProgress(c.Request.Context(), userID, videoID, req.Completado, pos); err != nil {
+		renderProgressError(c, err)
+		return
+	}
+
+	c.Status(http.StatusNoContent) // 204 — idempotent write, no body
+}
+
+// renderProgressError maps video-progress service sentinels to HTTP statuses.
+// ErrVideoNotFound + ErrNotEnrolled both → 404 (no-leak, D3: caller cannot distinguish the two cases).
+func renderProgressError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, service.ErrVideoNotFound), errors.Is(err, service.ErrNotEnrolled):
+		httperr.Render(c, httperr.NotFound("VIDEO_NOT_FOUND", "video not found"))
+	default:
+		httperr.Render(c, httperr.Internal(err.Error()))
+	}
 }

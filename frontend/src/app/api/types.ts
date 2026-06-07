@@ -1831,6 +1831,41 @@ export interface paths {
       };
     };
   };
+  "/videos/{id}/progress": {
+    /** PUT /api/videos/:id/progress — upsert caller-scoped video progress. */
+    put: {
+      parameters: {
+        path: {
+          /** UUID del video */
+          id: string;
+        };
+        body: {
+          /** Progreso del video */
+          body: definitions["dto.VideoProgressRequest"];
+        };
+      };
+      responses: {
+        /** sin contenido — progreso registrado */
+        204: never;
+        /** cuerpo inválido */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** JWT requerido */
+        401: {
+          schema: definitions["httperr.Error"];
+        };
+        /** video no encontrado o no inscrito (no-leak) */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Internal Server Error */
+        500: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
 }
 
 export interface definitions {
@@ -2278,7 +2313,12 @@ export interface definitions {
     titulo: string;
     url: string;
   };
+  "dto.VideoProgressRequest": {
+    completado?: boolean;
+    lastPositionS?: number;
+  };
   "dto.VideoResponse": {
+    completado?: boolean;
     createdAt?: string;
     descripcion?: string;
     duracionS?: number;

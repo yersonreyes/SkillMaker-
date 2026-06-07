@@ -902,8 +902,17 @@ definitions:
     - titulo
     - url
     type: object
+  dto.VideoProgressRequest:
+    properties:
+      completado:
+        type: boolean
+      lastPositionS:
+        type: integer
+    type: object
   dto.VideoResponse:
     properties:
+      completado:
+        type: boolean
       createdAt:
         type: string
       descripcion:
@@ -3208,6 +3217,49 @@ paths:
       summary: Genera URL presignada para subir un archivo a un video
       tags:
       - materials
+  /videos/{id}/progress:
+    put:
+      consumes:
+      - application/json
+      description: PUT /api/videos/:id/progress — upsert caller-scoped video progress.
+      parameters:
+      - description: UUID del video
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Progreso del video
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.VideoProgressRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: sin contenido — progreso registrado
+        "400":
+          description: cuerpo inválido
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "401":
+          description: JWT requerido
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: video no encontrado o no inscrito (no-leak)
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Registra o actualiza el progreso del alumno en un video
+      tags:
+      - catalog
 securityDefinitions:
   BearerAuth:
     in: header

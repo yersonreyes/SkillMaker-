@@ -270,6 +270,14 @@ func (m *mockCourseSvc) GetCourseTitulo(_ context.Context, _ string) (string, er
 	return "", nil
 }
 
+// ── course-player-progress additions ─────────────────────────────────────────
+
+// MarkVideoProgress satisfies the Service interface for the course-player-progress change.
+func (m *mockCourseSvc) MarkVideoProgress(ctx context.Context, userID, videoID string, completado bool, lastPositionS int) error {
+	args := m.Called(ctx, userID, videoID, completado, lastPositionS)
+	return args.Error(0)
+}
+
 // ── Fixtures ───────────────────────────────────────────────────────────────────
 
 func courseModel(id, creadorID string) *service.CourseModel {
