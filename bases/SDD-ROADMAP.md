@@ -35,7 +35,7 @@
 > Esta seccion es el "punto de partida". Cualquier change posterior parte de este estado.
 > Actualizar cuando se archive un change importante.
 
-**Fecha del snapshot:** 2026-06-06 (actualizado tras P1 catalog-filters archive + C8.1 refresh-token-tracking archive — Post-MVP improvement program INICIADO)
+**Fecha del snapshot:** 2026-06-07 (actualizado tras P2 course-player-progress archive — Post-MVP improvement program advancing)
 **Commits totales del scaffold:** 16 (+ 3 chained PRs para C1.1) (+ 2 PRs para C2.1) (+ 2 PRs para C2.2) (+ 2 PRs para C2.3) (+ 3 PRs para C3.1 incl. UI polish) (+ 3 PRs para C3.2) (+ 3 PRs para C4.1 incl. swagger fix) (+ 2 PRs para C2.4) (+ 2 PRs para C5.1 incl. bundled eval-summary slice) (+ 2 PRs para C6.1) (+ 2 PRs para course-structure-v2 + styling polish) (+ 2 PRs para C8.1 refresh-token-tracking) (+ 2 PRs para P1 catalog-filters) (+ post-merge fixes)
 **LOC totales (Go + TS + SQL):** ~2700 (+ ~900 LOC en C1.1) (+ ~1100 LOC en C2.1) (+ ~900 LOC en C2.2) (+ ~900 LOC en C2.3) (+ ~1200 LOC en C3.1) (+ ~1200 LOC en C3.2) (+ ~1100 LOC en C4.1) (+ ~1300 LOC en C2.4) (+ ~1700 LOC en C5.1 incl. bundled slice) (+ ~800 LOC en C6.1) (+ ~2150 LOC en course-structure-v2) (+ ~420 LOC en C8.1 refresh-token-tracking) (+ ~340 LOC en P1 catalog-filters)
 **HITO ALCANZADO**: ✅ **MVP FEATURE COMPLETE** (2026-06-05) — Todas las capas C1–C6 archivadas. El loop completo (register → create → approve → publish → consume → evaluate → certify → badge → rank → report) está funcional en main. **Post-MVP hardening INICIADO**: C8.1 refresh-token-tracking archivado 2026-06-06.
@@ -814,8 +814,8 @@ Polish (b310324):
 
 | # | Change | Scope | Unblocks |
 |---|--------|-------|----------|
-| P1 | `catalog-filters` ✅ ARCHIVED | GET /catalog gain `?nivel`, `?categoria` (repeated, OR), `?sort`; filter bar UI; backward compatible | C8.2 paginated discovery |
-| P2 | `course-player-progress` (planned) | Per-video watched flag; resume timestamp; progress bar; enrollments+progress duos | P3 notifications |
+| P1 | `catalog-filters` ✅ ARCHIVED | GET /catalog gain `?nivel`, `?categoria` (repeated, OR), `?sort`; filter bar UI; backward compatible | P2 course-player-progress |
+| P2 | `course-player-progress` ✅ ARCHIVED | Per-video watched flag (manual toggle); resume to first-incomplete; progress bar (X/N · %); 2-column enrolled player | P3 notifications |
 | P3 | `notifications-inapp` (planned) | In-app toast queue; course-approved, student-passed, badge-earned events; event bus | P4 |
 | P4 | `ux-polish` (planned) | Accessibility audit, dark mode, mobile UX, empty states consistency | **MVP fully ready for users** |
 
@@ -835,6 +835,18 @@ Polish (b310324):
 5. No migration required; schema ready from course-structure-v2 → first filter change with no step-drift.
 
 **Next:** Course-player-progress (watches + resume) to unblock notifications.
+
+---
+
+##### P2 — `course-player-progress` ✅ ARCHIVED (2026-06-07)
+
+**Estado:** COMPLETE — 2 stacked PRs (backend 1fc2e26 + frontend b8c6833) merged to dev/main. Manual smoke test PASSED. Per-video progress tracking + Udemy-style 2-column player now live.
+
+**Delivered:** Migration 0014 (video_progress table: user_id + video_id UNIQUE, completado bool, last_position_s int forward-compat). Backend: repo/service/handler for PUT /api/videos/:id/progress (protected, enrolled-gated, caller-scoped upsert); buildContentTree extended to batch-load completado flags (no N+1); DTO VideoResponse += completado. Frontend: course-detail enrolled branch reworked to 2-column grid (LEFT: active video + desc + materiales + mark-complete toggle; RIGHT: sticky curriculum with progress bar X/N · %, secciones, videos with completion checks + current highlight, click-to-play); activeVideoId signal resumes to first-incomplete video. ALL test gates PASS (handler 76.8%, service 72.6% coverage backend; vitest 358/358 frontend). Adversarial probes RED-confirmed: caller-scoped read/write isolation, enrolled-gate 404 no-leak, enrollment.completado unaffected by video progress. Step-drift +1 applied to 9 integration test sites. CRITICAL UUID validation bug found in verify + FIXED before archive + test added (pattern established for future param validation sweep).
+
+**Key Learnings:** (1) UUID param validation at handler/service boundary → 404/400, not 500 (applies to category, video ID, others); (2) Caller-scoping at SQL/JWT layer is dominant security property; (3) enrollment.completado ↔ per-video progress decoupled intentionally, seams never touch; (4) One batch query (ListVideoProgressByUserAndCourse) prevents N+1, reusable pattern; (5) Spec-class preservation during big HTML rework — keep asserted classes, add new ones additively; (6) Plain iframe + no auto-detect baseline, manual toggle + lightweight resume shipped, auto-detect deferred.
+
+**Unblocks:** P3 notifications-inapp (progress instrumentation as foundational signal source).
 
 ---
 
