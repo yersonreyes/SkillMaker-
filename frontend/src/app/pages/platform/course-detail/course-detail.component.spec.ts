@@ -7,6 +7,14 @@
  * - Tests added for per-video materiales render + course-level absence
  * - downloadMaterial() calls MaterialService.downloadUrl(materialId) with materialId only
  *
+ * Updated in course-player-progress:
+ * - MOCK_ENROLLED videos gain completado: false (required by VideoResponseItem)
+ * - MOCK_ENROLLED_WITH_PROGRESS: vid-1 complete, vid-2 incomplete (for initActiveVideo test)
+ * - MOCK_ENROLLED_ALL_DONE: all videos completado=true (for all-complete fallback test)
+ * - New tests: initActiveVideo selects first incomplete; selectVideo switches; markCompleted calls PUT + toggles
+ * - W-1: markCompleted on already-complete video calls markVideoProgress(id, false) + decrements progreso
+ * - W-2: initActiveVideo with all videos complete falls back to first video
+ *
  * Covers:
  *  - Preview branch: renders titulo, "Inscribirme" button — ZERO secciones DOM nodes
  *  - Enrolled branch: renders secciones; no "Inscribirme" visible
@@ -15,6 +23,12 @@
  *  - Per-video materiales rendered in enrolled branch
  *  - No course-level materiales block
  *  - downloadMaterial() calls MaterialService.downloadUrl(materialId)
+ *  - initActiveVideo selects first incomplete video (player-progress WU-2)
+ *  - initActiveVideo falls back to first video when ALL videos are complete (W-2)
+ *  - selectVideo() switches activeVideoId signal
+ *  - markCompleted() calls markVideoProgress + optimistically toggles completado
+ *  - markCompleted() un-marks (true→false) and decrements progreso (W-1)
+ *  - progreso% updates after markCompleted
  */
 import { TestBed } from '@angular/core/testing';
 import { describe, it, expect, afterEach, vi } from 'vitest';
@@ -81,6 +95,7 @@ const MOCK_ENROLLED: CourseDetailAlumnoResponse = {
               createdAt: '2026-06-01T00:00:00Z',
             },
           ],
+          completado: false,
         },
       ],
     },
@@ -90,6 +105,100 @@ const MOCK_ENROLLED: CourseDetailAlumnoResponse = {
   cantidadClases: 1,
   horasVideo: 1.0,
   horasPractico: 2.0,
+  miniaturaUrl: '',
+};
+
+/**
+ * Fixture for initActiveVideo test: vid-1 complete, vid-2 incomplete.
+ * initActiveVideo() must select vid-2 (first incomplete).
+ */
+const MOCK_ENROLLED_WITH_PROGRESS: CourseDetailAlumnoResponse = {
+  enrolled: true,
+  id: 'course-1',
+  titulo: 'Go Avanzado',
+  descripcion: 'Aprende Go de verdad',
+  creadorNombre: 'Yerson Reyes',
+  secciones: [
+    {
+      id: 'sec-1',
+      titulo: 'Introduccion',
+      orden: 1,
+      videos: [
+        {
+          id: 'vid-1',
+          titulo: 'Video 1',
+          url: 'https://youtube.com/watch?v=AAA',
+          proveedor: 'youtube',
+          orden: 1,
+          descripcion: 'Descripcion del video 1',
+          materiales: [],
+          completado: true,
+        },
+        {
+          id: 'vid-2',
+          titulo: 'Video 2',
+          url: 'https://youtube.com/watch?v=BBB',
+          proveedor: 'youtube',
+          orden: 2,
+          descripcion: 'Descripcion del video 2',
+          materiales: [],
+          completado: false,
+        },
+      ],
+    },
+  ],
+  nivel: 'avanzado',
+  categorias: [{ id: 'cat-1', nombre: 'Backend' }],
+  cantidadClases: 2,
+  horasVideo: 1.0,
+  horasPractico: 0.0,
+  miniaturaUrl: '',
+};
+
+/**
+ * Fixture for W-2: ALL videos are completado=true.
+ * initActiveVideo() must fall back to vids[0] (vid-1) when no incomplete video exists.
+ */
+const MOCK_ENROLLED_ALL_DONE: CourseDetailAlumnoResponse = {
+  enrolled: true,
+  id: 'course-1',
+  titulo: 'Go Avanzado',
+  descripcion: 'Aprende Go de verdad',
+  creadorNombre: 'Yerson Reyes',
+  secciones: [
+    {
+      id: 'sec-1',
+      titulo: 'Introduccion',
+      orden: 1,
+      videos: [
+        {
+          id: 'vid-1',
+          titulo: 'Video 1',
+          url: 'https://youtube.com/watch?v=AAA',
+          proveedor: 'youtube',
+          orden: 1,
+          descripcion: 'Descripcion del video 1',
+          materiales: [],
+          completado: true,
+        },
+        {
+          id: 'vid-2',
+          titulo: 'Video 2',
+          url: 'https://youtube.com/watch?v=BBB',
+          proveedor: 'youtube',
+          orden: 2,
+          descripcion: 'Descripcion del video 2',
+          materiales: [],
+          completado: true,
+        },
+      ],
+    },
+  ],
+  nivel: 'avanzado',
+  categorias: [{ id: 'cat-1', nombre: 'Backend' }],
+  cantidadClases: 2,
+  horasVideo: 1.0,
+  horasPractico: 0.0,
   miniaturaUrl: '',
 };
 
@@ -342,6 +451,198 @@ describe('CourseDetailAlumnoComponent', () => {
       await comp.downloadMaterial('mat-1');
 
       expect(materialServiceSpy.downloadUrl).toHaveBeenCalledWith('mat-1');
+    });
+  });
+
+  // ── Player state (course-player-progress WU-2) ────────────────────────────────
+
+  describe('initActiveVideo — selects first incomplete video on load', () => {
+    it('sets activeVideoId to vid-2 when vid-1 is complete and vid-2 is incomplete', async () => {
+      const spy: Partial<CourseCatalogService> = {
+        getDetail: vi.fn().mockResolvedValue(MOCK_ENROLLED_WITH_PROGRESS),
+        enroll: vi.fn().mockResolvedValue(MOCK_ENROLL),
+        markVideoProgress: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const { comp } = await createComponent(spy);
+      await comp.loadDetail();
+
+      // After loadDetail, initActiveVideo should have set activeVideoId to vid-2 (first incomplete)
+      expect(comp.activeVideoId()).toBe('vid-2');
+    });
+
+    it('sets activeVideoId to vid-1 (first) when vid-1 is the only video and is incomplete', async () => {
+      const spy: Partial<CourseCatalogService> = {
+        getDetail: vi.fn().mockResolvedValue(MOCK_ENROLLED),
+        enroll: vi.fn().mockResolvedValue(MOCK_ENROLL),
+        markVideoProgress: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const { comp } = await createComponent(spy);
+      await comp.loadDetail();
+
+      // MOCK_ENROLLED has only vid-1 (completado: false) → it is the first incomplete → selected
+      expect(comp.activeVideoId()).toBe('vid-1');
+    });
+  });
+
+  describe('selectVideo() — switches activeVideoId', () => {
+    it('selectVideo(vid-2) sets activeVideoId to vid-2', async () => {
+      const spy: Partial<CourseCatalogService> = {
+        getDetail: vi.fn().mockResolvedValue(MOCK_ENROLLED_WITH_PROGRESS),
+        enroll: vi.fn().mockResolvedValue(MOCK_ENROLL),
+        markVideoProgress: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const { comp } = await createComponent(spy);
+      await comp.loadDetail();
+
+      comp.selectVideo('vid-2');
+      expect(comp.activeVideoId()).toBe('vid-2');
+
+      comp.selectVideo('vid-1');
+      expect(comp.activeVideoId()).toBe('vid-1');
+    });
+  });
+
+  describe('markCompleted() — calls PUT + optimistic toggle + progreso update', () => {
+    it('calls markVideoProgress with toggled completado (false → true)', async () => {
+      const markProgressSpy = vi.fn().mockResolvedValue(undefined);
+      const spy: Partial<CourseCatalogService> = {
+        getDetail: vi.fn().mockResolvedValue(MOCK_ENROLLED_WITH_PROGRESS),
+        enroll: vi.fn().mockResolvedValue(MOCK_ENROLL),
+        markVideoProgress: markProgressSpy,
+      };
+
+      const { comp } = await createComponent(spy);
+      await comp.loadDetail();
+
+      // vid-2 starts as completado=false; marking it should call with !false = true
+      const vid2 = comp.flatVideos().find(v => v.id === 'vid-2')!;
+      await comp.markCompleted(vid2);
+
+      expect(markProgressSpy).toHaveBeenCalledWith('vid-2', true);
+    });
+
+    it('optimistically flips completado in the detail signal after markCompleted', async () => {
+      const markProgressSpy = vi.fn().mockResolvedValue(undefined);
+      const spy: Partial<CourseCatalogService> = {
+        getDetail: vi.fn().mockResolvedValue(MOCK_ENROLLED_WITH_PROGRESS),
+        enroll: vi.fn().mockResolvedValue(MOCK_ENROLL),
+        markVideoProgress: markProgressSpy,
+      };
+
+      const { comp } = await createComponent(spy);
+      await comp.loadDetail();
+
+      const vid2 = comp.flatVideos().find(v => v.id === 'vid-2')!;
+      expect(vid2.completado).toBe(false);
+
+      await comp.markCompleted(vid2);
+
+      const updated = comp.flatVideos().find(v => v.id === 'vid-2')!;
+      expect(updated.completado).toBe(true);
+    });
+
+    it('progreso% increments after marking a video complete', async () => {
+      const markProgressSpy = vi.fn().mockResolvedValue(undefined);
+      const spy: Partial<CourseCatalogService> = {
+        getDetail: vi.fn().mockResolvedValue(MOCK_ENROLLED_WITH_PROGRESS),
+        enroll: vi.fn().mockResolvedValue(MOCK_ENROLL),
+        markVideoProgress: markProgressSpy,
+      };
+
+      const { comp } = await createComponent(spy);
+      await comp.loadDetail();
+
+      // Initial: vid-1 done (1/2 = 50%)
+      expect(comp.progreso()).toBe(50);
+
+      const vid2 = comp.flatVideos().find(v => v.id === 'vid-2')!;
+      await comp.markCompleted(vid2);
+
+      // After marking vid-2: 2/2 = 100%
+      expect(comp.progreso()).toBe(100);
+    });
+
+    it('progress bar shows X/N format correctly', async () => {
+      const spy: Partial<CourseCatalogService> = {
+        getDetail: vi.fn().mockResolvedValue(MOCK_ENROLLED_WITH_PROGRESS),
+        enroll: vi.fn().mockResolvedValue(MOCK_ENROLL),
+        markVideoProgress: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const { comp } = await createComponent(spy);
+      await comp.loadDetail();
+
+      // vid-1 complete, vid-2 incomplete → completedCount=1, total=2
+      expect(comp.completedCount()).toBe(1);
+      expect(comp.enrolledDetail()?.cantidadClases).toBe(2);
+    });
+  });
+
+  // ── W-1: un-mark (true→false) at component level ─────────────────────────────
+
+  describe('markCompleted() — un-mark (true→false) decrements progreso (W-1)', () => {
+    it('calls markVideoProgress(videoId, false) when video is already complete (completado=true)', async () => {
+      const markProgressSpy = vi.fn().mockResolvedValue(undefined);
+      const spy: Partial<CourseCatalogService> = {
+        getDetail: vi.fn().mockResolvedValue(MOCK_ENROLLED_WITH_PROGRESS),
+        enroll: vi.fn().mockResolvedValue(MOCK_ENROLL),
+        markVideoProgress: markProgressSpy,
+      };
+
+      const { comp } = await createComponent(spy);
+      await comp.loadDetail();
+
+      // vid-1 starts as completado=true; un-marking it must pass false to the service
+      const vid1 = comp.flatVideos().find(v => v.id === 'vid-1')!;
+      expect(vid1.completado).toBe(true);
+
+      await comp.markCompleted(vid1);
+
+      expect(markProgressSpy).toHaveBeenCalledWith('vid-1', false);
+    });
+
+    it('optimistically flips completado to false and progreso DECREMENTS after un-mark', async () => {
+      const markProgressSpy = vi.fn().mockResolvedValue(undefined);
+      const spy: Partial<CourseCatalogService> = {
+        getDetail: vi.fn().mockResolvedValue(MOCK_ENROLLED_WITH_PROGRESS),
+        enroll: vi.fn().mockResolvedValue(MOCK_ENROLL),
+        markVideoProgress: markProgressSpy,
+      };
+
+      const { comp } = await createComponent(spy);
+      await comp.loadDetail();
+
+      // Initial state: vid-1 done, vid-2 incomplete → 1/2 = 50%
+      expect(comp.progreso()).toBe(50);
+
+      const vid1 = comp.flatVideos().find(v => v.id === 'vid-1')!;
+      await comp.markCompleted(vid1);
+
+      // After un-mark: vid-1 completado flipped to false → 0/2 = 0%
+      const updated = comp.flatVideos().find(v => v.id === 'vid-1')!;
+      expect(updated.completado).toBe(false);
+      expect(comp.progreso()).toBe(0);
+    });
+  });
+
+  // ── W-2: all-videos-completed fallback to first video ─────────────────────────
+
+  describe('initActiveVideo() — all-complete fallback to first video (W-2)', () => {
+    it('sets activeVideoId to vid-1 (first video) when ALL videos are completado=true', async () => {
+      const spy: Partial<CourseCatalogService> = {
+        getDetail: vi.fn().mockResolvedValue(MOCK_ENROLLED_ALL_DONE),
+        enroll: vi.fn().mockResolvedValue(MOCK_ENROLL),
+        markVideoProgress: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const { comp } = await createComponent(spy);
+      await comp.loadDetail();
+
+      // No incomplete video → firstIncomplete is undefined → fallback to vids[0] = vid-1
+      expect(comp.activeVideoId()).toBe('vid-1');
     });
   });
 });

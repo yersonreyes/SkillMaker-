@@ -139,52 +139,102 @@
       </div>
     }
 
-    <!-- Secciones con videos y materiales por video -->
-    @for (seccion of enrolledDetail()!.secciones; track seccion.id; let si = $index) {
-      <section class="panel course-detail__seccion">
-        <div class="panel__head">
-          <span>Seccion {{ si + 1 }} · {{ seccion.titulo }}</span>
-        </div>
-        <div class="panel__body">
-          @for (video of seccion.videos; track video.id) {
-            <article class="course-detail__video">
-              <h3 class="course-detail__video-titulo">{{ video.titulo }}</h3>
+    <!-- 2-column player: LEFT stage + RIGHT curriculum -->
+    <div class="course-detail__player">
 
-              <div class="course-detail__video-frame">
-                <app-video-embed [url]="video.url" [proveedor]="video.proveedor" />
-              </div>
+      <!-- LEFT: stage — active video + its metadata + materiales + mark-btn -->
+      <div class="course-detail__stage">
+        @if (activeVideo(); as av) {
+          <h3 class="course-detail__video-titulo">{{ av.titulo }}</h3>
 
-              @if (video.descripcion) {
-                <p class="course-detail__video-desc">{{ video.descripcion }}</p>
-              }
+          <div class="course-detail__video-frame">
+            <app-video-embed [url]="av.url" [proveedor]="av.proveedor" />
+          </div>
 
-              @if (video.materiales && video.materiales.length > 0) {
-                <div class="course-detail__video-materiales">
-                  <p class="course-detail__materiales-label">
-                    <i class="pi pi-paperclip"></i> Material de apoyo
-                  </p>
-                  <ul class="course-detail__materiales-list">
-                    @for (mat of video.materiales; track mat.id) {
-                      <li class="course-detail__material-item">
-                        <i class="pi pi-file"></i>
-                        <span class="course-detail__material-name">{{ mat.nombre }}</span>
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          (click)="downloadMaterial(mat.id)"
-                          title="Descargar">
-                          <i class="pi pi-download"></i>
-                        </button>
-                      </li>
-                    }
-                  </ul>
-                </div>
-              }
-            </article>
+          @if (av.descripcion) {
+            <p class="course-detail__video-desc">{{ av.descripcion }}</p>
           }
+
+          <button
+            type="button"
+            class="btn course-detail__mark-btn"
+            [class.is-done]="av.completado"
+            (click)="markCompleted(av)"
+          >
+            @if (av.completado) {
+              <i class="pi pi-check"></i> Completado
+            } @else {
+              Marcar como completado
+            }
+          </button>
+
+          @if (av.materiales && av.materiales.length > 0) {
+            <div class="course-detail__video-materiales">
+              <p class="course-detail__materiales-label">
+                <i class="pi pi-paperclip"></i> Material de apoyo
+              </p>
+              <ul class="course-detail__materiales-list">
+                @for (mat of av.materiales; track mat.id) {
+                  <li class="course-detail__material-item">
+                    <i class="pi pi-file"></i>
+                    <span class="course-detail__material-name">{{ mat.nombre }}</span>
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      (click)="downloadMaterial(mat.id)"
+                      title="Descargar"
+                    >
+                      <i class="pi pi-download"></i>
+                    </button>
+                  </li>
+                }
+              </ul>
+            </div>
+          }
+        }
+      </div>
+
+      <!-- RIGHT: curriculum (sticky) — progress bar + navigable sections/videos -->
+      <aside class="course-detail__curriculum">
+        <div class="course-detail__progress">
+          <span class="course-detail__progress-label">
+            {{ completedCount() }}/{{ enrolledDetail()!.cantidadClases }} · {{ progreso() }}%
+          </span>
+          <div class="course-detail__progress-bar">
+            <div
+              class="course-detail__progress-fill"
+              [style.width.%]="progreso()"
+            ></div>
+          </div>
         </div>
-      </section>
-    }
+
+        @for (seccion of enrolledDetail()!.secciones; track seccion.id; let si = $index) {
+          <section class="course-detail__seccion">
+            <div class="panel__head">
+              <span>Seccion {{ si + 1 }} · {{ seccion.titulo }}</span>
+            </div>
+            <ul class="course-detail__video-list">
+              @for (video of seccion.videos; track video.id) {
+                <li
+                  class="course-detail__video-item"
+                  [class.course-detail__video-item--active]="video.id === activeVideoId()"
+                  [class.course-detail__video-item--done]="video.completado"
+                  (click)="selectVideo(video.id)"
+                >
+                  @if (video.completado) {
+                    <i class="pi pi-check-circle"></i>
+                  } @else {
+                    <i class="pi pi-play-circle"></i>
+                  }
+                  <span>{{ video.titulo }}</span>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+      </aside>
+
+    </div>
   }
 
 </div>

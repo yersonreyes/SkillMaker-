@@ -6,9 +6,15 @@
  * - Course-level materiales REMOVED (now per-video)
  * - Course metadata: nivel, categorias, cantidadClases, horasVideo, horasPractico, miniaturaUrl
  *
+ * Updated in course-player-progress (WU-2):
+ * - 2-column player: LEFT stage (active video + materiales) + RIGHT curriculum
+ * - activeVideoId signal: defaults to first incomplete video on load
+ * - flatVideos / activeVideo / completedCount / progreso computed signals
+ * - selectVideo() / markCompleted() methods
+ *
  * Branches on the `enrolled` discriminator from the backend response:
- *  - enrolled=false → preview block (metadata + "Inscribirme")
- *  - enrolled=true  → full tree (secciones → VideoEmbed + video.descripcion + per-video materiales)
+ *  - enrolled=false → preview block (metadata + "Inscribirme") — UNCHANGED
+ *  - enrolled=true  → 2-column player (stage + curriculum)
  */
 import {
   Component,
@@ -29,6 +35,7 @@ import type {
   CourseDetailResponse,
   CourseDetailAlumnoResponse,
   CoursePreviewResponse,
+  VideoResponseItem,
 } from '@core/services/courseCatalogService/course-catalog.dto';
 import type { CertificateListItem } from '@core/services/certificateService/certificate.dto';
 import type { EvaluationSummary } from '@core/services/evaluationService/evaluation.dto';
@@ -63,6 +70,37 @@ export class CourseDetailAlumnoComponent implements OnInit {
    * courseId as a signal so `myCertificate` computed stays reactive when it updates.
    */
   private readonly courseIdSignal = signal<string>('');
+
+  // ── Player state (course-player-progress WU-2) ──────────────────────────────
+
+  /** Currently active video ID — drives the LEFT stage. */
+  readonly activeVideoId = signal<string>('');
+
+  /** Flat, ordered video list across all secciones (for resume + nav + counts). */
+  readonly flatVideos = computed((): VideoResponseItem[] => {
+    const d = this.enrolledDetail();
+    if (!d) return [];
+    return d.secciones.flatMap(s => s.videos);
+  });
+
+  /** The VideoResponseItem for activeVideoId (falls back to first video). */
+  readonly activeVideo = computed((): VideoResponseItem | null =>
+    this.flatVideos().find(v => v.id === this.activeVideoId()) ?? this.flatVideos()[0] ?? null,
+  );
+
+  /** Count of videos the caller has completed. */
+  readonly completedCount = computed((): number =>
+    this.flatVideos().filter(v => v.completado).length,
+  );
+
+  /**
+   * Progress percentage rounded to nearest integer.
+   * Uses cantidadClases from the course (authoritative total).
+   */
+  readonly progreso = computed((): number => {
+    const total = this.enrolledDetail()?.cantidadClases ?? 0;
+    return total === 0 ? 0 : Math.round((this.completedCount() / total) * 100);
+  });
 
   // ── Computed discriminators ─────────────────────────────────────────────────
   readonly enrolled = computed(() => this.detail()?.enrolled ?? false);
@@ -107,6 +145,7 @@ export class CourseDetailAlumnoComponent implements OnInit {
       this.myCerts.set(certs);
 
       if (result?.enrolled) {
+        this.initActiveVideo();
         const summary = await this.evalService
           .getCourseEvaluationSummary(this.courseId)
           .catch(() => null);
@@ -118,6 +157,48 @@ export class CourseDetailAlumnoComponent implements OnInit {
       // Error toast shown by HttpPromiseBuilderService
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  /**
+   * Lightweight resume (D5): open to first incomplete video, else first.
+   * Called from loadDetail after this.detail.set(result) for enrolled branch.
+   */
+  private initActiveVideo(): void {
+    const vids = this.flatVideos();
+    const firstIncomplete = vids.find(v => !v.completado);
+    this.activeVideoId.set((firstIncomplete ?? vids[0])?.id ?? '');
+  }
+
+  /** Sets the active video (drives the LEFT stage). */
+  selectVideo(id: string): void {
+    this.activeVideoId.set(id);
+  }
+
+  /**
+   * Toggles completado for the given video.
+   * Calls PUT /api/videos/:id/progress; on success optimistically updates the detail signal.
+   */
+  async markCompleted(video: VideoResponseItem): Promise<void> {
+    const next = !video.completado;
+    try {
+      await this.catalogService.markVideoProgress(video.id, next);
+      // Optimistic update: rebuild detail signal with the toggled video
+      this.detail.update(d => {
+        if (!d || !d.enrolled) return d;
+        const enrolled = d as CourseDetailAlumnoResponse;
+        return {
+          ...enrolled,
+          secciones: enrolled.secciones.map(s => ({
+            ...s,
+            videos: s.videos.map(v =>
+              v.id === video.id ? { ...v, completado: next } : v,
+            ),
+          })),
+        };
+      });
+    } catch {
+      // Error toast shown by builder
     }
   }
 

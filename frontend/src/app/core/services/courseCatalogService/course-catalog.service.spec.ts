@@ -284,4 +284,45 @@ describe('CourseCatalogService', () => {
 
     await promise;
   });
+
+  // ── markVideoProgress (Phase 8 — WU-2) ────────────────────────────────────────
+
+  it('markVideoProgress() sends PUT /api/videos/:id/progress with completado=true', async () => {
+    const VIDEO_PROGRESS_URL = 'http://localhost:3000/api/videos/vid-1/progress';
+
+    const promise = service.markVideoProgress('vid-1', true);
+
+    const req = httpMock.expectOne(VIDEO_PROGRESS_URL);
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ completado: true, lastPositionS: undefined });
+    req.flush(null, { status: 204, statusText: 'No Content' });
+
+    await promise;
+  });
+
+  it('markVideoProgress() sends PUT with completado=false (toggle)', async () => {
+    const VIDEO_PROGRESS_URL = 'http://localhost:3000/api/videos/vid-1/progress';
+
+    const promise = service.markVideoProgress('vid-1', false);
+
+    const req = httpMock.expectOne(VIDEO_PROGRESS_URL);
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ completado: false, lastPositionS: undefined });
+    req.flush(null, { status: 204, statusText: 'No Content' });
+
+    await promise;
+  });
+
+  it('markVideoProgress() includes lastPositionS when provided', async () => {
+    const VIDEO_PROGRESS_URL = 'http://localhost:3000/api/videos/vid-1/progress';
+
+    const promise = service.markVideoProgress('vid-1', true, 120);
+
+    const req = httpMock.expectOne(VIDEO_PROGRESS_URL);
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ completado: true, lastPositionS: 120 });
+    req.flush(null, { status: 204, statusText: 'No Content' });
+
+    await promise;
+  });
 });

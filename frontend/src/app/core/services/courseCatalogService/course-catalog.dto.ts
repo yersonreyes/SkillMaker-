@@ -46,6 +46,7 @@ export interface MaterialResponseItem {
 /**
  * Video item inside a section.
  * Updated in course-structure-v2: gains descripcion and materiales[].
+ * Updated in course-player-progress: gains completado (caller-scoped, from video_progress table).
  */
 export interface VideoResponseItem {
   id: string;
@@ -57,6 +58,8 @@ export interface VideoResponseItem {
   descripcion: string;
   /** Per-video materials attached to this video. */
   materiales: MaterialResponseItem[];
+  /** Whether the JWT caller has marked this video as completed (migration 0014). Defaults to false. */
+  completado: boolean;
 }
 
 /** Section with its videos — used in the enrolled detail tree. */

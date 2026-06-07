@@ -163,3 +163,134 @@
   overflow: hidden
   text-overflow: ellipsis
   white-space: nowrap
+
+// ── 2-column player layout (course-player-progress WU-2) ──────────────────────
+
+.course-detail__player
+  display: grid
+  grid-template-columns: minmax(0, 1fr) 22rem
+  gap: 28px
+  align-items: start
+  margin-top: 24px
+
+  @media (max-width: 768px)
+    grid-template-columns: 1fr
+    // Curriculum collapses ABOVE the stage on mobile
+    .course-detail__curriculum
+      order: -1
+
+// LEFT: stage — active video + title + desc + materiales + mark button
+.course-detail__stage
+  display: flex
+  flex-direction: column
+  gap: 0
+
+// RIGHT: sticky curriculum sidebar
+.course-detail__curriculum
+  position: sticky
+  top: 80px
+  background: var(--page-surface)
+  border: 1px solid var(--page-ink-hairline)
+  border-radius: 3px
+  overflow: hidden
+  max-height: calc(100vh - 100px)
+  overflow-y: auto
+
+// Progress bar inside the curriculum header
+.course-detail__progress
+  padding: 14px 16px
+  border-bottom: 1px solid var(--page-ink-hairline)
+  background: var(--page-surface-raised)
+
+.course-detail__progress-label
+  display: block
+  font-family: var(--font-mono)
+  font-size: 11px
+  font-weight: 500
+  letter-spacing: 0.08em
+  color: var(--page-ink-soft)
+  margin-bottom: 8px
+
+.course-detail__progress-bar
+  height: 5px
+  background: var(--page-ink-hairline)
+  border-radius: 3px
+  overflow: hidden
+
+.course-detail__progress-fill
+  height: 100%
+  background: var(--page-cyan)
+  border-radius: 3px
+  transition: width 0.3s ease
+
+// Video list in the curriculum
+.course-detail__video-list
+  list-style: none
+  padding: 4px 0
+  margin: 0
+
+.course-detail__video-item
+  display: flex
+  align-items: center
+  gap: 10px
+  padding: 10px 16px
+  cursor: pointer
+  font-size: 13.5px
+  color: var(--page-ink-soft)
+  border-left: 3px solid transparent
+  transition: background 0.15s ease, color 0.15s ease
+
+  &:hover
+    background: var(--page-cyan-soft)
+    color: var(--page-ink)
+
+  > i
+    font-size: 14px
+    flex: none
+    color: var(--page-ink-hairline)
+
+  > span
+    flex: 1
+    overflow: hidden
+    text-overflow: ellipsis
+    white-space: nowrap
+
+  // Active: cyan left border + text highlight
+  &--active
+    border-left-color: var(--page-cyan)
+    color: var(--page-ink)
+    background: var(--page-cyan-soft)
+
+    > i
+      color: var(--page-cyan)
+
+  // Done: muted checkmark style
+  &--done > i
+    color: var(--page-cyan)
+
+// Mark-complete toggle button
+.course-detail__mark-btn
+  margin-top: 16px
+  align-self: flex-start
+  font-size: 13.5px
+  padding: 8px 18px
+  border: 1.5px solid var(--page-cyan)
+  color: var(--page-cyan)
+  background: transparent
+  border-radius: 2px
+  cursor: pointer
+  display: inline-flex
+  align-items: center
+  gap: 7px
+  transition: background 0.15s ease, color 0.15s ease
+
+  &:hover
+    background: var(--page-cyan-soft)
+
+  &.is-done
+    background: var(--page-cyan)
+    color: #fff
+
+    &:hover
+      background: var(--page-cyan)
+      opacity: 0.88

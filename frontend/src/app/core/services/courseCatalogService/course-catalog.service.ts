@@ -87,4 +87,18 @@ export class CourseCatalogService {
       .url(this.meCoursesUrl)
       .send();
   }
+
+  /**
+   * PUT /api/videos/:id/progress — caller-scoped upsert. 204 No Content.
+   * NOTE: uses environment.apiBaseUrl directly (not this.base which points to /catalog).
+   * Toggle: completado true→false and false→true both accepted.
+   */
+  markVideoProgress(videoId: string, completado: boolean, lastPositionS?: number): Promise<void> {
+    return this.http
+      .request<void>()
+      .put()
+      .url(`${environment.apiBaseUrl}/videos/${videoId}/progress`)
+      .body({ completado, lastPositionS })
+      .send();
+  }
 }
