@@ -35,9 +35,9 @@
 > Esta seccion es el "punto de partida". Cualquier change posterior parte de este estado.
 > Actualizar cuando se archive un change importante.
 
-**Fecha del snapshot:** 2026-06-06 (actualizado tras C8.1 refresh-token-tracking archive — Capa 7 hardening INICIADA)
-**Commits totales del scaffold:** 16 (+ 3 chained PRs para C1.1) (+ 2 PRs para C2.1) (+ 2 PRs para C2.2) (+ 2 PRs para C2.3) (+ 3 PRs para C3.1 incl. UI polish) (+ 3 PRs para C3.2) (+ 3 PRs para C4.1 incl. swagger fix) (+ 2 PRs para C2.4) (+ 2 PRs para C5.1 incl. bundled eval-summary slice) (+ 2 PRs para C6.1) (+ 2 PRs para course-structure-v2 + styling polish) (+ 2 PRs para C8.1 refresh-token-tracking) (+ post-merge fixes)
-**LOC totales (Go + TS + SQL):** ~2700 (+ ~900 LOC en C1.1) (+ ~1100 LOC en C2.1) (+ ~900 LOC en C2.2) (+ ~900 LOC en C2.3) (+ ~1200 LOC en C3.1) (+ ~1200 LOC en C3.2) (+ ~1100 LOC en C4.1) (+ ~1300 LOC en C2.4) (+ ~1700 LOC en C5.1 incl. bundled slice) (+ ~800 LOC en C6.1) (+ ~2150 LOC en course-structure-v2) (+ ~420 LOC en C8.1 refresh-token-tracking)
+**Fecha del snapshot:** 2026-06-06 (actualizado tras P1 catalog-filters archive + C8.1 refresh-token-tracking archive — Post-MVP improvement program INICIADO)
+**Commits totales del scaffold:** 16 (+ 3 chained PRs para C1.1) (+ 2 PRs para C2.1) (+ 2 PRs para C2.2) (+ 2 PRs para C2.3) (+ 3 PRs para C3.1 incl. UI polish) (+ 3 PRs para C3.2) (+ 3 PRs para C4.1 incl. swagger fix) (+ 2 PRs para C2.4) (+ 2 PRs para C5.1 incl. bundled eval-summary slice) (+ 2 PRs para C6.1) (+ 2 PRs para course-structure-v2 + styling polish) (+ 2 PRs para C8.1 refresh-token-tracking) (+ 2 PRs para P1 catalog-filters) (+ post-merge fixes)
+**LOC totales (Go + TS + SQL):** ~2700 (+ ~900 LOC en C1.1) (+ ~1100 LOC en C2.1) (+ ~900 LOC en C2.2) (+ ~900 LOC en C2.3) (+ ~1200 LOC en C3.1) (+ ~1200 LOC en C3.2) (+ ~1100 LOC en C4.1) (+ ~1300 LOC en C2.4) (+ ~1700 LOC en C5.1 incl. bundled slice) (+ ~800 LOC en C6.1) (+ ~2150 LOC en course-structure-v2) (+ ~420 LOC en C8.1 refresh-token-tracking) (+ ~340 LOC en P1 catalog-filters)
 **HITO ALCANZADO**: ✅ **MVP FEATURE COMPLETE** (2026-06-05) — Todas las capas C1–C6 archivadas. El loop completo (register → create → approve → publish → consume → evaluate → certify → badge → rank → report) está funcional en main. **Post-MVP hardening INICIADO**: C8.1 refresh-token-tracking archivado 2026-06-06.
 
 ### Modulos del dominio (los 7 declarados en RT)
@@ -807,6 +807,36 @@ Polish (b310324):
 ---
 
 ### Capa 8 — Hardening post-MVP
+
+#### Post-MVP Improvement Program (4 changes)
+
+**Iniciado:** 2026-06-06. El MVP funcional está completo en main (commit e42c69a). Los siguientes 4 cambios van a refinamientos focalizados de discovery/UX, no nuevas capas.
+
+| # | Change | Scope | Unblocks |
+|---|--------|-------|----------|
+| P1 | `catalog-filters` ✅ ARCHIVED | GET /catalog gain `?nivel`, `?categoria` (repeated, OR), `?sort`; filter bar UI; backward compatible | C8.2 paginated discovery |
+| P2 | `course-player-progress` (planned) | Per-video watched flag; resume timestamp; progress bar; enrollments+progress duos | P3 notifications |
+| P3 | `notifications-inapp` (planned) | In-app toast queue; course-approved, student-passed, badge-earned events; event bus | P4 |
+| P4 | `ux-polish` (planned) | Accessibility audit, dark mode, mobile UX, empty states consistency | **MVP fully ready for users** |
+
+##### P1 — `catalog-filters` ✅ ARCHIVED (2026-06-06)
+
+**Estado:** COMPLETE — 2 chained PRs (backend c7043c4 + frontend 24ab9f4) merged to dev/main. Manual smoke test PASSED. First of the post-MVP improvement series.
+
+**Delivered:** GET /api/catalog extended with `?nivel` (single: basico|intermedio|avanzado), `?categoria` (repeated params, OR semantics via EXISTS semi-join, no fan-out), `?sort` (recientes|titulo). Handler validates → 400 on bad params. Frontend filter bar (p-select nivel + p-multiselect categorias + p-select sort) + "Limpiar filtros" button + filtered empty state. No migration (schema ready since course-structure-v2); queryParamArray (HttpParams.append) emits repeated params correctly. CRITICAL fix applied: malformed categoria UUID → 400 (not 500) via uuid.Parse validation in handler.
+
+**Spec Compliance:** 15/15 backend scenarios PASS, 16/16 frontend scenarios PASS. Adversarial probes verified: EXISTS semi-join prevents JOIN fan-out/duplicate-count; niveau/sort allow-lists block injection; nonexistent UUID = match-nothing (not 400); multi-categoria OR semantics exact-once counting; backward compat preserved (no params = today's behavior).
+
+**Key Learnings:**
+1. EXISTS semi-join is LOAD-BEARING for paginated COUNT correctness — any JOIN refactor breaks silently (guarded by test).
+2. queryParamArray must use .append (not .set) or repeated params collapse to last value (multi-categoria silently broken).
+3. Categoria UUID validation must happen in handler (not at repo layer) — malformed UUIDs hit Postgres 22P02, must return 400 not 500.
+4. sort allow-list + hardcoded ORDER switch blocks SQL injection; no user string reaches SQL.
+5. No migration required; schema ready from course-structure-v2 → first filter change with no step-drift.
+
+**Next:** Course-player-progress (watches + resume) to unblock notifications.
+
+---
 
 #### C8.1 — `refresh-token-tracking` ✅ ARCHIVED (2026-06-06)
 
