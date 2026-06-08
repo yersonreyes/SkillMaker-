@@ -42,6 +42,22 @@ type CertificateResponse struct {
 	EmitidoEn time.Time `json:"emitidoEn"`
 }
 
+// VerifyCertificateResponse is the PUBLIC DTO for GET /certificates/verify/:codigo.
+// Exposes only non-sensitive fields needed to confirm authenticity to a third party
+// (e.g. an employer). A 200 means the code is valid; 404 means it does not exist.
+//
+// swagger:model VerifyCertificateResponse
+type VerifyCertificateResponse struct {
+	// Codigo is the unique verification code that was looked up.
+	Codigo string `json:"codigo"`
+	// HolderNombre is the display name of the person the certificate was issued to.
+	HolderNombre string `json:"holderNombre"`
+	// CourseTitulo is the display title of the completed course.
+	CourseTitulo string `json:"courseTitulo"`
+	// EmitidoEn is the ISO-8601 timestamp when the certificate was issued.
+	EmitidoEn time.Time `json:"emitidoEn"`
+}
+
 // DownloadURLResponse is the DTO for GET /certificates/:id/download response.
 // NOTE: Named DownloadURLResponse (not DownloadResponse) to avoid collision with courses.DownloadResponse.
 //

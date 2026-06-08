@@ -1,0 +1,123 @@
+// Public certificate verification — standalone full-viewport page (no platform shell).
+// Uses the global .page / .panel / .field / .btn primitives; only adds verify-specific bits.
+
+.verify
+  min-height: 100vh
+  background: var(--page-bg)
+  color: var(--page-ink)
+  display: flex
+  justify-content: center
+
+  .page
+    width: 100%
+    max-width: 640px
+
+.verify__form
+  display: flex
+  align-items: flex-end
+  gap: 12px
+  margin-top: 8px
+
+  @media (max-width: 520px)
+    flex-direction: column
+    align-items: stretch
+
+.verify__field
+  flex: 1 1 auto
+  min-width: 0
+
+.verify__input
+  width: 100%
+  font-family: var(--font-mono)
+  letter-spacing: 0.08em
+  text-transform: uppercase
+
+.verify__submit
+  flex: 0 0 auto
+  white-space: nowrap
+
+// ── Result panels ──────────────────────────────────────────────────────────────
+.verify__result
+  margin-top: 24px
+  padding: 28px
+  display: flex
+  flex-direction: column
+  align-items: center
+  text-align: center
+  border-radius: 2px
+
+  &--ok
+    border: 1px solid var(--page-cyan-edge)
+    background: var(--page-cyan-soft)
+  &--bad
+    border: 1px solid var(--page-ink-hairline)
+    background: var(--page-surface)
+
+.verify__badge
+  display: inline-flex
+  align-items: center
+  justify-content: center
+  width: 52px
+  height: 52px
+  border-radius: 50%
+  background: var(--page-cyan)
+  color: #fff
+  margin-bottom: 12px
+
+  i
+    font-size: 26px
+
+  &--bad
+    background: #b3402f
+
+.verify__status
+  font-family: var(--font-display)
+  font-style: italic
+  font-size: 24px
+  margin: 0 0 4px
+
+.verify__hint
+  font-size: 13.5px
+  color: var(--page-ink-soft)
+  margin: 6px 0 0
+  max-width: 42ch
+
+// ── Details ──────────────────────────────────────────────────────────────────
+.verify__details
+  width: 100%
+  margin: 18px 0 0
+  display: flex
+  flex-direction: column
+  gap: 0
+
+.verify__row
+  display: flex
+  justify-content: space-between
+  gap: 16px
+  padding: 11px 0
+  border-top: 1px dashed var(--page-ink-hairline)
+  text-align: left
+
+  &:first-child
+    border-top: 0
+
+  dt
+    flex: 0 0 auto
+    font-family: var(--font-mono)
+    font-size: 10.5px
+    letter-spacing: 0.12em
+    text-transform: uppercase
+    color: var(--page-ink-soft)
+    margin: 0
+
+  dd
+    flex: 1 1 auto
+    margin: 0
+    font-size: 14px
+    color: var(--page-ink)
+    text-align: right
+    word-break: break-word
+
+.verify__code
+  font-family: var(--font-mono)
+  letter-spacing: 0.08em

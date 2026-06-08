@@ -87,6 +87,16 @@ type DownloadResult struct {
 	ExpiresAt time.Time
 }
 
+// VerifyResult is the PUBLIC read model returned by VerifyCertificate.
+// It exposes ONLY non-sensitive fields safe for an unauthenticated verifier
+// (holder name, course title, code, issue date) — never UserID/CourseID/StorageKey.
+type VerifyResult struct {
+	Codigo       string
+	HolderNombre string
+	CourseTitulo string
+	EmitidoEn    time.Time
+}
+
 // ── Service interface ──────────────────────────────────────────────────────────
 
 // Service is the public interface of the certificates domain.
@@ -110,6 +120,12 @@ type Service interface {
 	// Returns ErrNoPDF sentinel if storage_key is empty (issued but PDF failed previously).
 	GetDownloadURL(ctx context.Context, certID, userID string) (DownloadResult, error)
 
+	// VerifyCertificate looks up a certificate by its public code and composes a
+	// verification result (holder name + course title + issue date). PUBLIC: no
+	// ownership/auth check — possession of the unguessable code IS the credential.
+	// Returns ErrCertificateNotFound when the code matches nothing.
+	VerifyCertificate(ctx context.Context, codigo string) (*VerifyResult, error)
+
 	// ListMyBadges returns all earned badges for userID.
 	ListMyBadges(ctx context.Context, userID string) ([]BadgeModel, error)
 
@@ -130,6 +146,7 @@ type Repository interface {
 	GetByUserCourse(ctx context.Context, userID, courseID string) (*domain.Certificate, error)
 	Create(ctx context.Context, cert *domain.Certificate) error
 	GetByID(ctx context.Context, certID string) (*domain.Certificate, error)
+	GetByCodigo(ctx context.Context, codigo string) (*domain.Certificate, error)
 	ListByUser(ctx context.Context, userID string) ([]domain.Certificate, error)
 	CountByUser(ctx context.Context, userID string) (int64, error)
 	ListBadgesByUser(ctx context.Context, userID string) ([]BadgeWithGrant, error)
@@ -319,6 +336,32 @@ func (s *serviceImpl) GetDownloadURL(ctx context.Context, certID, userID string)
 		return DownloadResult{}, err
 	}
 	return DownloadResult{URL: url, ExpiresAt: expiresAt}, nil
+}
+
+// ── VerifyCertificate (PUBLIC, by code) ─────────────────────────────────────────
+
+func (s *serviceImpl) VerifyCertificate(ctx context.Context, codigo string) (*VerifyResult, error) {
+	cert, err := s.repo.GetByCodigo(ctx, codigo)
+	if err != nil {
+		return nil, ErrCertificateNotFound // sentinel; hides existence on lookup failure
+	}
+
+	// Compose holder name + course title via the same seams used by IssueOnPass.
+	nombre, err := s.userNames.GetUserNombre(ctx, cert.UserID)
+	if err != nil {
+		return nil, err
+	}
+	titulo, err := s.courseTitulos.GetCourseTitulo(ctx, cert.CourseID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &VerifyResult{
+		Codigo:       cert.Codigo,
+		HolderNombre: nombre,
+		CourseTitulo: titulo,
+		EmitidoEn:    cert.EmitidoEn,
+	}, nil
 }
 
 // ── ListMyBadges ──────────────────────────────────────────────────────────────

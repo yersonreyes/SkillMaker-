@@ -31,6 +31,7 @@ type mockCertSvc struct {
 	ListMyCertificatesFn func(ctx context.Context, userID string) ([]service.CertificateModel, error)
 	GetCertificateFn     func(ctx context.Context, certID, userID string) (*service.CertificateModel, error)
 	GetDownloadURLFn     func(ctx context.Context, certID, userID string) (service.DownloadResult, error)
+	VerifyCertificateFn  func(ctx context.Context, codigo string) (*service.VerifyResult, error)
 	ListMyBadgesFn       func(ctx context.Context, userID string) ([]service.BadgeModel, error)
 	RankingFn            func(ctx context.Context, n int) ([]service.RankingModel, error)
 }
@@ -57,6 +58,13 @@ func (m *mockCertSvc) GetDownloadURL(ctx context.Context, certID, userID string)
 		return m.GetDownloadURLFn(ctx, certID, userID)
 	}
 	return service.DownloadResult{}, service.ErrCertificateNotFound
+}
+
+func (m *mockCertSvc) VerifyCertificate(ctx context.Context, codigo string) (*service.VerifyResult, error) {
+	if m.VerifyCertificateFn != nil {
+		return m.VerifyCertificateFn(ctx, codigo)
+	}
+	return nil, service.ErrCertificateNotFound
 }
 
 func (m *mockCertSvc) ListMyBadges(ctx context.Context, userID string) ([]service.BadgeModel, error) {
@@ -299,4 +307,86 @@ func TestAllCertRoutes_401_NoJWT(t *testing.T) {
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusUnauthorized, w.Code, "route %s must return 401 without JWT", path)
 	}
+}
+
+// ── Public verify endpoint ─────────────────────────────────────────────────────
+
+// setupEngineWithPublicAndProtected registers BOTH the protected routes (which include
+// the param route /certificates/:id) AND the public verify route (/certificates/verify/:codigo)
+// on the SAME gin engine. This is the canonical Gin static-vs-param sibling case — the test
+// passing (no panic during registration) proves the routes coexist.
+func setupEngineWithPublicAndProtected(svc service.Service) *gin.Engine {
+	r := gin.New()
+	r.Use(injectIdentity(uuid.New().String()))
+	handler.Register(r.Group(""), svc)       // /certificates/:id (param)
+	handler.RegisterPublic(r.Group(""), svc) // /certificates/verify/:codigo (static + param)
+	return r
+}
+
+func TestVerifyByCodigo_200(t *testing.T) {
+	emitido := time.Now()
+	svc := &mockCertSvc{
+		VerifyCertificateFn: func(_ context.Context, codigo string) (*service.VerifyResult, error) {
+			assert.Equal(t, "ABCD1234EFG12", codigo)
+			return &service.VerifyResult{
+				Codigo: "ABCD1234EFG12", HolderNombre: "Ana Perez",
+				CourseTitulo: "Go Avanzado", EmitidoEn: emitido,
+			}, nil
+		},
+	}
+	r := setupEngineWithPublicAndProtected(svc)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/certificates/verify/ABCD1234EFG12", http.NoBody)
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var resp map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "Ana Perez", resp["holderNombre"])
+	assert.Equal(t, "Go Avanzado", resp["courseTitulo"])
+	assert.Equal(t, "ABCD1234EFG12", resp["codigo"])
+}
+
+func TestVerifyByCodigo_404_OnUnknownCode(t *testing.T) {
+	svc := &mockCertSvc{
+		VerifyCertificateFn: func(_ context.Context, _ string) (*service.VerifyResult, error) {
+			return nil, service.ErrCertificateNotFound
+		},
+	}
+	r := setupEngineWithPublicAndProtected(svc)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/certificates/verify/UNKNOWN", http.NoBody)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// TestVerifyRoute_CoexistsWithParamRoute proves the static "verify" segment and the
+// param ":id" sibling both resolve correctly on the same engine (no shadowing).
+func TestVerifyRoute_CoexistsWithParamRoute(t *testing.T) {
+	certID := uuid.New().String()
+	svc := &mockCertSvc{
+		GetCertificateFn: func(_ context.Context, id, _ string) (*service.CertificateModel, error) {
+			assert.Equal(t, certID, id, "GET /certificates/:id must still match the UUID, not be shadowed by verify")
+			return &service.CertificateModel{ID: id, Codigo: "X", EmitidoEn: time.Now()}, nil
+		},
+		VerifyCertificateFn: func(_ context.Context, codigo string) (*service.VerifyResult, error) {
+			return &service.VerifyResult{Codigo: codigo, EmitidoEn: time.Now()}, nil
+		},
+	}
+	r := setupEngineWithPublicAndProtected(svc)
+
+	// /certificates/:id resolves to GetByID.
+	w1 := httptest.NewRecorder()
+	req1, _ := http.NewRequest(http.MethodGet, "/certificates/"+certID, http.NoBody)
+	r.ServeHTTP(w1, req1)
+	assert.Equal(t, http.StatusOK, w1.Code)
+
+	// /certificates/verify/:codigo resolves to VerifyByCodigo.
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest(http.MethodGet, "/certificates/verify/SOMECODE", http.NoBody)
+	r.ServeHTTP(w2, req2)
+	assert.Equal(t, http.StatusOK, w2.Code)
 }

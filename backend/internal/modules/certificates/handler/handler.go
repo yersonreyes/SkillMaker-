@@ -40,6 +40,43 @@ func Register(protected *gin.RouterGroup, svc service.Service) {
 	protected.GET("/badges/ranking", h.Ranking)
 }
 
+// RegisterPublic mounts the PUBLIC (no-JWT) certificate verification route onto the
+// given public route group. Kept separate from Register so it never inherits JWT/RBAC.
+//
+//	GET /certificates/verify/:codigo → VerifyByCodigo
+func RegisterPublic(public *gin.RouterGroup, svc service.Service) {
+	h := &Handler{svc: svc}
+	public.GET("/certificates/verify/:codigo", h.VerifyByCodigo)
+}
+
+// ── VerifyByCodigo (PUBLIC) ─────────────────────────────────────────────────────
+
+// VerifyByCodigo godoc
+// @Summary     Verifica un certificado por su codigo (publico)
+// @Description Endpoint PUBLICO (sin auth). Confirma la autenticidad de un certificado por su codigo unico. 200 = valido; 404 = inexistente.
+// @Tags        certificates
+// @Produce     json
+// @Param       codigo path string true "Codigo de verificacion del certificado"
+// @Success     200 {object} dto.VerifyCertificateResponse
+// @Failure     404 {object} httperr.Error
+// @Router      /certificates/verify/{codigo} [get]
+func (h *Handler) VerifyByCodigo(c *gin.Context) {
+	codigo := c.Param("codigo")
+
+	res, err := h.svc.VerifyCertificate(c.Request.Context(), codigo)
+	if err != nil {
+		renderReadError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.VerifyCertificateResponse{
+		Codigo:       res.Codigo,
+		HolderNombre: res.HolderNombre,
+		CourseTitulo: res.CourseTitulo,
+		EmitidoEn:    res.EmitidoEn,
+	})
+}
+
 // ── renderReadError ────────────────────────────────────────────────────────────
 
 // renderReadError maps certificate read sentinels to HTTP responses.

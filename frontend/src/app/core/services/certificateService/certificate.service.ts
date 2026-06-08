@@ -11,6 +11,7 @@ import type {
   CertificateListItem,
   CertificateResponse,
   DownloadURLResponse,
+  VerifyCertificateResponse,
 } from './certificate.dto';
 
 @Injectable({ providedIn: 'root' })
@@ -52,6 +53,21 @@ export class CertificateService {
       .request<DownloadURLResponse>()
       .get()
       .url(`${this.base}/${id}/download`)
+      .send();
+  }
+
+  /**
+   * GET /api/certificates/verify/:codigo
+   * PUBLIC (no auth). Confirms a certificate's authenticity by its code.
+   * `.silent()` so a 404 (invalid code) is handled inline by the caller,
+   * not surfaced as an error dialog.
+   */
+  verify(codigo: string): Promise<VerifyCertificateResponse> {
+    return this.http
+      .request<VerifyCertificateResponse>()
+      .get()
+      .url(`${this.base}/verify/${encodeURIComponent(codigo)}`)
+      .silent()
       .send();
   }
 }

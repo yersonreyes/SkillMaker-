@@ -32,6 +32,8 @@ type (
 	RankingModel = service.RankingModel
 	// DownloadResult is returned by GetDownloadURL.
 	DownloadResult = service.DownloadResult
+	// VerifyResult is the public read model returned by VerifyCertificate.
+	VerifyResult = service.VerifyResult
 
 	// UserNameReader is the narrow read seam into the users module.
 	UserNameReader = service.UserNameReader
@@ -78,4 +80,10 @@ func NewService(
 // RegisterRoutes mounts the certificates and badges routes onto the given JWT-protected route group.
 func RegisterRoutes(protected *gin.RouterGroup, svc Service) {
 	handler.Register(protected, svc)
+}
+
+// RegisterPublicRoutes mounts the PUBLIC (no-JWT) certificate verification route
+// onto the given public route group (the unauthenticated /api group).
+func RegisterPublicRoutes(public *gin.RouterGroup, svc Service) {
+	handler.RegisterPublic(public, svc)
 }

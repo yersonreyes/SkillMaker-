@@ -28,3 +28,15 @@ export interface DownloadURLResponse {
   url?: string;
   expiresAt?: string; // ISO 8601
 }
+
+/**
+ * Public verification result from GET /api/certificates/verify/:codigo.
+ * Only non-sensitive fields (holder name, course title, code, issue date).
+ * A successful resolution means the code is valid; a 404 means it does not exist.
+ */
+export interface VerifyCertificateResponse {
+  codigo?: string;
+  holderNombre?: string;
+  courseTitulo?: string;
+  emitidoEn?: string; // ISO 8601
+}

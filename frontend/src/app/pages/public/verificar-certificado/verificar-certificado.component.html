@@ -1,0 +1,84 @@
+<!-- Public certificate verification — Cyanotype Workshop -->
+<div class="verify">
+  <div class="page">
+    <header class="page__head">
+      <p class="page__eyebrow">SkillMaker</p>
+      <h1 class="page__title">Verificar <em>certificado</em><span class="tk-dot">.</span></h1>
+      <p class="page__lede">
+        Ingresa el código del certificado para confirmar su autenticidad.
+      </p>
+    </header>
+
+    <!-- ── Search form ──────────────────────────────────────────────────── -->
+    <form class="verify__form" (ngSubmit)="verify()">
+      <div class="field verify__field">
+        <label class="field__label" for="codigo">Código de verificación</label>
+        <input
+          id="codigo"
+          pInputText
+          type="text"
+          class="field__input verify__input"
+          [ngModel]="codigo()"
+          (ngModelChange)="codigo.set($event)"
+          name="codigo"
+          autocomplete="off"
+          placeholder="Ej. ABCD1234EFG12" />
+      </div>
+      <button
+        class="btn btn--cyan verify__submit"
+        type="submit"
+        [disabled]="!codigo().trim() || state() === 'loading'">
+        <i class="pi" [class.pi-spin]="state() === 'loading'"
+           [class.pi-spinner]="state() === 'loading'"
+           [class.pi-search]="state() !== 'loading'"></i>
+        Verificar
+      </button>
+    </form>
+
+    <!-- ── Result states ────────────────────────────────────────────────── -->
+    @switch (state()) {
+      @case ('found') {
+        @if (result(); as cert) {
+          <div class="panel verify__result verify__result--ok">
+            <div class="verify__badge"><i class="pi pi-verified"></i></div>
+            <p class="verify__status">Certificado válido</p>
+            <dl class="verify__details">
+              <div class="verify__row">
+                <dt>Otorgado a</dt>
+                <dd>{{ cert.holderNombre }}</dd>
+              </div>
+              <div class="verify__row">
+                <dt>Curso</dt>
+                <dd>{{ cert.courseTitulo }}</dd>
+              </div>
+              <div class="verify__row">
+                <dt>Fecha de emisión</dt>
+                <dd>{{ cert.emitidoEn | date: 'longDate' }}</dd>
+              </div>
+              <div class="verify__row">
+                <dt>Código</dt>
+                <dd class="verify__code">{{ cert.codigo }}</dd>
+              </div>
+            </dl>
+          </div>
+        }
+      }
+      @case ('notfound') {
+        <div class="panel verify__result verify__result--bad">
+          <div class="verify__badge verify__badge--bad"><i class="pi pi-times-circle"></i></div>
+          <p class="verify__status">Certificado no encontrado</p>
+          <p class="verify__hint">
+            No existe ningún certificado con ese código. Revisa que lo hayas escrito correctamente.
+          </p>
+        </div>
+      }
+      @case ('error') {
+        <div class="panel verify__result verify__result--bad">
+          <div class="verify__badge verify__badge--bad"><i class="pi pi-exclamation-triangle"></i></div>
+          <p class="verify__status">No se pudo verificar</p>
+          <p class="verify__hint">Ocurrió un problema al consultar el servicio. Intenta nuevamente.</p>
+        </div>
+      }
+    }
+  </div>
+</div>

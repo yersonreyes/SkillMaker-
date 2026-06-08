@@ -28,6 +28,7 @@ type Repository interface {
 	GetByUserCourse(ctx context.Context, userID, courseID string) (*domain.Certificate, error)
 	Create(ctx context.Context, cert *domain.Certificate) error
 	GetByID(ctx context.Context, certID string) (*domain.Certificate, error)
+	GetByCodigo(ctx context.Context, codigo string) (*domain.Certificate, error)
 	ListByUser(ctx context.Context, userID string) ([]domain.Certificate, error)
 	CountByUser(ctx context.Context, userID string) (int64, error)
 	ListBadgesByUser(ctx context.Context, userID string) ([]BadgeWithGrant, error)
@@ -79,6 +80,20 @@ func (r *gormRepository) Create(ctx context.Context, cert *domain.Certificate) e
 func (r *gormRepository) GetByID(ctx context.Context, certID string) (*domain.Certificate, error) {
 	var cert domain.Certificate
 	err := r.db.WithContext(ctx).First(&cert, "id = ?", certID).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrCertificateNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &cert, nil
+}
+
+// GetByCodigo fetches a certificate by its unique verification code.
+// Used by the PUBLIC verify endpoint. Returns ErrCertificateNotFound when no row matches.
+func (r *gormRepository) GetByCodigo(ctx context.Context, codigo string) (*domain.Certificate, error) {
+	var cert domain.Certificate
+	err := r.db.WithContext(ctx).First(&cert, "codigo = ?", codigo).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrCertificateNotFound
 	}

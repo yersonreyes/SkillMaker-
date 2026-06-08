@@ -23,6 +23,7 @@ type mockRepo struct {
 	GetByUserCourseFn      func(ctx context.Context, userID, courseID string) (*domain.Certificate, error)
 	CreateFn               func(ctx context.Context, cert *domain.Certificate) error
 	GetByIDFn              func(ctx context.Context, certID string) (*domain.Certificate, error)
+	GetByCodigoFn          func(ctx context.Context, codigo string) (*domain.Certificate, error)
 	ListByUserFn           func(ctx context.Context, userID string) ([]domain.Certificate, error)
 	CountByUserFn          func(ctx context.Context, userID string) (int64, error)
 	ListBadgesByUserFn     func(ctx context.Context, userID string) ([]BadgeWithGrant, error)
@@ -51,6 +52,13 @@ func (m *mockRepo) Create(ctx context.Context, cert *domain.Certificate) error {
 func (m *mockRepo) GetByID(ctx context.Context, certID string) (*domain.Certificate, error) {
 	if m.GetByIDFn != nil {
 		return m.GetByIDFn(ctx, certID)
+	}
+	return nil, ErrCertificateNotFound
+}
+
+func (m *mockRepo) GetByCodigo(ctx context.Context, codigo string) (*domain.Certificate, error) {
+	if m.GetByCodigoFn != nil {
+		return m.GetByCodigoFn(ctx, codigo)
 	}
 	return nil, ErrCertificateNotFound
 }
@@ -500,4 +508,42 @@ func TestIssueOnPass_NotifierFails_StillReturnsNil(t *testing.T) {
 
 	err := svc.IssueOnPass(context.Background(), "u1", "c1")
 	assert.NoError(t, err, "NON-FATAL: IssueOnPass must return nil when Notifier fails")
+}
+
+// ── VerifyCertificate (PUBLIC, by code) ─────────────────────────────────────────
+
+// TestVerifyCertificate_HappyPath composes holder name + course title via the seams.
+func TestVerifyCertificate_HappyPath(t *testing.T) {
+	emitido := time.Now()
+	repo := &mockRepo{
+		GetByCodigoFn: func(_ context.Context, codigo string) (*domain.Certificate, error) {
+			assert.Equal(t, "ABCD1234EFG12", codigo)
+			return &domain.Certificate{
+				ID: uuid.New().String(), UserID: "u1", CourseID: "c1",
+				Codigo: "ABCD1234EFG12", StorageKey: "certificates/x.pdf", EmitidoEn: emitido,
+			}, nil
+		},
+	}
+	svc := newTestService(repo, &mockStore{})
+
+	res, err := svc.VerifyCertificate(context.Background(), "ABCD1234EFG12")
+	require.NoError(t, err)
+	assert.Equal(t, "ABCD1234EFG12", res.Codigo)
+	assert.Equal(t, "Test User", res.HolderNombre, "holder name composed via UserNameReader seam")
+	assert.Equal(t, "Test Course", res.CourseTitulo, "course title composed via CourseTituloReader seam")
+	assert.Equal(t, emitido, res.EmitidoEn)
+}
+
+// TestVerifyCertificate_NotFound returns ErrCertificateNotFound for an unknown code.
+func TestVerifyCertificate_NotFound(t *testing.T) {
+	repo := &mockRepo{
+		GetByCodigoFn: func(_ context.Context, _ string) (*domain.Certificate, error) {
+			return nil, ErrCertificateNotFound
+		},
+	}
+	svc := newTestService(repo, &mockStore{})
+
+	res, err := svc.VerifyCertificate(context.Background(), "UNKNOWN")
+	assert.Nil(t, res)
+	assert.ErrorIs(t, err, ErrCertificateNotFound)
 }
