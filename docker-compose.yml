@@ -1,11 +1,13 @@
 # docker-compose.yml (raiz) — Orquestacion de produccion (Dokploy)
 #
-# Servicios: postgres + minio + migrate (job) + backend + frontend
+# Servicios: postgres + migrate (job) + backend + frontend
+#
+# MinIO NO se levanta aqui: es un servicio EXTERNO ya provisionado en otro equipo
+# (minio2.yersonserver.com). El backend solo se conecta via STORAGE_* del .env.
 #
 # Despliegue via Dokploy (tipo Compose):
-#   - Traefik enruta los dominios a los servicios conectados a `dokploy-network`.
-#   - frontend  -> https://skillmaker.yersonserver.com  (Dokploy Domains -> frontend:80)
-#   - minio(API)-> https://minio2.yersonserver.com       (Dokploy Domains -> minio:9000)
+#   - Traefik enruta el dominio al servicio conectado a `dokploy-network`.
+#   - frontend -> https://skillmaker.yersonserver.com  (Dokploy Domains -> frontend:80)
 #   - El frontend tambien queda expuesto en el host: 192.168.100.154:3799
 #   - Los secretos se inyectan via el .env de Dokploy (NO se commitea).
 
@@ -27,45 +29,6 @@ services:
     networks:
       - internal
     # Sin "ports:" — NO expuesto al host, solo accesible por otros containers
-
-  minio:
-    image: minio/minio:latest
-    restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    volumes:
-      - minio_data:/data
-    healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - internal          # acceso interno (backend) por nombre de servicio
-      - dokploy-network    # Traefik enruta minio2.yersonserver.com -> minio:9000
-    # El API S3 (9000) se publica por dominio en Dokploy para las URLs prefirmadas.
-
-  createbuckets:
-    image: minio/mc:latest
-    depends_on:
-      minio:
-        condition: service_healthy
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      STORAGE_BUCKET: ${STORAGE_BUCKET}
-    entrypoint: >
-      /bin/sh -c "
-      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
-      mc mb -p local/$${STORAGE_BUCKET} &&
-      echo 'bucket listo: '$${STORAGE_BUCKET};
-      exit 0;
-      "
-    restart: 'no'              # Job de un solo uso — crea el bucket privado
-    networks:
-      - internal
 
   migrate:
     image: migrate/migrate:latest
@@ -89,8 +52,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      minio:
-        condition: service_healthy
       migrate:
         condition: service_completed_successfully  # Espera a que migraciones pasen
     environment:
@@ -106,7 +67,7 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI}
       GOOGLE_HOSTED_DOMAIN: ${GOOGLE_HOSTED_DOMAIN}
-      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT}
+      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT}      # MinIO externo (minio2.yersonserver.com)
       STORAGE_REGION: ${STORAGE_REGION}
       STORAGE_BUCKET: ${STORAGE_BUCKET}
       STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
@@ -134,7 +95,6 @@ services:
 
 volumes:
   postgres_data:
-  minio_data:
 
 networks:
   internal:
