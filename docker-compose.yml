@@ -59,7 +59,8 @@ services:
       PORT: 3000
       LOG_LEVEL: ${LOG_LEVEL:-info}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
-      DATABASE_URL: ${DATABASE_URL}
+      # Se construye desde piezas cortas para evitar lineas largas fragiles en el .env
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
       REFRESH_TOKEN_EXPIRES_IN: ${REFRESH_TOKEN_EXPIRES_IN}
@@ -91,7 +92,9 @@ services:
     restart: unless-stopped
     networks:
       - internal          # alcanza a backend:3000 para el proxy /api
-      - dokploy-network    # Traefik enruta skillmaker.yersonserver.com -> frontend:80
+    # NOTA: NO se adjunta a dokploy-network (overlay/Swarm). Mezclar overlay +
+    # publicacion de puerto rompe el arranque (libnetwork "endpoint not found").
+    # El acceso es por host:3799. El dominio HTTPS se añade luego via Dokploy UI.
 
 volumes:
   postgres_data:
@@ -99,5 +102,3 @@ volumes:
 networks:
   internal:
     driver: bridge
-  dokploy-network:
-    external: true
