@@ -1,10 +1,13 @@
-# docker-compose.yml (raiz) — Orquestacion de produccion
+# docker-compose.yml (raiz) — Orquestacion de produccion (Dokploy)
 #
 # Servicios: postgres + minio + migrate (job) + backend + frontend
 #
-# Uso:
-#   cp .env.example .env && vi .env   # rellenar secrets reales
-#   make docker-up                    # construye imagenes y levanta
+# Despliegue via Dokploy (tipo Compose):
+#   - Traefik enruta los dominios a los servicios conectados a `dokploy-network`.
+#   - frontend  -> https://skillmaker.yersonserver.com  (Dokploy Domains -> frontend:80)
+#   - minio(API)-> https://minio2.yersonserver.com       (Dokploy Domains -> minio:9000)
+#   - El frontend tambien queda expuesto en el host: 192.168.100.154:3799
+#   - Los secretos se inyectan via el .env de Dokploy (NO se commitea).
 
 services:
   postgres:
@@ -21,6 +24,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - internal
     # Sin "ports:" — NO expuesto al host, solo accesible por otros containers
 
   minio:
@@ -37,8 +42,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    # Si se usa S3/GCS en produccion, este servicio puede eliminarse.
-    # Mantenerlo permite deploys autocontenidos en VPS / on-premise.
+    networks:
+      - internal          # acceso interno (backend) por nombre de servicio
+      - dokploy-network    # Traefik enruta minio2.yersonserver.com -> minio:9000
+    # El API S3 (9000) se publica por dominio en Dokploy para las URLs prefirmadas.
 
   migrate:
     image: migrate/migrate:latest
@@ -52,13 +59,13 @@ services:
       -database=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       up
     restart: 'no'                # Job de un solo uso
+    networks:
+      - internal
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - '3002:3000'                               # Host:3002 → Container:3000
     depends_on:
       postgres:
         condition: service_healthy
@@ -88,22 +95,29 @@ services:
       STORAGE_PRESIGN_TTL: ${STORAGE_PRESIGN_TTL}
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES}
     restart: unless-stopped
+    networks:
+      - internal          # postgres + nginx del frontend por nombre de servicio
+    # Sin "ports:" — el frontend (nginx) hace proxy de /api -> backend:3000
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - '3700:80'                                  # Host:3700 → nginx:80
+      - '3799:80'                                  # Host:3799 → nginx:80 (acceso LAN directo)
     depends_on:
       - backend
     restart: unless-stopped
+    networks:
+      - internal          # alcanza a backend:3000 para el proxy /api
+      - dokploy-network    # Traefik enruta skillmaker.yersonserver.com -> frontend:80
 
 volumes:
   postgres_data:
   minio_data:
 
 networks:
-  default:
-    name: skillmaker
+  internal:
     driver: bridge
+  dokploy-network:
+    external: true
