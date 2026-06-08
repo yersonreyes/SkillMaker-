@@ -82,6 +82,7 @@ func (n *nilCourseSvc) UpdateVideo(_ context.Context, _, _ string, _ coursesServ
 	return nil, nil
 }
 func (n *nilCourseSvc) DeleteVideo(_ context.Context, _, _ string) error { return nil }
+func (n *nilCourseSvc) ReorderVideos(_ context.Context, _, _ string, _ []string) error { return nil }
 func (n *nilCourseSvc) ListVideos(_ context.Context, _ string) ([]coursesService.VideoModel, error) {
 	return nil, nil
 }
@@ -108,6 +109,13 @@ func (n *nilCourseSvc) ConfirmThumbnail(_ context.Context, _, _, _ string) error
 func (n *nilCourseSvc) ListCategorias(_ context.Context) ([]coursesService.CategoriaModel, error) {
 	return nil, nil
 }
+func (n *nilCourseSvc) CreateCategoria(_ context.Context, _ string) (*coursesService.CategoriaModel, error) {
+	return nil, nil
+}
+func (n *nilCourseSvc) UpdateCategoria(_ context.Context, _, _ string) (*coursesService.CategoriaModel, error) {
+	return nil, nil
+}
+func (n *nilCourseSvc) DeleteCategoria(_ context.Context, _ string) error { return nil }
 func (n *nilCourseSvc) GetCourseOwnership(_ context.Context, _ string) (creadorID, estado string, err error) {
 	return "", "", nil
 }
@@ -192,6 +200,9 @@ func (n *nilCertSvc) GetCertificate(_ context.Context, _, _ string) (*certificat
 }
 func (n *nilCertSvc) GetDownloadURL(_ context.Context, _, _ string) (certificates.DownloadResult, error) {
 	return certificates.DownloadResult{}, nil
+}
+func (n *nilCertSvc) VerifyCertificate(_ context.Context, _ string) (*certificates.VerifyResult, error) {
+	return nil, nil
 }
 func (n *nilCertSvc) ListMyBadges(_ context.Context, _ string) ([]certificates.BadgeModel, error) {
 	return nil, nil

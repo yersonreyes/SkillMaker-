@@ -227,6 +227,11 @@ func (m *mockCourseSvc) ReorderSections(ctx context.Context, courseID, creadorID
 	args := m.Called(ctx, courseID, creadorID, ids)
 	return args.Error(0)
 }
+
+func (m *mockCourseSvc) ReorderVideos(ctx context.Context, sectionID, creadorID string, ids []string) error {
+	args := m.Called(ctx, sectionID, creadorID, ids)
+	return args.Error(0)
+}
 func (m *mockCourseSvc) CreateVideo(ctx context.Context, creadorID string, req coursesService.VideoCreateRequest) (*coursesService.VideoModel, error) { //nolint:gocritic
 	args := m.Called(ctx, creadorID, req)
 	if args.Get(0) == nil {
@@ -288,6 +293,13 @@ func (m *mockCourseSvc) ConfirmThumbnail(_ context.Context, _, _, _ string) erro
 func (m *mockCourseSvc) ListCategorias(_ context.Context) ([]coursesService.CategoriaModel, error) {
 	return nil, nil
 }
+func (m *mockCourseSvc) CreateCategoria(_ context.Context, _ string) (*coursesService.CategoriaModel, error) {
+	return nil, nil
+}
+func (m *mockCourseSvc) UpdateCategoria(_ context.Context, _, _ string) (*coursesService.CategoriaModel, error) {
+	return nil, nil
+}
+func (m *mockCourseSvc) DeleteCategoria(_ context.Context, _ string) error { return nil }
 func (m *mockCourseSvc) GetCourseOwnership(ctx context.Context, courseID string) (creadorID, estado string, err error) {
 	args := m.Called(ctx, courseID)
 	return args.String(0), args.String(1), args.Error(2)

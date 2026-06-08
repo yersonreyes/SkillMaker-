@@ -109,6 +109,8 @@ func main() {
 	courses.RegisterRoutes(creatorGrp, coursesSvc)
 	// Catalog + enrollment (C2.4) — alumno-facing, JWT-only (no RequireRole).
 	courses.RegisterCatalogRoutes(protected, coursesSvc)
+	// Categoria admin CRUD — administrador-only.
+	courses.RegisterCategoriasAdminRoutes(adminGrp, coursesSvc)
 
 	// Notifications module (notifications-inapp) — MUST be built BEFORE certsSvc and approvalsSvc
 	// (both depend on it via WithNotifier). Pure leaf: imports nobody from other domain modules.
@@ -150,6 +152,8 @@ func main() {
 
 	// Certificates module routes (C5.1) — JWT-only, no RequireRole.
 	certificates.RegisterRoutes(protected, certsSvc)
+	// Public certificate verification (no JWT) — mounted on the unauthenticated /api group.
+	certificates.RegisterPublicRoutes(api, certsSvc)
 
 	// Notifications module routes (notifications-inapp) — JWT-only, no RequireRole.
 	notifications.RegisterRoutes(protected, notificationsSvc)

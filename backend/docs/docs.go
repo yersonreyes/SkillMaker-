@@ -696,6 +696,157 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "categorias"
+                ],
+                "summary": "Crea una categoria (admin)",
+                "parameters": [
+                    {
+                        "description": "Nombre de la categoria",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CategoriaCreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/dto.CategoriaResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/categorias/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "categorias"
+                ],
+                "summary": "Elimina una categoria (admin). Bloqueado si esta asignada a cursos.",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID de la categoria",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "categorias"
+                ],
+                "summary": "Renombra una categoria (admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID de la categoria",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Nuevo nombre",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CategoriaUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.CategoriaResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
             }
         },
         "/certificates/me": {
@@ -722,6 +873,41 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/certificates/verify/{codigo}": {
+            "get": {
+                "description": "Endpoint PUBLICO (sin auth). Confirma la autenticidad de un certificado por su codigo unico. 200 = valido; 404 = inexistente.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "certificates"
+                ],
+                "summary": "Verifica un certificado por su codigo (publico)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Codigo de verificacion del certificado",
+                        "name": "codigo",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.VerifyCertificateResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/httperr.Error"
                         }
@@ -2678,6 +2864,73 @@ const docTemplate = `{
                 }
             }
         },
+        "/sections/{id}/videos/reorder": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Reordena los videos de una seccion del caller. El body debe contener el set EXACTO de IDs de video en el nuevo orden.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "videos"
+                ],
+                "summary": "Reordena los videos de una seccion",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "UUID de la seccion",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "IDs en el nuevo orden",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ReorderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httperr.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/sections/{sectionId}/videos": {
             "post": {
                 "security": [
@@ -3862,6 +4115,19 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.CategoriaCreateRequest": {
+            "type": "object",
+            "required": [
+                "nombre"
+            ],
+            "properties": {
+                "nombre": {
+                    "type": "string",
+                    "maxLength": 60,
+                    "minLength": 2
+                }
+            }
+        },
         "dto.CategoriaResponse": {
             "type": "object",
             "properties": {
@@ -3873,6 +4139,19 @@ const docTemplate = `{
                 },
                 "slug": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.CategoriaUpdateRequest": {
+            "type": "object",
+            "required": [
+                "nombre"
+            ],
+            "properties": {
+                "nombre": {
+                    "type": "string",
+                    "maxLength": 60,
+                    "minLength": 2
                 }
             }
         },
@@ -5047,6 +5326,27 @@ const docTemplate = `{
                 },
                 "passedAttemptsCount": {
                     "type": "integer"
+                }
+            }
+        },
+        "dto.VerifyCertificateResponse": {
+            "type": "object",
+            "properties": {
+                "codigo": {
+                    "description": "Codigo is the unique verification code that was looked up.",
+                    "type": "string"
+                },
+                "courseTitulo": {
+                    "description": "CourseTitulo is the display title of the completed course.",
+                    "type": "string"
+                },
+                "emitidoEn": {
+                    "description": "EmitidoEn is the ISO-8601 timestamp when the certificate was issued.",
+                    "type": "string"
+                },
+                "holderNombre": {
+                    "description": "HolderNombre is the display name of the person the certificate was issued to.",
+                    "type": "string"
                 }
             }
         },

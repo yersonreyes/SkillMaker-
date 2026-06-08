@@ -109,6 +109,15 @@ definitions:
         description: OtorgadoEn is the UTC timestamp when the badge was awarded.
         type: string
     type: object
+  dto.CategoriaCreateRequest:
+    properties:
+      nombre:
+        maxLength: 60
+        minLength: 2
+        type: string
+    required:
+    - nombre
+    type: object
   dto.CategoriaResponse:
     properties:
       id:
@@ -117,6 +126,15 @@ definitions:
         type: string
       slug:
         type: string
+    type: object
+  dto.CategoriaUpdateRequest:
+    properties:
+      nombre:
+        maxLength: 60
+        minLength: 2
+        type: string
+    required:
+    - nombre
     type: object
   dto.CertificateListItem:
     properties:
@@ -915,6 +933,23 @@ definitions:
       passedAttemptsCount:
         type: integer
     type: object
+  dto.VerifyCertificateResponse:
+    properties:
+      codigo:
+        description: Codigo is the unique verification code that was looked up.
+        type: string
+      courseTitulo:
+        description: CourseTitulo is the display title of the completed course.
+        type: string
+      emitidoEn:
+        description: EmitidoEn is the ISO-8601 timestamp when the certificate was
+          issued.
+        type: string
+      holderNombre:
+        description: HolderNombre is the display name of the person the certificate
+          was issued to.
+        type: string
+    type: object
   dto.VideoCreateRequest:
     properties:
       descripcion:
@@ -1465,6 +1500,101 @@ paths:
       summary: Lista las categorias curadas
       tags:
       - categorias
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Nombre de la categoria
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CategoriaCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.CategoriaResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Crea una categoria (admin)
+      tags:
+      - categorias
+  /categorias/{id}:
+    delete:
+      parameters:
+      - description: UUID de la categoria
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Elimina una categoria (admin). Bloqueado si esta asignada a cursos.
+      tags:
+      - categorias
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: UUID de la categoria
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Nuevo nombre
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CategoriaUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.CategoriaResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Renombra una categoria (admin)
+      tags:
+      - categorias
   /certificates/{id}:
     get:
       description: Devuelve el certificado si pertenece al usuario autenticado. 404
@@ -1543,6 +1673,30 @@ paths:
       security:
       - BearerAuth: []
       summary: Lista mis certificados
+      tags:
+      - certificates
+  /certificates/verify/{codigo}:
+    get:
+      description: Endpoint PUBLICO (sin auth). Confirma la autenticidad de un certificado
+        por su codigo unico. 200 = valido; 404 = inexistente.
+      parameters:
+      - description: Codigo de verificacion del certificado
+        in: path
+        name: codigo
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.VerifyCertificateResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      summary: Verifica un certificado por su codigo (publico)
       tags:
       - certificates
   /courses:
@@ -2742,6 +2896,50 @@ paths:
       summary: Actualiza una seccion (PATCH parcial)
       tags:
       - sections
+  /sections/{id}/videos/reorder:
+    patch:
+      consumes:
+      - application/json
+      description: Reordena los videos de una seccion del caller. El body debe contener
+        el set EXACTO de IDs de video en el nuevo orden.
+      parameters:
+      - description: UUID de la seccion
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: IDs en el nuevo orden
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ReorderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httperr.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httperr.Error'
+      security:
+      - BearerAuth: []
+      summary: Reordena los videos de una seccion
+      tags:
+      - videos
   /sections/{sectionId}/videos:
     post:
       consumes:

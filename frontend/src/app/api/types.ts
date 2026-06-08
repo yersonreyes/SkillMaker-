@@ -375,6 +375,80 @@ export interface paths {
         };
       };
     };
+    post: {
+      parameters: {
+        body: {
+          /** Nombre de la categoria */
+          body: definitions["dto.CategoriaCreateRequest"];
+        };
+      };
+      responses: {
+        /** Created */
+        201: {
+          schema: definitions["dto.CategoriaResponse"];
+        };
+        /** Bad Request */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Conflict */
+        409: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/categorias/{id}": {
+    delete: {
+      parameters: {
+        path: {
+          /** UUID de la categoria */
+          id: string;
+        };
+      };
+      responses: {
+        /** No Content */
+        204: never;
+        /** Not Found */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Conflict */
+        409: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+    patch: {
+      parameters: {
+        path: {
+          /** UUID de la categoria */
+          id: string;
+        };
+        body: {
+          /** Nuevo nombre */
+          body: definitions["dto.CategoriaUpdateRequest"];
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.CategoriaResponse"];
+        };
+        /** Bad Request */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Not Found */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Conflict */
+        409: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
   };
   "/certificates/me": {
     /** Devuelve los certificados del usuario autenticado, ordenados por emitidoEn DESC. */
@@ -386,6 +460,27 @@ export interface paths {
         };
         /** Unauthorized */
         401: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
+  "/certificates/verify/{codigo}": {
+    /** Endpoint PUBLICO (sin auth). Confirma la autenticidad de un certificado por su codigo unico. 200 = valido; 404 = inexistente. */
+    get: {
+      parameters: {
+        path: {
+          /** Codigo de verificacion del certificado */
+          codigo: string;
+        };
+      };
+      responses: {
+        /** OK */
+        200: {
+          schema: definitions["dto.VerifyCertificateResponse"];
+        };
+        /** Not Found */
+        404: {
           schema: definitions["httperr.Error"];
         };
       };
@@ -1402,6 +1497,41 @@ export interface paths {
       };
     };
   };
+  "/sections/{id}/videos/reorder": {
+    /** Reordena los videos de una seccion del caller. El body debe contener el set EXACTO de IDs de video en el nuevo orden. */
+    patch: {
+      parameters: {
+        path: {
+          /** UUID de la seccion */
+          id: string;
+        };
+        body: {
+          /** IDs en el nuevo orden */
+          body: definitions["dto.ReorderRequest"];
+        };
+      };
+      responses: {
+        /** OK */
+        200: unknown;
+        /** Bad Request */
+        400: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Forbidden */
+        403: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Not Found */
+        404: {
+          schema: definitions["httperr.Error"];
+        };
+        /** Conflict */
+        409: {
+          schema: definitions["httperr.Error"];
+        };
+      };
+    };
+  };
   "/sections/{sectionId}/videos": {
     /** Crea un video. La seccion y el curso deben pertenecer al caller. URL y proveedor se validan cruzadamente. */
     post: {
@@ -2003,10 +2133,16 @@ export interface definitions {
     /** @description OtorgadoEn is the UTC timestamp when the badge was awarded. */
     otorgadoEn?: string;
   };
+  "dto.CategoriaCreateRequest": {
+    nombre: string;
+  };
   "dto.CategoriaResponse": {
     id?: string;
     nombre?: string;
     slug?: string;
+  };
+  "dto.CategoriaUpdateRequest": {
+    nombre: string;
   };
   "dto.CertificateListItem": {
     /** @description Codigo is the unique verification code printed on the certificate. */
@@ -2401,6 +2537,16 @@ export interface definitions {
     completedCount?: number;
     enrolledCount?: number;
     passedAttemptsCount?: number;
+  };
+  "dto.VerifyCertificateResponse": {
+    /** @description Codigo is the unique verification code that was looked up. */
+    codigo?: string;
+    /** @description CourseTitulo is the display title of the completed course. */
+    courseTitulo?: string;
+    /** @description EmitidoEn is the ISO-8601 timestamp when the certificate was issued. */
+    emitidoEn?: string;
+    /** @description HolderNombre is the display name of the person the certificate was issued to. */
+    holderNombre?: string;
   };
   "dto.VideoCreateRequest": {
     descripcion?: string;
