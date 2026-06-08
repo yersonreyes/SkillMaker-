@@ -56,6 +56,9 @@ func Register(creatorGrp *gin.RouterGroup, svc service.Service) {
 
 	// Video routes (C2.2).
 	creatorGrp.POST("/sections/:sectionId/videos", h.CreateVideo)
+	// NOTE: ":id" (not ":sectionId") to stay consistent with PATCH /sections/:id
+	// within the same Gin method tree — mixing param names there panics.
+	creatorGrp.PATCH("/sections/:id/videos/reorder", h.ReorderVideos)
 	creatorGrp.PATCH("/videos/:id", h.UpdateVideo)
 	creatorGrp.DELETE("/videos/:id", h.DeleteVideo)
 
@@ -402,6 +405,39 @@ func (h *Handler) ReorderSections(c *gin.Context) {
 	}
 
 	if err := h.svc.ReorderSections(c.Request.Context(), courseID, creadorID, req.IDs); err != nil {
+		h.renderCourseErrorWrite(c, err)
+		return
+	}
+
+	c.Status(http.StatusOK)
+}
+
+// ReorderVideos godoc
+// @Summary     Reordena los videos de una seccion
+// @Description Reordena los videos de una seccion del caller. El body debe contener el set EXACTO de IDs de video en el nuevo orden.
+// @Tags        videos
+// @Accept      json
+// @Produce     json
+// @Security    BearerAuth
+// @Param       id   path   string             true "UUID de la seccion"
+// @Param       body body   dto.ReorderRequest true "IDs en el nuevo orden"
+// @Success     200
+// @Failure     400 {object} httperr.Error
+// @Failure     403 {object} httperr.Error
+// @Failure     404 {object} httperr.Error
+// @Failure     409 {object} httperr.Error
+// @Router      /sections/{id}/videos/reorder [patch]
+func (h *Handler) ReorderVideos(c *gin.Context) {
+	sectionID := c.Param("id")
+	creadorID := middleware.UserIDFrom(c)
+
+	var req dto.ReorderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperr.Render(c, httperr.BadRequest("INVALID_BODY", "body invalido: "+err.Error()))
+		return
+	}
+
+	if err := h.svc.ReorderVideos(c.Request.Context(), sectionID, creadorID, req.IDs); err != nil {
 		h.renderCourseErrorWrite(c, err)
 		return
 	}

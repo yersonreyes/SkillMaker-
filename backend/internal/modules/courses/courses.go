@@ -60,3 +60,10 @@ func RegisterRoutes(creatorGrp *gin.RouterGroup, svc Service) {
 func RegisterCatalogRoutes(protectedGrp *gin.RouterGroup, svc Service) {
 	handler.RegisterCatalog(protectedGrp, svc)
 }
+
+// RegisterCategoriasAdminRoutes mounts the admin-only categoria CRUD routes.
+// The group must already carry JWT + RequireRole("administrador").
+// Routes: POST /categorias, PATCH /categorias/:id, DELETE /categorias/:id.
+func RegisterCategoriasAdminRoutes(adminGrp *gin.RouterGroup, svc Service) {
+	handler.RegisterCategoriasAdmin(adminGrp, svc)
+}

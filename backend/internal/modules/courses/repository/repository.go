@@ -67,6 +67,9 @@ var ErrVideoNotFound = errors.New("video not found")
 // ErrMaterialNotFound is returned when a material lookup finds no matching row.
 var ErrMaterialNotFound = errors.New("material not found")
 
+// ErrCategoriaNotFound is returned when a categoria update/delete matches no row.
+var ErrCategoriaNotFound = errors.New("categoria not found")
+
 // VideoProgressRow is the batch read row for the content tree (caller-scoped).
 // Returned by ListVideoProgressByUserAndCourse for progress tree assembly in Go.
 type VideoProgressRow struct {
@@ -140,6 +143,10 @@ type Repository interface {
 
 	// DeleteVideo deletes a video by ID.
 	DeleteVideo(ctx context.Context, id string) error
+
+	// ReorderVideos updates orden=index for each video in ids within a transaction.
+	// ids must match the section's videos exactly (validated at service layer).
+	ReorderVideos(ctx context.Context, sectionID string, ids []string) error
 
 	// HasContent returns true if the course has at least one video (via any section).
 	// Uses an EXISTS subquery joining video → section → course.
@@ -234,6 +241,27 @@ type Repository interface {
 	// ListCategoriasForCourses loads categorias for a batch of course IDs in ONE query
 	// (no N+1 on catalog list). Returns a map[courseID][]Categoria.
 	ListCategoriasForCourses(ctx context.Context, courseIDs []string) (map[string][]domain.Categoria, error)
+
+	// ── Categoria admin CRUD (write path) ────────────────────────────────────
+
+	// CreateCategoria inserts a new categoria. Assigns a UUID if ID is empty.
+	CreateCategoria(ctx context.Context, c *domain.Categoria) error
+
+	// UpdateCategoria updates nombre+slug for the given id.
+	// Returns ErrCategoriaNotFound when no row matches.
+	UpdateCategoria(ctx context.Context, id, nombre, slug string) error
+
+	// DeleteCategoria deletes a categoria by id.
+	// Returns ErrCategoriaNotFound when no row matches.
+	DeleteCategoria(ctx context.Context, id string) error
+
+	// CategoriaNombreOrSlugExists returns true if any categoria (other than excludeID,
+	// which may be "") has the given nombre OR slug. Used to enforce UNIQUE before write.
+	CategoriaNombreOrSlugExists(ctx context.Context, nombre, slug, excludeID string) (bool, error)
+
+	// CountCoursesForCategoria returns how many courses are assigned the categoria.
+	// Used to block deletion when the categoria is in use.
+	CountCoursesForCategoria(ctx context.Context, categoriaID string) (int64, error)
 
 	// ── Video progress methods (course-player-progress / migration 0014) ─────────
 
@@ -455,6 +483,22 @@ func (r *gormRepository) UpdateVideo(ctx context.Context, id string, fields map[
 
 func (r *gormRepository) DeleteVideo(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Where("id = ?", id).Delete(&domain.Video{}).Error
+}
+
+// ReorderVideos updates orden=index for each video in ids within a single transaction.
+// The service layer must validate set-equality before calling this.
+func (r *gormRepository) ReorderVideos(ctx context.Context, sectionID string, ids []string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for i, id := range ids {
+			result := tx.Model(&domain.Video{}).
+				Where("id = ? AND section_id = ?", id, sectionID).
+				Update("orden", i)
+			if result.Error != nil {
+				return result.Error
+			}
+		}
+		return nil
+	})
 }
 
 // HasContent checks whether a course has at least one video via an EXISTS subquery.
@@ -682,6 +726,63 @@ func (r *gormRepository) ListCategoriasForCourses(ctx context.Context, courseIDs
 		})
 	}
 	return result, nil
+}
+
+// ── Categoria admin CRUD (write path) ───────────────────────────────────────────
+
+func (r *gormRepository) CreateCategoria(ctx context.Context, c *domain.Categoria) error {
+	if c.ID == "" {
+		c.ID = uuid.New().String()
+	}
+	return r.db.WithContext(ctx).Create(c).Error
+}
+
+func (r *gormRepository) UpdateCategoria(ctx context.Context, id, nombre, slug string) error {
+	result := r.db.WithContext(ctx).
+		Model(&domain.Categoria{}).
+		Where("id = ?", id).
+		Updates(map[string]any{"nombre": nombre, "slug": slug})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrCategoriaNotFound
+	}
+	return nil
+}
+
+func (r *gormRepository) DeleteCategoria(ctx context.Context, id string) error {
+	result := r.db.WithContext(ctx).Where("id = ?", id).Delete(&domain.Categoria{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrCategoriaNotFound
+	}
+	return nil
+}
+
+func (r *gormRepository) CategoriaNombreOrSlugExists(ctx context.Context, nombre, slug, excludeID string) (bool, error) {
+	var count int64
+	q := r.db.WithContext(ctx).
+		Model(&domain.Categoria{}).
+		Where("(nombre = ? OR slug = ?)", nombre, slug)
+	if excludeID != "" {
+		q = q.Where("id <> ?", excludeID)
+	}
+	if err := q.Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (r *gormRepository) CountCoursesForCategoria(ctx context.Context, categoriaID string) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Table("course_categoria").
+		Where("categoria_id = ?", categoriaID).
+		Count(&count).Error
+	return count, err
 }
 
 // ── C4.1 additions ────────────────────────────────────────────────────────────

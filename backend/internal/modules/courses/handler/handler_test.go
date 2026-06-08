@@ -122,6 +122,11 @@ func (m *mockCourseSvc) ReorderSections(ctx context.Context, courseID, creadorID
 	return args.Error(0)
 }
 
+func (m *mockCourseSvc) ReorderVideos(ctx context.Context, sectionID, creadorID string, ids []string) error {
+	args := m.Called(ctx, sectionID, creadorID, ids)
+	return args.Error(0)
+}
+
 func (m *mockCourseSvc) CreateVideo(ctx context.Context, creadorID string, req service.VideoCreateRequest) (*service.VideoModel, error) { //nolint:gocritic
 	args := m.Called(ctx, creadorID, req)
 	if args.Get(0) == nil {
@@ -207,6 +212,27 @@ func (m *mockCourseSvc) ListCategorias(ctx context.Context) ([]service.Categoria
 		return nil, args.Error(1)
 	}
 	return args.Get(0).([]service.CategoriaModel), args.Error(1)
+}
+
+func (m *mockCourseSvc) CreateCategoria(ctx context.Context, nombre string) (*service.CategoriaModel, error) {
+	args := m.Called(ctx, nombre)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*service.CategoriaModel), args.Error(1)
+}
+
+func (m *mockCourseSvc) UpdateCategoria(ctx context.Context, id, nombre string) (*service.CategoriaModel, error) {
+	args := m.Called(ctx, id, nombre)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*service.CategoriaModel), args.Error(1)
+}
+
+func (m *mockCourseSvc) DeleteCategoria(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
 }
 
 // GetCourseOwnership satisfies the cross-module seam added in C3.1.
@@ -1352,4 +1378,78 @@ func TestRouteSet_NoGinPanic(t *testing.T) {
 		grp := r.Group("", identity, middleware.RequireRole("creador"))
 		handler.Register(grp, svc)
 	}, "[LOAD-BEARING] registering all course+section+video+material routes on a real gin.Engine must not panic (no Gin param-name conflict)")
+}
+
+// ── Categoria admin CRUD handler tests ──────────────────────────────────────────
+
+// setupAdminEngine mounts the categoria admin routes behind RequireRole("administrador").
+func setupAdminEngine(svc service.Service, roles []string) *gin.Engine {
+	r := gin.New()
+	identity := injectIdentity("admin-1", roles)
+	adminGrp := r.Group("", identity, middleware.RequireRole("administrador"))
+	handler.RegisterCategoriasAdmin(adminGrp, svc)
+	return r
+}
+
+func TestCreateCategoria_Admin_Returns201(t *testing.T) {
+	svc := &mockCourseSvc{}
+	svc.On("CreateCategoria", mock.Anything, "DevOps").
+		Return(&service.CategoriaModel{ID: "c1", Nombre: "DevOps", Slug: "devops"}, nil)
+
+	r := setupAdminEngine(svc, []string{"administrador"})
+	w := do(r, http.MethodPost, "/categorias", map[string]string{"nombre": "DevOps"})
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	svc.AssertExpectations(t)
+}
+
+func TestCreateCategoria_NonAdmin_Returns403(t *testing.T) {
+	svc := &mockCourseSvc{}
+	r := setupAdminEngine(svc, []string{"creador"})
+	w := do(r, http.MethodPost, "/categorias", map[string]string{"nombre": "DevOps"})
+
+	assert.Equal(t, http.StatusForbidden, w.Code, "non-admin must get 403 on categoria admin route")
+	svc.AssertNotCalled(t, "CreateCategoria", mock.Anything, mock.Anything)
+}
+
+func TestCreateCategoria_Duplicate_Returns409(t *testing.T) {
+	svc := &mockCourseSvc{}
+	svc.On("CreateCategoria", mock.Anything, "Frontend").Return(nil, service.ErrCategoriaDuplicate)
+
+	r := setupAdminEngine(svc, []string{"administrador"})
+	w := do(r, http.MethodPost, "/categorias", map[string]string{"nombre": "Frontend"})
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Equal(t, "CATEGORIA_DUPLICATE", respCode(w))
+}
+
+func TestCreateCategoria_BlankNombre_Returns400(t *testing.T) {
+	svc := &mockCourseSvc{}
+	r := setupAdminEngine(svc, []string{"administrador"})
+	w := do(r, http.MethodPost, "/categorias", map[string]string{"nombre": "a"}) // min=2
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	svc.AssertNotCalled(t, "CreateCategoria", mock.Anything, mock.Anything)
+}
+
+func TestDeleteCategoria_InUse_Returns409(t *testing.T) {
+	svc := &mockCourseSvc{}
+	svc.On("DeleteCategoria", mock.Anything, "cat-1").Return(service.ErrCategoriaInUse)
+
+	r := setupAdminEngine(svc, []string{"administrador"})
+	w := do(r, http.MethodDelete, "/categorias/cat-1", nil)
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Equal(t, "CATEGORIA_IN_USE", respCode(w))
+}
+
+func TestDeleteCategoria_Admin_Returns204(t *testing.T) {
+	svc := &mockCourseSvc{}
+	svc.On("DeleteCategoria", mock.Anything, "cat-1").Return(nil)
+
+	r := setupAdminEngine(svc, []string{"administrador"})
+	w := do(r, http.MethodDelete, "/categorias/cat-1", nil)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	svc.AssertExpectations(t)
 }

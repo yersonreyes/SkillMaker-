@@ -1,0 +1,82 @@
+<!-- categorias.component.html — admin CRUD for course categorías -->
+<div class="p-4 space-y-4">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-semibold">Categorías</h1>
+    <button class="btn btn--cyan" type="button" (click)="openCreateDialog()">
+      <i class="pi pi-plus"></i> Nueva categoría
+    </button>
+  </div>
+
+  <p class="text-sm text-gray-500">
+    Las categorías sirven para clasificar y filtrar cursos. No se puede eliminar una categoría que esté asignada a algún curso.
+  </p>
+
+  <!-- Table -->
+  @if (loading()) {
+    <p-skeleton height="12rem" />
+  } @else {
+    <p-table [value]="categorias()" dataKey="id" styleClass="p-datatable-sm">
+      <ng-template #header>
+        <tr>
+          <th>Nombre</th>
+          <th>Slug</th>
+          <th class="w-32 text-right">Acciones</th>
+        </tr>
+      </ng-template>
+
+      <ng-template #body let-cat>
+        <tr>
+          <td>{{ cat.nombre }}</td>
+          <td><code class="text-xs text-gray-500">{{ cat.slug }}</code></td>
+          <td class="text-right">
+            <div class="flex gap-2 justify-end">
+              <button class="icon-btn" type="button" pTooltip="Editar" tooltipPosition="top"
+                (click)="openEditDialog(cat)"><i class="pi pi-pencil"></i></button>
+              <button class="icon-btn icon-btn--danger" type="button" pTooltip="Eliminar" tooltipPosition="top"
+                (click)="remove(cat)"><i class="pi pi-trash"></i></button>
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+
+      <ng-template #emptymessage>
+        <tr>
+          <td colspan="3" class="text-center text-gray-400 py-8">
+            No hay categorías. Crea la primera con "Nueva categoría".
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  }
+</div>
+
+<!-- Create / edit dialog -->
+<p-dialog
+  [header]="editingId() ? 'Editar categoría' : 'Nueva categoría'"
+  [modal]="true"
+  [visible]="dialogVisible()"
+  (visibleChange)="dialogVisible.set($event)"
+  [style]="{ width: '28rem' }">
+  <div class="flex flex-col gap-2 pt-2">
+    <label class="text-xs text-gray-500" for="cat-nombre">Nombre <span class="text-red-500">*</span></label>
+    <input
+      id="cat-nombre"
+      pInputText
+      type="text"
+      [ngModel]="formNombre()"
+      (ngModelChange)="formNombre.set($event)"
+      placeholder="Ej. Machine Learning"
+      (keyup.enter)="save()" />
+    <small class="text-gray-400">El identificador (slug) se genera automáticamente a partir del nombre.</small>
+  </div>
+
+  <ng-template #footer>
+    <button class="btn btn--ghost" type="button" (click)="dialogVisible.set(false)">Cancelar</button>
+    <button class="btn btn--cyan" type="button" [disabled]="nombreInvalid() || saving()" (click)="save()">
+      <i class="pi" [class.pi-spin]="saving()" [class.pi-spinner]="saving()" [class.pi-check]="!saving()"></i>
+      {{ editingId() ? 'Guardar cambios' : 'Crear' }}
+    </button>
+  </ng-template>
+</p-dialog>

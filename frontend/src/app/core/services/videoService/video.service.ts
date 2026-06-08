@@ -38,4 +38,14 @@ export class VideoService {
       .url(`${this.videosBase}/${id}`)
       .send();
   }
+
+  /** PATCH /api/sections/:sectionId/videos/reorder — reorders videos by full ids array. */
+  reorder(sectionId: string, ids: string[]): Promise<void> {
+    return this.http
+      .request<void>()
+      .patch()
+      .url(`${this.sectionsBase}/${sectionId}/videos/reorder`)
+      .body({ ids })
+      .send();
+  }
 }

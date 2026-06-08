@@ -9,3 +9,8 @@ export interface CategoriaItem {
   nombre: string;
   slug: string;
 }
+
+/** Body for POST /api/categorias and PATCH /api/categorias/:id (admin). Slug is derived server-side. */
+export interface CategoriaWriteRequest {
+  nombre: string;
+}

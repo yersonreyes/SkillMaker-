@@ -122,6 +122,17 @@ export class CursoEditarComponent implements OnInit {
     return c.estado !== 'borrador' && c.estado !== 'rechazado';
   });
 
+  /**
+   * Content (sections, videos, materials) can only be mutated while the course
+   * is editable. Backend gate (assertCourseEditable): estado ∈ {borrador, rechazado}.
+   * Mirrors that rule so the UI disables edit controls instead of letting the
+   * user hit a 409 ERR_COURSE_NOT_EDITABLE.
+   */
+  readonly isCourseEditable = computed(() => {
+    const c = this.course();
+    return !!c && (c.estado === 'borrador' || c.estado === 'rechazado');
+  });
+
   /** Latest rejection comment from approval history. */
   readonly rejectionComentario = signal<string | null>(null);
 
@@ -143,10 +154,12 @@ export class CursoEditarComponent implements OnInit {
   readonly newSectionTitulo = signal<string>('');
   readonly addingSectionBusy = signal<boolean>(false);
 
-  // ── Add video dialog ─────────────────────────────────────────────────────────
+  // ── Add / edit video dialog ────────────────────────────────────────────────��─
   readonly addVideoVisible = signal<boolean>(false);
   readonly addVideoSectionId = signal<string>('');
   readonly addingVideoBusy = signal<boolean>(false);
+  /** null = creating a new video; non-null = editing the video with this id. */
+  readonly editingVideoId = signal<string | null>(null);
   readonly videoForm = signal<VideoFormState>({
     titulo: '',
     url: '',
@@ -364,36 +377,67 @@ export class CursoEditarComponent implements OnInit {
 
   openAddVideoDialog(sectionId: string): void {
     this.addVideoSectionId.set(sectionId);
+    this.editingVideoId.set(null);
     this.videoForm.set({ titulo: '', url: '', proveedor: 'youtube', duracionS: undefined, descripcion: '' });
     this.videoTituloTouched.set(false);
     this.videoUrlTouched.set(false);
     this.addVideoVisible.set(true);
   }
 
-  async addVideo(sectionId: string): Promise<void> {
+  openEditVideoDialog(sectionId: string, video: VideoItem): void {
+    this.addVideoSectionId.set(sectionId);
+    this.editingVideoId.set(video.id);
+    this.videoForm.set({
+      titulo: video.titulo,
+      url: video.url,
+      proveedor: video.proveedor,
+      duracionS: video.duracionS || undefined,
+      descripcion: video.descripcion ?? '',
+    });
+    this.videoTituloTouched.set(false);
+    this.videoUrlTouched.set(false);
+    this.addVideoVisible.set(true);
+  }
+
+  /** Unified submit for the video dialog — creates a new video or updates the one being edited. */
+  async saveVideo(sectionId: string): Promise<void> {
     const form = this.videoForm();
     if (!form.titulo.trim() || !form.url.trim()) return;
 
+    const body: { titulo: string; url: string; proveedor: VideoProveedor; duracionS?: number; descripcion?: string } = {
+      titulo: form.titulo.trim(),
+      url: form.url.trim(),
+      proveedor: form.proveedor,
+    };
+    if (form.duracionS) body['duracionS'] = form.duracionS;
+    if (form.descripcion.trim()) body['descripcion'] = form.descripcion.trim();
+
+    const editId = this.editingVideoId();
     this.addingVideoBusy.set(true);
     try {
-      const body: { titulo: string; url: string; proveedor: VideoProveedor; duracionS?: number; descripcion?: string } = {
-        titulo: form.titulo.trim(),
-        url: form.url.trim(),
-        proveedor: form.proveedor,
-      };
-      if (form.duracionS) body['duracionS'] = form.duracionS;
-      if (form.descripcion.trim()) body['descripcion'] = form.descripcion.trim();
-
-      const created = await this.videoService.create(sectionId, body);
-      this.sections.update(list =>
-        list.map(s =>
-          s.id === sectionId ? { ...s, videos: [...s.videos, created] } : s,
-        ),
-      );
-      // Initialize empty materials list for new video
-      this.videoMaterials.update(map => ({ ...map, [created.id]: [] }));
-      this.addVideoVisible.set(false);
-      this.ui.showSuccess('Video agregado');
+      if (editId) {
+        const updated = await this.videoService.update(editId, body);
+        this.sections.update(list =>
+          list.map(s =>
+            s.id === sectionId
+              ? { ...s, videos: s.videos.map(v => (v.id === editId ? updated : v)) }
+              : s,
+          ),
+        );
+        this.addVideoVisible.set(false);
+        this.ui.showSuccess('Video actualizado');
+      } else {
+        const created = await this.videoService.create(sectionId, body);
+        this.sections.update(list =>
+          list.map(s =>
+            s.id === sectionId ? { ...s, videos: [...s.videos, created] } : s,
+          ),
+        );
+        // Initialize empty materials list for new video
+        this.videoMaterials.update(map => ({ ...map, [created.id]: [] }));
+        this.addVideoVisible.set(false);
+        this.ui.showSuccess('Video agregado');
+      }
     } catch {
       // Error toast already shown
     } finally {
@@ -423,6 +467,32 @@ export class CursoEditarComponent implements OnInit {
       this.ui.showSuccess('Video eliminado');
     } catch {
       // Error toast already shown
+    }
+  }
+
+  /**
+   * Moves a video one position up (delta=-1) or down (delta=+1) within its section.
+   * Optimistic: swaps in the signal first, then persists via VideoService.reorder.
+   * On failure, reloads sections to resync with the backend (source of truth).
+   */
+  async moveVideo(sectionId: string, index: number, delta: 1 | -1): Promise<void> {
+    const section = this.sections().find(s => s.id === sectionId);
+    if (!section) return;
+    const target = index + delta;
+    if (target < 0 || target >= section.videos.length) return;
+
+    const reordered = [...section.videos];
+    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+
+    this.sections.update(list =>
+      list.map(s => (s.id === sectionId ? { ...s, videos: reordered } : s)),
+    );
+
+    try {
+      await this.videoService.reorder(sectionId, reordered.map(v => v.id));
+    } catch {
+      // Revert to backend state on failure.
+      await this.loadSections();
     }
   }
 

@@ -381,17 +381,19 @@ $foot-clear: 76px
 .vids
   list-style: none
   margin: 0
+  min-width: 0
   padding: 4px 14px 16px
   display: flex
   flex-direction: column
   gap: 10px
 
-// Each video is a full-width row: compact embed left, meta fills the rest.
+// Each video is a card: top row (embed + meta + actions), materials below full-width.
 .vid
   display: flex
-  align-items: stretch
-  gap: 14px
+  flex-direction: column
+  gap: 12px
   width: 100%
+  min-width: 0
   padding: 10px
   background: var(--page-bg)
   border: 1px solid var(--page-ink-hairline)
@@ -400,6 +402,14 @@ $foot-clear: 76px
 
   &:hover
     border-color: var(--page-cyan-edge)
+
+// Top row of a video card: compact embed left, meta fills the rest, actions right.
+.vid__row
+  display: flex
+  align-items: stretch
+  gap: 14px
+  width: 100%
+  min-width: 0
 
   @media (max-width: 560px)
     flex-direction: column
@@ -472,9 +482,89 @@ $foot-clear: 76px
   i
     font-size: 10px
 
-.vid__del
+.vid__actions
   flex: 0 0 auto
   align-self: flex-start
+  display: flex
+  gap: 4px
+
+// ── Per-video materials (full-width, below the embed/meta row) ────────────────
+.vid__materials
+  width: 100%
+  min-width: 0
+  padding-top: 10px
+  border-top: 1px dashed var(--page-ink-hairline)
+
+.vid__materials-label
+  display: flex
+  align-items: center
+  gap: 6px
+  margin: 0 0 8px
+  font-family: var(--font-mono)
+  font-size: 11px
+  letter-spacing: 0.06em
+  text-transform: uppercase
+  color: var(--page-ink-dim)
+
+.mat-list
+  list-style: none
+  margin: 8px 0 0
+  padding: 0
+  display: flex
+  flex-direction: column
+  gap: 4px
+
+.mat-list__item
+  display: flex
+  align-items: center
+  gap: 8px
+  min-width: 0
+  padding: 7px 10px
+  background: var(--page-bg)
+  border: 1px solid var(--page-ink-hairline)
+  border-radius: 2px
+
+.mat-list__icon
+  flex: 0 0 auto
+  font-size: 12px
+  color: var(--page-ink-dim)
+
+.mat-list__name
+  flex: 1 1 auto
+  min-width: 0
+  overflow: hidden
+  text-overflow: ellipsis
+  white-space: nowrap
+  font-size: 12.5px
+
+.mat-list__size
+  flex: 0 0 auto
+  white-space: nowrap
+  font-family: var(--font-mono)
+  font-size: 10px
+  color: var(--page-ink-dim)
+
+.mat-list__actions
+  flex: 0 0 auto
+  display: flex
+  gap: 3px
+
+// ── Locked-content notice (course not in borrador/rechazado) ──────────────────
+.editor__lock-note
+  display: flex
+  align-items: center
+  gap: 8px
+  margin: 0 0 12px
+  padding: 10px 14px
+  font-size: 13px
+  color: var(--page-ink-dim)
+  background: var(--page-cyan-soft)
+  border: 1px solid var(--page-cyan-edge)
+  border-radius: 2px
+
+  i
+    font-size: 13px
+    color: var(--page-cyan)
 
 // ── Sticky footer ────────────────────────────────────────────────────────────
 .editor__foot
@@ -552,8 +642,17 @@ $foot-clear: 76px
   // OrderList — drag-only, no chrome
   .ol
     width: 100%
+    min-width: 0
+    // .p-orderlist is display:flex; without min-width:0 on every link of the
+    // chain the inner listbox expands to the min-content of long, unbreakable
+    // text (e.g. a material filename with white-space:nowrap) and overflows the
+    // panel horizontally. Force every container to be allowed to shrink.
     .p-orderlist
       width: 100%
+      min-width: 0
+    .p-listbox
+      width: 100%
+      min-width: 0
     .p-orderlist-controls
       display: none
     // PrimeNG 21 renders the OrderList as an internal listbox: the real scroll
@@ -566,12 +665,14 @@ $foot-clear: 76px
       background: transparent !important
       padding: 0 !important
       width: 100%
+      min-width: 0 !important
       height: auto !important
       max-height: none !important
       min-height: 0 !important
       overflow: visible !important
     .p-orderlist-item, .p-listbox-option
       width: 100% !important
+      min-width: 0 !important
       padding: 0 !important
       margin: 0 0 12px !important
       background: transparent !important

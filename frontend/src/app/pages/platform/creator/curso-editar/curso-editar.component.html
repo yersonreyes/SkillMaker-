@@ -136,12 +136,21 @@
           <span class="panel__count">
             {{ sections().length }} {{ sections().length === 1 ? 'seccion' : 'secciones' }}
           </span>
-          <button class="btn btn--ghost panel__action" type="button" (click)="openAddSectionDialog()">
+          <button class="btn btn--ghost panel__action" type="button" [disabled]="!isCourseEditable()" (click)="openAddSectionDialog()">
             <i class="pi pi-plus"></i> Seccion
           </button>
         </div>
 
         <div class="panel__body panel__body--flush">
+
+          @if (!isCourseEditable() && course()) {
+            <p class="editor__lock-note">
+              <i class="pi pi-lock"></i>
+              El contenido no se puede editar mientras el curso está
+              {{ course()!.estado === 'en_revision' ? 'en revisión' : 'aprobado' }}.
+              @if (course()!.estado === 'en_revision') { Espera la decisión del administrador. }
+            </p>
+          }
 
           @if (sectionsLoading()) {
             <div class="editor__skel editor__skel--pad"><p-skeleton height="4rem" /></div>
@@ -150,14 +159,14 @@
               <span class="empty__mark"><i class="pi pi-objects-column"></i></span>
               <p class="empty__title">Lienzo en blanco</p>
               <p class="empty__lede">Agrega una seccion para empezar a estructurar el contenido del curso.</p>
-              <button class="btn btn--cyan" type="button" (click)="openAddSectionDialog()">
+              <button class="btn btn--cyan" type="button" [disabled]="!isCourseEditable()" (click)="openAddSectionDialog()">
                 <i class="pi pi-plus"></i> Primera seccion
               </button>
             </div>
           } @else {
             <p-orderList
               [value]="sections()"
-              [dragdrop]="true"
+              [dragdrop]="isCourseEditable()"
               (onReorder)="onSectionsReorder($any($event).value)"
               styleClass="ol">
               <ng-template let-section pTemplate="item">
@@ -173,8 +182,10 @@
                     </span>
                     <span class="sec__actions" (click)="$event.stopPropagation()">
                       <button class="icon-btn" type="button" pTooltip="Agregar video" tooltipPosition="top"
+                        [disabled]="!isCourseEditable()"
                         (click)="openAddVideoDialog(section.id)"><i class="pi pi-plus"></i></button>
                       <button class="icon-btn icon-btn--danger" type="button" pTooltip="Eliminar seccion" tooltipPosition="top"
+                        [disabled]="!isCourseEditable()"
                         (click)="deleteSection(section.id)"><i class="pi pi-trash"></i></button>
                     </span>
                   </header>
@@ -183,27 +194,41 @@
                     <p class="sec__empty">Sin videos en esta seccion.</p>
                   } @else {
                     <ul class="vids">
-                      @for (video of section.videos; track video.id) {
+                      @for (video of section.videos; track video.id; let i = $index) {
                         <li class="vid">
-                          <div class="vid__frame">
-                            <app-video-embed [url]="video.url" [proveedor]="video.proveedor" />
-                          </div>
-                          <div class="vid__meta">
-                            <span class="vid__prov vid__prov--{{ video.proveedor }}">
-                              <i class="pi" [class.pi-youtube]="video.proveedor === 'youtube'"
-                                 [class.pi-vimeo]="video.proveedor === 'vimeo'"></i>
-                              {{ video.proveedor }}
-                            </span>
-                            <span class="vid__title">{{ video.titulo }}</span>
-                            @if (video.duracionS) {
-                              <span class="vid__dur"><i class="pi pi-clock"></i> {{ video.duracionS }}s</span>
+                          <div class="vid__row">
+                            <div class="vid__frame">
+                              <app-video-embed [url]="video.url" [proveedor]="video.proveedor" />
+                            </div>
+                            <div class="vid__meta">
+                              <span class="vid__prov vid__prov--{{ video.proveedor }}">
+                                <i class="pi" [class.pi-youtube]="video.proveedor === 'youtube'"
+                                   [class.pi-vimeo]="video.proveedor === 'vimeo'"></i>
+                                {{ video.proveedor }}
+                              </span>
+                              <span class="vid__title">{{ video.titulo }}</span>
+                              @if (video.duracionS) {
+                                <span class="vid__dur"><i class="pi pi-clock"></i> {{ video.duracionS }}s</span>
+                              }
+                              @if (video.descripcion) {
+                                <p class="vid__desc">{{ video.descripcion }}</p>
+                              }
+                            </div>
+                            @if (isCourseEditable()) {
+                              <span class="vid__actions" (click)="$event.stopPropagation()">
+                                <button class="icon-btn" type="button" pTooltip="Subir" tooltipPosition="top"
+                                  [disabled]="i === 0"
+                                  (click)="moveVideo(section.id, i, -1)"><i class="pi pi-arrow-up"></i></button>
+                                <button class="icon-btn" type="button" pTooltip="Bajar" tooltipPosition="top"
+                                  [disabled]="i === section.videos.length - 1"
+                                  (click)="moveVideo(section.id, i, 1)"><i class="pi pi-arrow-down"></i></button>
+                                <button class="icon-btn" type="button" pTooltip="Editar video" tooltipPosition="top"
+                                  (click)="openEditVideoDialog(section.id, video)"><i class="pi pi-pencil"></i></button>
+                                <button class="icon-btn icon-btn--danger" type="button" pTooltip="Eliminar video" tooltipPosition="top"
+                                  (click)="deleteVideo(section.id, video.id)"><i class="pi pi-trash"></i></button>
+                              </span>
                             }
-                            @if (video.descripcion) {
-                              <p class="vid__desc">{{ video.descripcion }}</p>
-                            }
                           </div>
-                          <button class="icon-btn icon-btn--danger vid__del" type="button" pTooltip="Eliminar video" tooltipPosition="top"
-                            (click)="deleteVideo(section.id, video.id)"><i class="pi pi-trash"></i></button>
 
                           <!-- Per-video material section -->
                           <div class="vid__materials">
@@ -212,24 +237,28 @@
                               Material adjunto
                               ({{ getMaterialsForVideo(video.id).length }})
                             </p>
-                            <app-material-uploader
-                              [target]="'material'"
-                              [ownerId]="video.id"
-                              (uploaded)="onVideoMaterialUploaded(video.id, $event)" />
+                            @if (isCourseEditable()) {
+                              <app-material-uploader
+                                [target]="'material'"
+                                [ownerId]="video.id"
+                                (uploaded)="onVideoMaterialUploaded(video.id, $event)" />
+                            }
                             @if (getMaterialsForVideo(video.id).length > 0) {
-                              <ul class="mat-list" style="list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:4px">
+                              <ul class="mat-list">
                                 @for (mat of getMaterialsForVideo(video.id); track mat.id) {
-                                  <li style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--page-bg);border:1px solid var(--page-ink-hairline);border-radius:2px">
-                                    <i class="pi pi-file" style="color:var(--page-ink-dim);font-size:12px;flex:0 0 auto"></i>
-                                    <span style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px">{{ mat.nombre }}</span>
-                                    <span style="font-family:var(--font-mono);font-size:10px;color:var(--page-ink-dim);white-space:nowrap;flex:0 0 auto">{{ humanizeBytes(mat.tamanoBytes) }}</span>
-                                    <div style="display:flex;gap:3px;flex:0 0 auto">
+                                  <li class="mat-list__item">
+                                    <i class="pi pi-file mat-list__icon"></i>
+                                    <span class="mat-list__name">{{ mat.nombre }}</span>
+                                    <span class="mat-list__size">{{ humanizeBytes(mat.tamanoBytes) }}</span>
+                                    <div class="mat-list__actions">
                                       <button class="icon-btn" type="button" pTooltip="Descargar" tooltipPosition="top" (click)="downloadVideoMaterial(mat)">
                                         <i class="pi pi-download"></i>
                                       </button>
-                                      <button class="icon-btn icon-btn--danger" type="button" pTooltip="Eliminar" tooltipPosition="top" (click)="deleteVideoMaterial(video.id, mat)">
-                                        <i class="pi pi-trash"></i>
-                                      </button>
+                                      @if (isCourseEditable()) {
+                                        <button class="icon-btn icon-btn--danger" type="button" pTooltip="Eliminar" tooltipPosition="top" (click)="deleteVideoMaterial(video.id, mat)">
+                                          <i class="pi pi-trash"></i>
+                                        </button>
+                                      }
                                     </div>
                                   </li>
                                 }
@@ -325,9 +354,9 @@
   </ng-template>
 </p-dialog>
 
-<!-- ── Add Video Dialog ────────────────────────────────────────────────────── -->
+<!-- ── Add / Edit Video Dialog ─────────────────────────────────────────────── -->
 <p-dialog
-  header="Nuevo video"
+  [header]="editingVideoId() ? 'Editar video' : 'Nuevo video'"
   [modal]="true"
   [visible]="addVideoVisible()"
   (visibleChange)="addVideoVisible.set($event)"
@@ -399,9 +428,9 @@
     <button class="btn btn--ghost" type="button" (click)="addVideoVisible.set(false)">Cancelar</button>
     <button class="btn btn--cyan" type="button"
       [disabled]="!videoForm().titulo.trim() || !videoForm().url.trim() || addingVideoBusy()"
-      (click)="addVideo(addVideoSectionId())">
+      (click)="saveVideo(addVideoSectionId())">
       <i class="pi" [class.pi-spin]="addingVideoBusy()" [class.pi-spinner]="addingVideoBusy()" [class.pi-check]="!addingVideoBusy()"></i>
-      Agregar video
+      {{ editingVideoId() ? 'Guardar cambios' : 'Agregar video' }}
     </button>
   </ng-template>
 </p-dialog>

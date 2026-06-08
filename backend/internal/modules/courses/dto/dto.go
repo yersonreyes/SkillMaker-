@@ -324,6 +324,17 @@ type CategoriaResponse struct {
 	Slug   string `json:"slug"`
 }
 
+// CategoriaCreateRequest is the body for POST /api/categorias (admin).
+// Slug is auto-derived from nombre by the service — clients only send the name.
+type CategoriaCreateRequest struct {
+	Nombre string `json:"nombre" binding:"required,min=2,max=60"`
+}
+
+// CategoriaUpdateRequest is the body for PATCH /api/categorias/:id (admin).
+type CategoriaUpdateRequest struct {
+	Nombre string `json:"nombre" binding:"required,min=2,max=60"`
+}
+
 // ToCategoria converts a service.CategoriaModel to the CategoriaResponse wire shape.
 func ToCategoria(m service.CategoriaModel) CategoriaResponse {
 	return CategoriaResponse{ID: m.ID, Nombre: m.Nombre, Slug: m.Slug}

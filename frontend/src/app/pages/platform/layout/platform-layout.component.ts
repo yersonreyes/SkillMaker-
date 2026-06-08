@@ -89,6 +89,7 @@ export class PlatformLayoutComponent implements OnInit, OnDestroy {
     { label: 'Supervision',       icon: 'pi pi-sitemap',        route: '/platform/admin/supervision' },
     { label: 'Reportes',          icon: 'pi pi-chart-bar',      route: '/platform/admin/reports' },
     { label: 'Reportes por curso', icon: 'pi pi-table',         route: '/platform/admin/course-reports' },
+    { label: 'Categorías',        icon: 'pi pi-tags',           route: '/platform/admin/categorias' },
   ];
 
   ngOnInit(): void {

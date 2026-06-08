@@ -62,6 +62,35 @@ func RegisterCatalog(protectedGrp *gin.RouterGroup, svc service.Service) {
 	protectedGrp.PUT("/videos/:id/progress", h.MarkVideoProgress)
 }
 
+// RegisterCategoriasAdmin mounts the admin-only categoria CRUD routes onto adminGrp
+// (which already carries JWT + RequireRole("administrador")).
+//
+//	POST   /categorias       → CreateCategoria
+//	PATCH  /categorias/:id    → UpdateCategoria
+//	DELETE /categorias/:id    → DeleteCategoria
+//
+// GET /categorias stays on the protected group (any authenticated user) via RegisterCatalog.
+func RegisterCategoriasAdmin(adminGrp *gin.RouterGroup, svc service.Service) {
+	h := &CatalogHandler{svc: svc}
+	adminGrp.POST("/categorias", h.CreateCategoria)
+	adminGrp.PATCH("/categorias/:id", h.UpdateCategoria)
+	adminGrp.DELETE("/categorias/:id", h.DeleteCategoria)
+}
+
+// renderCategoriaError maps categoria CRUD sentinels to HTTP responses.
+func renderCategoriaError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, service.ErrCategoriaNotFound):
+		httperr.Render(c, httperr.NotFound("CATEGORIA_NOT_FOUND", "categoria not found"))
+	case errors.Is(err, service.ErrCategoriaDuplicate):
+		httperr.Render(c, httperr.Conflict("CATEGORIA_DUPLICATE", "ya existe una categoria con ese nombre"))
+	case errors.Is(err, service.ErrCategoriaInUse):
+		httperr.Render(c, httperr.Conflict("CATEGORIA_IN_USE", "la categoria esta asignada a uno o mas cursos"))
+	default:
+		httperr.Render(c, httperr.Internal(err.Error()))
+	}
+}
+
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
 // validNivel reports whether nivel is a valid closed-allow-list value (or empty = no filter).
@@ -263,6 +292,78 @@ func (h *CatalogHandler) ListCategorias(c *gin.Context) {
 		resp = append(resp, dto.ToCategoria(cat))
 	}
 	c.JSON(http.StatusOK, resp)
+}
+
+// CreateCategoria godoc
+// @Summary     Crea una categoria (admin)
+// @Tags        categorias
+// @Accept      json
+// @Produce     json
+// @Security    BearerAuth
+// @Param       body body dto.CategoriaCreateRequest true "Nombre de la categoria"
+// @Success     201 {object} dto.CategoriaResponse
+// @Failure     400 {object} httperr.Error
+// @Failure     409 {object} httperr.Error
+// @Router      /categorias [post]
+func (h *CatalogHandler) CreateCategoria(c *gin.Context) {
+	var req dto.CategoriaCreateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperr.Render(c, httperr.BadRequest("INVALID_BODY", "body invalido: "+err.Error()))
+		return
+	}
+	cat, err := h.svc.CreateCategoria(c.Request.Context(), req.Nombre)
+	if err != nil {
+		renderCategoriaError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, dto.ToCategoria(*cat))
+}
+
+// UpdateCategoria godoc
+// @Summary     Renombra una categoria (admin)
+// @Tags        categorias
+// @Accept      json
+// @Produce     json
+// @Security    BearerAuth
+// @Param       id   path string                     true "UUID de la categoria"
+// @Param       body body dto.CategoriaUpdateRequest true "Nuevo nombre"
+// @Success     200 {object} dto.CategoriaResponse
+// @Failure     400 {object} httperr.Error
+// @Failure     404 {object} httperr.Error
+// @Failure     409 {object} httperr.Error
+// @Router      /categorias/{id} [patch]
+func (h *CatalogHandler) UpdateCategoria(c *gin.Context) {
+	id := c.Param("id")
+	var req dto.CategoriaUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperr.Render(c, httperr.BadRequest("INVALID_BODY", "body invalido: "+err.Error()))
+		return
+	}
+	cat, err := h.svc.UpdateCategoria(c.Request.Context(), id, req.Nombre)
+	if err != nil {
+		renderCategoriaError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, dto.ToCategoria(*cat))
+}
+
+// DeleteCategoria godoc
+// @Summary     Elimina una categoria (admin). Bloqueado si esta asignada a cursos.
+// @Tags        categorias
+// @Produce     json
+// @Security    BearerAuth
+// @Param       id path string true "UUID de la categoria"
+// @Success     204
+// @Failure     404 {object} httperr.Error
+// @Failure     409 {object} httperr.Error
+// @Router      /categorias/{id} [delete]
+func (h *CatalogHandler) DeleteCategoria(c *gin.Context) {
+	id := c.Param("id")
+	if err := h.svc.DeleteCategoria(c.Request.Context(), id); err != nil {
+		renderCategoriaError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // ── Error render helper ────────────────────────────────────────────────────────

@@ -47,5 +47,14 @@ export const ADMIN_ROUTES: Routes = [
     canActivate: [roleGuard],
     data: { title: 'Reportes por curso', roles: ['administrador'] },
   },
+  {
+    path: 'categorias',
+    loadComponent: () =>
+      import('./categorias/categorias.component').then(
+        m => m.CategoriasComponent,
+      ),
+    canActivate: [roleGuard],
+    data: { title: 'Categorías', roles: ['administrador'] },
+  },
   { path: '', redirectTo: 'approvals', pathMatch: 'full' },
 ];

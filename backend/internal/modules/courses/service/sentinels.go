@@ -68,6 +68,22 @@ var (
 	// → 400 Bad Request
 	ErrInvalidCategoria = errors.New("one or more categoria IDs are invalid")
 
+	// ── Categoria admin CRUD sentinels ───────────────────────────────────────
+
+	// ErrCategoriaNotFound is returned when a categoria lookup/update/delete finds no row.
+	// → 404 Not Found
+	ErrCategoriaNotFound = errors.New("categoria not found")
+
+	// ErrCategoriaDuplicate is returned when creating/updating a categoria would
+	// collide with an existing nombre or slug (UNIQUE constraints).
+	// → 409 Conflict
+	ErrCategoriaDuplicate = errors.New("a categoria with that name already exists")
+
+	// ErrCategoriaInUse is returned when deleting a categoria that is still assigned
+	// to one or more courses. Admin must unassign it first (delete is blocked, not cascaded).
+	// → 409 Conflict
+	ErrCategoriaInUse = errors.New("categoria is assigned to one or more courses")
+
 	// ── course-player-progress sentinels (Change 2 / migration 0014) ────────────
 
 	// ErrNotEnrolled is returned when a non-enrolled caller attempts a video-progress write.

@@ -104,6 +104,11 @@ func (m *MockCoursesRepository) ReorderSections(ctx context.Context, courseID st
 	return args.Error(0)
 }
 
+func (m *MockCoursesRepository) ReorderVideos(ctx context.Context, sectionID string, ids []string) error {
+	args := m.Called(ctx, sectionID, ids)
+	return args.Error(0)
+}
+
 func (m *MockCoursesRepository) CreateVideo(ctx context.Context, v *domain.Video) error {
 	args := m.Called(ctx, v)
 	return args.Error(0)
@@ -199,6 +204,31 @@ func (m *MockCoursesRepository) SetCourseCategorias(ctx context.Context, courseI
 func (m *MockCoursesRepository) CategoriasExist(ctx context.Context, ids []string) (bool, error) {
 	args := m.Called(ctx, ids)
 	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockCoursesRepository) CreateCategoria(ctx context.Context, c *domain.Categoria) error {
+	args := m.Called(ctx, c)
+	return args.Error(0)
+}
+
+func (m *MockCoursesRepository) UpdateCategoria(ctx context.Context, id, nombre, slug string) error {
+	args := m.Called(ctx, id, nombre, slug)
+	return args.Error(0)
+}
+
+func (m *MockCoursesRepository) DeleteCategoria(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockCoursesRepository) CategoriaNombreOrSlugExists(ctx context.Context, nombre, slug, excludeID string) (bool, error) {
+	args := m.Called(ctx, nombre, slug, excludeID)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockCoursesRepository) CountCoursesForCategoria(ctx context.Context, categoriaID string) (int64, error) {
+	args := m.Called(ctx, categoriaID)
+	return args.Get(0).(int64), args.Error(1)
 }
 
 func (m *MockCoursesRepository) ListCategoriasForCourses(ctx context.Context, courseIDs []string) (map[string][]domain.Categoria, error) {
@@ -1159,6 +1189,93 @@ func TestReorderSections_ValidSet_OK(t *testing.T) {
 	repo.On("ReorderSections", mock.Anything, course.ID, []string{sec3.ID, sec1.ID, sec2.ID}).Return(nil)
 
 	err := svc.ReorderSections(context.Background(), course.ID, ownerID, []string{sec3.ID, sec1.ID, sec2.ID})
+	assert.NoError(t, err)
+	repo.AssertExpectations(t)
+}
+
+// ── ReorderVideos tests (mirror ReorderSections: ownership via section→course) ──
+
+// TestReorderVideos_ForeignID_ReturnsErrInvalidReorderSet verifies a video ID not in
+// the section returns ErrInvalidReorderSet (→ 400), not 409.
+func TestReorderVideos_ForeignID_ReturnsErrInvalidReorderSet(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	creadorID := uuid.New().String()
+	course := courseWith(creadorID, domain.EstadoBorrador)
+	sec := sectionWith(course.ID)
+	vid1 := videoWith(sec.ID)
+	vid2 := videoWith(sec.ID)
+	foreignID := uuid.New().String()
+
+	repo.On("GetSectionByID", mock.Anything, sec.ID).Return(sec, nil)
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+	repo.On("ListVideosBySection", mock.Anything, sec.ID).Return([]domain.Video{*vid1, *vid2}, nil)
+
+	err := svc.ReorderVideos(context.Background(), sec.ID, creadorID, []string{vid1.ID, vid2.ID, foreignID})
+	assert.ErrorIs(t, err, ErrInvalidReorderSet, "foreign video ID must return ErrInvalidReorderSet")
+	repo.AssertExpectations(t)
+}
+
+// TestReorderVideos_IncompleteSet_ReturnsErrInvalidReorderSet verifies an incomplete
+// video set returns ErrInvalidReorderSet (→ 400).
+func TestReorderVideos_IncompleteSet_ReturnsErrInvalidReorderSet(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	creadorID := uuid.New().String()
+	course := courseWith(creadorID, domain.EstadoBorrador)
+	sec := sectionWith(course.ID)
+	vid1 := videoWith(sec.ID)
+	vid2 := videoWith(sec.ID)
+	vid3 := videoWith(sec.ID)
+
+	repo.On("GetSectionByID", mock.Anything, sec.ID).Return(sec, nil)
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+	repo.On("ListVideosBySection", mock.Anything, sec.ID).Return([]domain.Video{*vid1, *vid2, *vid3}, nil)
+
+	err := svc.ReorderVideos(context.Background(), sec.ID, creadorID, []string{vid1.ID, vid2.ID})
+	assert.ErrorIs(t, err, ErrInvalidReorderSet, "incomplete video set must return ErrInvalidReorderSet")
+	repo.AssertExpectations(t)
+}
+
+// TestReorderVideos_NonOwner_ReturnsErrNotOwner verifies ownership outranks the reorder
+// (non-owner on an editable course → ErrNotOwner, never reaches set validation).
+func TestReorderVideos_NonOwner_ReturnsErrNotOwner(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	ownerID := uuid.New().String()
+	otherID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoBorrador)
+	sec := sectionWith(course.ID)
+
+	repo.On("GetSectionByID", mock.Anything, sec.ID).Return(sec, nil)
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+
+	err := svc.ReorderVideos(context.Background(), sec.ID, otherID, []string{uuid.New().String()})
+	assert.ErrorIs(t, err, ErrNotOwner, "non-owner must get ErrNotOwner before set validation")
+	repo.AssertExpectations(t)
+}
+
+// TestReorderVideos_ValidSet_OK verifies a valid full permutation persists via the repo.
+func TestReorderVideos_ValidSet_OK(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	ownerID := uuid.New().String()
+	course := courseWith(ownerID, domain.EstadoBorrador)
+	sec := sectionWith(course.ID)
+	vid1 := videoWith(sec.ID)
+	vid2 := videoWith(sec.ID)
+	vid3 := videoWith(sec.ID)
+
+	repo.On("GetSectionByID", mock.Anything, sec.ID).Return(sec, nil)
+	repo.On("GetByID", mock.Anything, course.ID).Return(course, nil)
+	repo.On("ListVideosBySection", mock.Anything, sec.ID).Return([]domain.Video{*vid1, *vid2, *vid3}, nil)
+	repo.On("ReorderVideos", mock.Anything, sec.ID, []string{vid3.ID, vid1.ID, vid2.ID}).Return(nil)
+
+	err := svc.ReorderVideos(context.Background(), sec.ID, ownerID, []string{vid3.ID, vid1.ID, vid2.ID})
 	assert.NoError(t, err)
 	repo.AssertExpectations(t)
 }
@@ -2454,5 +2571,81 @@ func TestBuildContentTree_AttachesCompletadoFromOneBatchCall(t *testing.T) {
 
 	// Assert ListVideoProgressByUserAndCourse called exactly once (no N+1).
 	repo.AssertNumberOfCalls(t, "ListVideoProgressByUserAndCourse", 1)
+	repo.AssertExpectations(t)
+}
+
+// ── Categoria admin CRUD ────────────────────────────────────────────────────────
+
+func TestSlugify(t *testing.T) {
+	cases := map[string]string{
+		"Arquitectura de software": "arquitectura-de-software",
+		"Datos e IA":               "datos-e-ia",
+		"  Seguridad  ":            "seguridad",
+		"Diseño UX/UI":             "diseno-ux-ui",
+		"C++ & Go":                 "c-go",
+	}
+	for in, want := range cases {
+		assert.Equal(t, want, slugify(in), "slugify(%q)", in)
+	}
+}
+
+func TestCreateCategoria_HappyPath(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	repo.On("CategoriaNombreOrSlugExists", mock.Anything, "DevOps", "devops", "").Return(false, nil)
+	repo.On("CreateCategoria", mock.Anything, mock.MatchedBy(func(c *domain.Categoria) bool {
+		return c.Nombre == "DevOps" && c.Slug == "devops"
+	})).Return(nil)
+
+	res, err := svc.CreateCategoria(context.Background(), "  DevOps  ")
+	require.NoError(t, err)
+	assert.Equal(t, "DevOps", res.Nombre)
+	assert.Equal(t, "devops", res.Slug)
+	repo.AssertExpectations(t)
+}
+
+func TestCreateCategoria_Duplicate_ReturnsErrCategoriaDuplicate(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	repo.On("CategoriaNombreOrSlugExists", mock.Anything, "Frontend", "frontend", "").Return(true, nil)
+
+	_, err := svc.CreateCategoria(context.Background(), "Frontend")
+	assert.ErrorIs(t, err, ErrCategoriaDuplicate)
+	repo.AssertNotCalled(t, "CreateCategoria", mock.Anything, mock.Anything)
+}
+
+func TestUpdateCategoria_NotFound_ReturnsErrCategoriaNotFound(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	repo.On("CategoriaNombreOrSlugExists", mock.Anything, "X", "x", "cat-1").Return(false, nil)
+	repo.On("UpdateCategoria", mock.Anything, "cat-1", "X", "x").Return(repository.ErrCategoriaNotFound)
+
+	_, err := svc.UpdateCategoria(context.Background(), "cat-1", "X")
+	assert.ErrorIs(t, err, ErrCategoriaNotFound)
+}
+
+func TestDeleteCategoria_InUse_ReturnsErrCategoriaInUse(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	repo.On("CountCoursesForCategoria", mock.Anything, "cat-1").Return(int64(3), nil)
+
+	err := svc.DeleteCategoria(context.Background(), "cat-1")
+	assert.ErrorIs(t, err, ErrCategoriaInUse)
+	repo.AssertNotCalled(t, "DeleteCategoria", mock.Anything, mock.Anything)
+}
+
+func TestDeleteCategoria_NotInUse_OK(t *testing.T) {
+	repo := &MockCoursesRepository{}
+	svc := newSvc(repo)
+
+	repo.On("CountCoursesForCategoria", mock.Anything, "cat-1").Return(int64(0), nil)
+	repo.On("DeleteCategoria", mock.Anything, "cat-1").Return(nil)
+
+	err := svc.DeleteCategoria(context.Background(), "cat-1")
+	assert.NoError(t, err)
 	repo.AssertExpectations(t)
 }

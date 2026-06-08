@@ -305,6 +305,10 @@ type Service interface {
 	// DeleteVideo deletes a video the caller owns.
 	DeleteVideo(ctx context.Context, id, creadorID string) error
 
+	// ReorderVideos reorders the videos of a section the caller owns.
+	// ids must be the EXACT full set of video IDs for the section.
+	ReorderVideos(ctx context.Context, sectionID, creadorID string, ids []string) error
+
 	// ListVideos returns all videos for a section ordered by orden ASC.
 	ListVideos(ctx context.Context, sectionID string) ([]VideoModel, error)
 
@@ -381,6 +385,18 @@ type Service interface {
 
 	// ListCategorias returns all curated categorias.
 	ListCategorias(ctx context.Context) ([]CategoriaModel, error)
+
+	// CreateCategoria creates a categoria (slug auto-derived from nombre).
+	// → ErrCategoriaDuplicate (409) on nombre/slug collision.
+	CreateCategoria(ctx context.Context, nombre string) (*CategoriaModel, error)
+
+	// UpdateCategoria renames a categoria (slug re-derived). Owner: admin (route-gated).
+	// → ErrCategoriaNotFound (404), ErrCategoriaDuplicate (409).
+	UpdateCategoria(ctx context.Context, id, nombre string) (*CategoriaModel, error)
+
+	// DeleteCategoria deletes a categoria. Blocked if assigned to any course.
+	// → ErrCategoriaNotFound (404), ErrCategoriaInUse (409).
+	DeleteCategoria(ctx context.Context, id string) error
 
 	// ── Cross-module seam (C3.1) ─────────────────────────────────────────────────
 
@@ -713,6 +729,37 @@ func (s *serviceImpl) ReorderSections(ctx context.Context, courseID, creadorID s
 	}
 
 	return s.repo.ReorderSections(ctx, courseID, ids)
+}
+
+// ReorderVideos reorders videos within a section. ids must be the EXACT full set
+// of video IDs for the section. Ownership + editability asserted via the section's
+// course (loadOwnedSection), mirroring ReorderSections.
+func (s *serviceImpl) ReorderVideos(ctx context.Context, sectionID, creadorID string, ids []string) error {
+	if _, _, err := s.loadOwnedSection(ctx, sectionID, creadorID); err != nil {
+		return err
+	}
+
+	// Validate set-equality: fetch current videos and compare.
+	existing, err := s.repo.ListVideosBySection(ctx, sectionID)
+	if err != nil {
+		return err
+	}
+
+	if len(ids) != len(existing) {
+		return fmt.Errorf("%w: ids count %d does not match video count %d", ErrInvalidReorderSet, len(ids), len(existing))
+	}
+
+	existingSet := make(map[string]bool, len(existing))
+	for _, v := range existing {
+		existingSet[v.ID] = true
+	}
+	for _, id := range ids {
+		if !existingSet[id] {
+			return fmt.Errorf("%w: id %s is not a video of section %s", ErrInvalidReorderSet, id, sectionID)
+		}
+	}
+
+	return s.repo.ReorderVideos(ctx, sectionID, ids)
 }
 
 // ── Video methods ──────────────────────────────────────────────────────────────
@@ -1322,6 +1369,85 @@ func (s *serviceImpl) ListCategorias(ctx context.Context) ([]CategoriaModel, err
 		return nil, err
 	}
 	return toCategoriaModels(cats), nil
+}
+
+// slugify converts a categoria name to a URL-safe slug: lowercase, Spanish accents
+// folded to ASCII, and any run of non-alphanumeric chars collapsed to a single hyphen.
+// e.g. "Arquitectura de software" → "arquitectura-de-software", "Datos e IA" → "datos-e-ia".
+func slugify(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	s = strings.NewReplacer(
+		"á", "a", "é", "e", "í", "i", "ó", "o", "ú", "u", "ü", "u", "ñ", "n",
+	).Replace(s)
+	var b strings.Builder
+	lastHyphen := false
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			lastHyphen = false
+		} else if !lastHyphen && b.Len() > 0 {
+			b.WriteByte('-')
+			lastHyphen = true
+		}
+	}
+	return strings.TrimRight(b.String(), "-")
+}
+
+// CreateCategoria creates a categoria with an auto-derived slug.
+func (s *serviceImpl) CreateCategoria(ctx context.Context, nombre string) (*CategoriaModel, error) {
+	nombre = strings.TrimSpace(nombre)
+	slug := slugify(nombre)
+	exists, err := s.repo.CategoriaNombreOrSlugExists(ctx, nombre, slug, "")
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, ErrCategoriaDuplicate
+	}
+	cat := &domain.Categoria{Nombre: nombre, Slug: slug}
+	if err := s.repo.CreateCategoria(ctx, cat); err != nil {
+		return nil, err
+	}
+	return &CategoriaModel{ID: cat.ID, Nombre: cat.Nombre, Slug: cat.Slug}, nil
+}
+
+// UpdateCategoria renames a categoria (slug re-derived from the new nombre).
+func (s *serviceImpl) UpdateCategoria(ctx context.Context, id, nombre string) (*CategoriaModel, error) {
+	nombre = strings.TrimSpace(nombre)
+	slug := slugify(nombre)
+	exists, err := s.repo.CategoriaNombreOrSlugExists(ctx, nombre, slug, id)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, ErrCategoriaDuplicate
+	}
+	if err := s.repo.UpdateCategoria(ctx, id, nombre, slug); err != nil {
+		if errors.Is(err, repository.ErrCategoriaNotFound) {
+			return nil, ErrCategoriaNotFound
+		}
+		return nil, err
+	}
+	return &CategoriaModel{ID: id, Nombre: nombre, Slug: slug}, nil
+}
+
+// DeleteCategoria deletes a categoria, blocking the delete when it is assigned to
+// any course (in-use guard — we do NOT cascade-untag courses).
+func (s *serviceImpl) DeleteCategoria(ctx context.Context, id string) error {
+	count, err := s.repo.CountCoursesForCategoria(ctx, id)
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return ErrCategoriaInUse
+	}
+	if err := s.repo.DeleteCategoria(ctx, id); err != nil {
+		if errors.Is(err, repository.ErrCategoriaNotFound) {
+			return ErrCategoriaNotFound
+		}
+		return err
+	}
+	return nil
 }
 
 // PresignThumbnail generates a presigned PUT URL for a course thumbnail.

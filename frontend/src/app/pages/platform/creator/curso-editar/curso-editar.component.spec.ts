@@ -123,6 +123,7 @@ describe('CursoEditarComponent', () => {
       create: vi.fn().mockResolvedValue(MOCK_VIDEO),
       update: vi.fn().mockResolvedValue(MOCK_VIDEO),
       delete: vi.fn().mockResolvedValue(undefined),
+      reorder: vi.fn().mockResolvedValue(undefined),
     };
 
     materialServiceSpy = {
@@ -312,15 +313,16 @@ describe('CursoEditarComponent', () => {
     expect(sectionServiceSpy.create).not.toHaveBeenCalled();
   });
 
-  // ── FE-1-B: addVideo calls VideoService.create ────────────────────────────
+  // ── FE-1-B: saveVideo (create mode) calls VideoService.create ─────────────
 
-  it('addVideo() calls VideoService.create with all required fields', async () => {
+  it('saveVideo() calls VideoService.create with all required fields (create mode)', async () => {
     const fixture = TestBed.createComponent(CursoEditarComponent);
     const comp = fixture.componentInstance;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (comp as any)['courseId'] = 'c-1';
     comp.sections.set([{ ...MOCK_SECTION, videos: [] }]);
+    comp.editingVideoId.set(null);
     comp.videoForm.set({
       titulo: 'Clase 1',
       url: 'https://www.youtube.com/watch?v=abc',
@@ -329,7 +331,7 @@ describe('CursoEditarComponent', () => {
       descripcion: '',
     });
 
-    await comp.addVideo('sec-1');
+    await comp.saveVideo('sec-1');
 
     expect(videoServiceSpy.create).toHaveBeenCalledWith('sec-1', {
       titulo: 'Clase 1',
@@ -338,13 +340,14 @@ describe('CursoEditarComponent', () => {
     });
   });
 
-  it('addVideo() includes descripcion when provided', async () => {
+  it('saveVideo() includes descripcion when provided (create mode)', async () => {
     const fixture = TestBed.createComponent(CursoEditarComponent);
     const comp = fixture.componentInstance;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (comp as any)['courseId'] = 'c-1';
     comp.sections.set([{ ...MOCK_SECTION, videos: [] }]);
+    comp.editingVideoId.set(null);
     comp.videoForm.set({
       titulo: 'Clase 1',
       url: 'https://www.youtube.com/watch?v=abc',
@@ -353,11 +356,91 @@ describe('CursoEditarComponent', () => {
       descripcion: 'Intro a conceptos de Go',
     });
 
-    await comp.addVideo('sec-1');
+    await comp.saveVideo('sec-1');
 
     expect(videoServiceSpy.create).toHaveBeenCalledWith('sec-1', expect.objectContaining({
       descripcion: 'Intro a conceptos de Go',
     }));
+  });
+
+  // ── FE-1-B2: saveVideo (edit mode) calls VideoService.update ──────────────
+
+  it('saveVideo() calls VideoService.update and replaces the video when editing', async () => {
+    const fixture = TestBed.createComponent(CursoEditarComponent);
+    const comp = fixture.componentInstance;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (comp as any)['courseId'] = 'c-1';
+    comp.sections.set([{ ...MOCK_SECTION, videos: [MOCK_VIDEO] }]);
+
+    const updated = { ...MOCK_VIDEO, titulo: 'Intro a Go (editado)' };
+    (videoServiceSpy.update as ReturnType<typeof vi.fn>).mockResolvedValueOnce(updated);
+
+    comp.openEditVideoDialog('sec-1', MOCK_VIDEO);
+    expect(comp.editingVideoId()).toBe('vid-1');
+    expect(comp.videoForm().titulo).toBe('Intro a Go');
+
+    comp.videoForm.update(f => ({ ...f, titulo: 'Intro a Go (editado)' }));
+    await comp.saveVideo('sec-1');
+
+    expect(videoServiceSpy.update).toHaveBeenCalledWith('vid-1', expect.objectContaining({
+      titulo: 'Intro a Go (editado)',
+    }));
+    expect(videoServiceSpy.create).not.toHaveBeenCalled();
+    expect(comp.sections()[0].videos[0].titulo).toBe('Intro a Go (editado)');
+  });
+
+  // ── moveVideo reorders within a section and persists via VideoService ─────
+
+  it('moveVideo() swaps positions and calls VideoService.reorder with the new id order', async () => {
+    const fixture = TestBed.createComponent(CursoEditarComponent);
+    const comp = fixture.componentInstance;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (comp as any)['courseId'] = 'c-1';
+    const vA = { ...MOCK_VIDEO, id: 'vid-a', orden: 0 };
+    const vB = { ...MOCK_VIDEO, id: 'vid-b', orden: 1 };
+    const vC = { ...MOCK_VIDEO, id: 'vid-c', orden: 2 };
+    comp.sections.set([{ ...MOCK_SECTION, videos: [vA, vB, vC] }]);
+
+    // Move vA (index 0) down → expect order [B, A, C].
+    await comp.moveVideo('sec-1', 0, 1);
+
+    expect(videoServiceSpy.reorder).toHaveBeenCalledWith('sec-1', ['vid-b', 'vid-a', 'vid-c']);
+    expect(comp.sections()[0].videos.map(v => v.id)).toEqual(['vid-b', 'vid-a', 'vid-c']);
+  });
+
+  it('moveVideo() is a no-op at the boundaries (first up / last down)', async () => {
+    const fixture = TestBed.createComponent(CursoEditarComponent);
+    const comp = fixture.componentInstance;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (comp as any)['courseId'] = 'c-1';
+    const vA = { ...MOCK_VIDEO, id: 'vid-a' };
+    const vB = { ...MOCK_VIDEO, id: 'vid-b' };
+    comp.sections.set([{ ...MOCK_SECTION, videos: [vA, vB] }]);
+
+    await comp.moveVideo('sec-1', 0, -1); // first up → no-op
+    await comp.moveVideo('sec-1', 1, 1);  // last down → no-op
+
+    expect(videoServiceSpy.reorder).not.toHaveBeenCalled();
+    expect(comp.sections()[0].videos.map(v => v.id)).toEqual(['vid-a', 'vid-b']);
+  });
+
+  // ── isCourseEditable mirrors backend estado gate ──────────────────────────
+
+  it('isCourseEditable is true for borrador/rechazado, false for en_revision/aprobado', () => {
+    const fixture = TestBed.createComponent(CursoEditarComponent);
+    const comp = fixture.componentInstance;
+
+    comp.course.set({ ...MOCK_COURSE_DETAIL, estado: 'borrador' });
+    expect(comp.isCourseEditable()).toBe(true);
+    comp.course.set({ ...MOCK_COURSE_DETAIL, estado: 'rechazado' });
+    expect(comp.isCourseEditable()).toBe(true);
+    comp.course.set({ ...MOCK_COURSE_DETAIL, estado: 'en_revision' });
+    expect(comp.isCourseEditable()).toBe(false);
+    comp.course.set({ ...MOCK_COURSE_DETAIL, estado: 'aprobado' });
+    expect(comp.isCourseEditable()).toBe(false);
   });
 
   // ── FE-1-D: deleteSection calls SectionService.delete after confirm ────────
